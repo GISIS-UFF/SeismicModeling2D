@@ -60,8 +60,8 @@ for i in range(len(shot_x)):
         t_direct[i, j] = dist / v1
         t_ref1[i, j] = np.sqrt((2 * h1 / v1) ** 2 + (dist / v1) ** 2)
         t_ref2[i, j] = np.sqrt((2 * h2 / v2) ** 2 + (dist / v2) ** 2)
-        t_hw1[i,j] = 2*h1*np.sqrt(v2**2 - v1**2)/v1*v2 + dist/v2
-        t_hw2[i,j] = 2*h2*np.sqrt(v3**2 - v2**2)/v2*v3 + dist/v3
+        t_hw1[i,j] = dist/ v2 + (2*h1) * np.sqrt(v2**2 - v1**2) / (v1 * v2)
+        t_hw2[i,j] = dist/ v3 + (2*h2) * np.sqrt(v3**2 - v2**2) / (v2 * v3)
         # t_gr[i, j] = dist / v_gr
 
         if (t_direct[i, j] < T):
@@ -74,8 +74,8 @@ for i in range(len(shot_x)):
             sism[int(t_hw1[i, j]/dt), j] = 1
         if (t_hw2[i, j] < T):
             sism[int(t_hw2[i, j]/dt), j] = 1
-        # if (t_gr[i, j] < T):
-        #     sism[int(t_gr[i, j]/dt), j] = 1
+        # # if (t_gr[i, j] < T):
+        # #     sism[int(t_gr[i, j]/dt), j] = 1
 
         sism[:,j] = np.convolve(sism[:,j], wavelet, mode='same')
     sism_shot.append(sism.copy())   
@@ -98,6 +98,7 @@ for i in range(len(sism_shot)):
 #     plt.plot(rec_x, t_hw2[i,:], label='Head Wave interface 2')
 #     # plt.plot(rec_x, t_gr[i,:], label='Ground Roll')
 #     plt.gca().invert_yaxis() 
+#     plt.legend()
 #     plt.show()
 
 
