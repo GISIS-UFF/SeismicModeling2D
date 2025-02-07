@@ -60,8 +60,8 @@ for i in range(len(shot_x)):
         t_direct[i, j] = dist / v1
         t_ref1[i, j] = np.sqrt((2 * h1 / v1) ** 2 + (dist / v1) ** 2)
         t_ref2[i, j] = np.sqrt((2 * h2 / v2) ** 2 + (dist / v2) ** 2)
-        t_hw1[i,j] = dist/ v2 + (2*h1) * np.sqrt(v2**2 - v1**2) / (v1 * v2)
-        t_hw2[i,j] = dist/ v3 + (2*h2) * np.sqrt(v3**2 - v2**2) / (v2 * v3)
+        # t_hw1[i,j] = dist/ v2 + (2*h1) * np.sqrt(v2**2 - v1**2) / (v1 * v2)
+        # t_hw2[i,j] = dist/ v3 + (2*h2) * np.sqrt(v3**2 - v2**2) / (v2 * v3)
         # t_gr[i, j] = dist / v_gr
 
         if (t_direct[i, j] < T):
@@ -86,6 +86,8 @@ for i in range(len(sism_shot)):
     plt.colorbar(label='Amplitude')
     plt.title(" shot %s"%i)
     plt.show()
+for i, shot in enumerate(sism_shot):
+    shot.tofile(f'D:/GitHub/ModelagemSismica/outputs/seismograms/sismograma_analitico_shot_{i}_{shot.shape[0]}x{shot.shape[1]}.bin')
 
 
 

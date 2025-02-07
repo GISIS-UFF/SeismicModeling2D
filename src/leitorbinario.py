@@ -8,11 +8,12 @@ def ler_sismograma(caminho_arquivo, shape):
     return sism
 
 def plot_sismograma(sism):
+    plt.figure()
     perc = np.percentile(sism,99)
     plt.imshow(sism,aspect='auto',cmap='gray',vmin=-perc,vmax=perc)
     plt.colorbar(label='Amplitude')
     plt.title("Sismograma")
-    plt.show()
+    plt.show(block = False)
 
 def ler_modelo(caminho_arquivo, shape):
     vp = np.fromfile(caminho_arquivo, dtype=np.float32)
@@ -39,12 +40,16 @@ def plot_snapshot(u_snapshot, shot, nt):
             plt.pause(0.1)
     
     
-snapshot = ler_snapshot('D:/GitHub/Acousticwave/outputs/snapshots/snapshot_0x2001x141x383.bin', (3, 2001, 141, 383))
+# snapshot = ler_snapshot('D:/GitHub/Acousticwave/outputs/snapshots/snapshot_0x2001x141x383.bin', (3, 2001, 141, 383))
 
-plot_snapshot(snapshot, 0, 2001)
+# plot_snapshot(snapshot, 0, 2001)
 
-# sism = ler_sismograma('D:/GitHub/Acousticwave/outputs/seismograms/sismograma_shot_0_2001x383.bin', (2001, 383))
-# plot_sismograma(sism)
+sism_analitico = ler_sismograma('D:/GitHub/ModelagemSismica/outputs/seismograms/sismograma_analitico_shot_1_2001x5001.bin', (2001, 5001))
+sism = ler_sismograma('D:/GitHub/ModelagemSismica/outputs/seismograms/sismograma_shot_1_2001x5001.bin', (2001, 5001))
+plot_sismograma(sism)
+plot_sismograma(sism_analitico)
+sism_residual = sism_analitico - sism
+plot_sismograma(sism_residual)
 
 # vp = ler_modelo('D:/GitHub/Acousticwave/inputs/marmousi_vp_383x141.bin', (383, 141))
 # plot_modelo(vp)

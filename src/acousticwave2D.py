@@ -126,8 +126,10 @@ def plot_shot(sism_shot):
         plt.colorbar(label='Amplitude')
         plt.title(" shot %s"%i)
         plt.show()
-    # for i, shot in enumerate(sism_shot):
-    #     shot.tofile(f'D:/GitHub/ModelagemSismica/outputs/seismograms/sismograma_shot_{i}_{shot.shape[0]}x{shot.shape[1]}.bin')
+    for i, shot in enumerate(sism_shot):
+        filename = f'D:/GitHub/ModelagemSismica/outputs/seismograms/sismograma_shot_{i}_{shot.shape[0]}x{shot.shape[1]}.bin'
+        print(filename)
+        shot.tofile(filename)
        
 receiverTable = pd.read_csv("D:/GitHub/ModelagemSismica/inputs/receivers.csv")
 sourceTable = pd.read_csv("D:/GitHub/ModelagemSismica/inputs/sources.csv")
@@ -139,14 +141,14 @@ shot_z = sourceTable['coordz'].to_numpy()
 T = 2 
 dt = 0.001
 
-L  = 5730
-H = 2100
-dx = 15
-dz = 15
-# L = 5000
-# H = 2000
-# dx = 10
-# dz = 10
+# L  = 5730
+# H = 2100
+# dx = 15
+# dz = 15
+L = 5000
+H = 2000
+dx = 10
+dz = 10
 N = 20
 
 nx = int(L/dx) + 1
@@ -168,8 +170,8 @@ t = np.linspace(0, T, nt, endpoint=False)
 
 f0 = 60
 source = ricker(f0, t)
-#c = v(nx,nz)
-c = ler_modelo('D:/GitHub/ModelagemSismica/inputs/marmousi_vp_383x141.bin', (nx, nz))
+c = v(nx,nz)
+# c = ler_modelo('D:/GitHub/ModelagemSismica/inputs/marmousi_vp_383x141.bin', (nx, nz))
 c_expand = expand_vp(c,nx_abc,nz_abc, N)
 
 plt.figure()
