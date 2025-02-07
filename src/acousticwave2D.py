@@ -60,6 +60,15 @@ def borda (nx,nz,fator, N):
 
     return A
 
+# @numba.jit(parallel=True, nopython=True)
+# def marcha_no_espaço(u_anterior, u, u_posterior, nx, nz, c, dt, dx, dz):
+#     for i in numba.prange(2, nx - 3):
+#         for j in numba.prange(2, nz - 3):
+#             pxx = (-u[j, i+2] + 16*u[j, i+1] - 30*u[j, i] + 16*u[j, i-1] - u[j, i-2]) / (12 * dx * dx)
+#             pzz = (-u[j+2, i] + 16*u[j+1, i] - 30*u[j, i] + 16*u[j-1, i] - u[j-2, i]) / (12 * dz * dz)
+#             u_posterior[j, i] = (c[j, i] ** 2) * (dt ** 2) * (pxx + pzz) + 2 * u[j, i] - u_anterior[j, i]
+#     return u_posterior
+
 
 @numba.jit(parallel=True, nopython=True)
 def marcha_no_espaço(u_anterior, u, u_posterior, nx, nz, c, dt, dx, dz):
@@ -76,16 +85,14 @@ def marcha_no_espaço(u_anterior, u, u_posterior, nx, nz, c, dt, dx, dz):
     return u_posterior
 
 def marcha_no_tempo(u_anterior, u, u_posterior, source, nt, nx, nz, c, recx, recz, dt, A, shot_x, shot_z, dx, dz):
-    isx = np.round(shot_x / dx).astype(int)
-    isz = np.round(shot_z / dz).astype(int)
-    sism = np.zeros((nt, nx))
+    sism = np.zeros((nt, len(recx)))
     sism_shot = []
     u_snapshot = np.zeros((len(shot_x),nt,nz, nx))  
-    for i_shot, (sx, sz) in enumerate(zip(isx, isz)):
+    for i_shot, (sx, sz) in enumerate(zip(shot_x, shot_z)):
         u_anterior.fill(0)  
         u.fill(0)
         u_posterior.fill(0)
-        sism_atual = np.zeros((nt, nx))
+        sism_atual = np.zeros((nt, len(recx)))
 
         for k in range(nt):
             u[sz,sx]= u[sz,sx] + source[k]*(dt*c[sz, sx])**2
@@ -95,8 +102,8 @@ def marcha_no_tempo(u_anterior, u, u_posterior, source, nt, nx, nz, c, recx, rec
             u_anterior *= A
             u = np.copy(u_posterior)
 
-            sism_atual[k, recx] = u[recz, recx]
-            sism[k, recx] += u[recz, recx]
+            sism_atual[k, :] = u[recz, recx]
+            sism[k, :] += u[recz, recx]
             u_snapshot[i_shot, k] = u.copy()
 
         sism_shot.append(sism_atual)
@@ -109,7 +116,7 @@ def snapshot(u_snapshot, shot, nt, nz, nx):
             ax.cla()
             ax.imshow(u_snapshot[shot, k])
             plt.pause(0.1)   
-    u_snapshot.astype(np.float32).tofile(f'D:/GitHub/Acousticwave/outputs/snapshots/snapshot_{u_snapshot.shape[0]}x{nt}x{nz}x{nx}.bin')
+    # u_snapshot.astype(np.float32).tofile(f'D:/GitHub/ModelagemSismica/outputs/snapshots/snapshot_{u_snapshot.shape[0]}x{nt}x{nz}x{nx}.bin')
     # print(u_snapshot.shape)
                     
 def plot_shot(sism_shot):
@@ -119,13 +126,11 @@ def plot_shot(sism_shot):
         plt.colorbar(label='Amplitude')
         plt.title(" shot %s"%i)
         plt.show()
-
-def salvar_sismograma(sism_shot):
-    for i, shot in enumerate(sism_shot):
-        shot.tofile(f'D:/GitHub/Acousticwave/outputs/seismograms/sismograma_shot_{i}_{shot.shape[0]}x{shot.shape[1]}.bin')
+    # for i, shot in enumerate(sism_shot):
+    #     shot.tofile(f'D:/GitHub/ModelagemSismica/outputs/seismograms/sismograma_shot_{i}_{shot.shape[0]}x{shot.shape[1]}.bin')
        
-receiverTable = pd.read_csv("D:/GitHub/Acousticwave/inputs/receivers.csv")
-sourceTable = pd.read_csv("D:/GitHub/Acousticwave/inputs/sources.csv")
+receiverTable = pd.read_csv("D:/GitHub/ModelagemSismica/inputs/receivers.csv")
+sourceTable = pd.read_csv("D:/GitHub/ModelagemSismica/inputs/sources.csv")
 rec_x = receiverTable['coordx'].to_numpy()
 rec_z = receiverTable['coordz'].to_numpy()
 shot_x = sourceTable['coordx'].to_numpy()
@@ -134,11 +139,15 @@ shot_z = sourceTable['coordz'].to_numpy()
 T = 2 
 dt = 0.001
 
-L  = 9550
-H = 3500
-dx = 25
-dz = 25
-N = 50
+L  = 5730
+H = 2100
+dx = 15
+dz = 15
+# L = 5000
+# H = 2000
+# dx = 10
+# dz = 10
+N = 20
 
 nx = int(L/dx) + 1
 nz = int(H/dz) + 1
@@ -147,20 +156,20 @@ nt = int(T/dt) + 1
 nx_abc = nx + 2*N
 nz_abc = nz + 2*N
 
+rec_x = np.round(rec_x/dx).astype(int) + N 
+rec_z = np.round(rec_z/dz).astype(int) + N
+shot_x = np.round(shot_x/dx).astype(int) + N
+shot_z = np.round(shot_z/dz).astype(int) + N
 
-shot_x = np.clip(shot_x, (N+1)* dx, (nx + N - 2) * dx)
-shot_z = np.clip(shot_z, (N+1) * dz, (nz + N - 2) * dz)
-rec_x= np.clip(rec_x, (N+1)* dx, (nx + N - 2) * dx)
-rec_z= np.clip(rec_z, (N+1)* dz, (nz + N - 2) * dz)
-f0 = 30
 
-x = np.arange(0,L+dx,dx)
-z = np.arange(0,H+dz,dz)
-t = np.arange(0,T+dt,dt)
+x = np.linspace(0, L, nx, endpoint=False)
+z = np.linspace(0, H, nz, endpoint=False)
+t = np.linspace(0, T, nt, endpoint=False)
+
+f0 = 60
 source = ricker(f0, t)
-
 #c = v(nx,nz)
-c = ler_modelo('D:/GitHub/Acousticwave/inputs/marmousi_vp_383x141.bin', (nx, nz))
+c = ler_modelo('D:/GitHub/ModelagemSismica/inputs/marmousi_vp_383x141.bin', (nx, nz))
 c_expand = expand_vp(c,nx_abc,nz_abc, N)
 
 plt.figure()
@@ -181,14 +190,11 @@ else:
     print("dx_critical = %f dx = %f" %(dx_lim,dx))
     print("fcut = %f " %(f0))
 
-u_anterior, u, u_posterior = ondas(nx,nz)
-recx= range(nx)
-recz = N + 10
-A = borda(nx, nz, fator=0.015, N = 50)
-sism, sism_shot, u_snapshot = marcha_no_tempo(u_anterior, u, u_posterior, source, nt, nx, nz, c, recx, recz,dt, A, shot_x, shot_z, dx, dz)
+u_anterior, u, u_posterior = ondas(nx_abc,nz_abc)
+A = borda(nx_abc, nz_abc, 0.015, N)
+sism, sism_shot, u_snapshot = marcha_no_tempo(u_anterior, u, u_posterior, source, nt, nx_abc, nz_abc, c_expand, rec_x, rec_z, dt, A, shot_x, shot_z, dx, dz)
 sism_shot = sism_shot[::-1]
 u_snapshot = u_snapshot[::-1]
 plot_shot(sism_shot)
-salvar_sismograma(sism_shot)
-snapshot(u_snapshot, shot = 0, nt=nt, nz=nz, nx=nx)
+snapshot(u_snapshot, 1, nt, nz_abc, nx_abc)
 
