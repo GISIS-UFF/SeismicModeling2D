@@ -92,7 +92,7 @@ def marcha_no_espaço(u_anterior, u, u_posterior, nx, nz, c, dt, dx, dz):
 def marcha_no_tempo(u_anterior, u, u_posterior, source, nt, nx, nz, c, recx, recz, dt, A, shot_x, shot_z, dx, dz):
     sism = np.zeros((nt, len(recx)))
     sism_shot = []
-    u_snapshot = np.zeros((len(shot_x),nt,nz, nx))  
+    u_snapshot = np.zeros((len(shot_x),nt,nz, nx),dtype=np.float32)  
     for i_shot, (sx, sz) in enumerate(zip(shot_x, shot_z)):
         u_anterior.fill(0)  
         u.fill(0)
@@ -154,7 +154,7 @@ L = 5000
 H = 5000
 dx = 10
 dz = 10
-N = 20
+N = 100
 
 nx = int(L/dx) + 1
 nz = int(H/dz) + 1
