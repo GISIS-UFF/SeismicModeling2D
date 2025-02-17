@@ -18,7 +18,7 @@ shot_x = sourceTable['coordx'].to_numpy()
 shot_z = sourceTable['coordz'].to_numpy()
 
 L = 5000        
-H = 2000          
+H = 5000          
 T = 2            
 dt = 0.001        
 dx = dz = 10      
@@ -33,16 +33,17 @@ z = np.linspace(0, H, nz, endpoint=False)
 t = np.linspace(-T/2, T/2, nt, endpoint=False) 
 
 
-v1=1500
-v2=2000
-v3=3000
-v_gr=780 
+v1=3000
+v2=4000
+
+
+R1 = (v2 - v1)/ (v2 + v1)
 
 td = 0 #2 * np.sqrt(np.pi) / f0
 wavelet = ricker(f0, t-td)
 
-h1 = H/4
-h2 = H/2
+h1 = H/2 - shot_z[0]
+
 
 t_direct = np.zeros((len(shot_x), len(rec_x)))
 t_ref1 = np.zeros((len(shot_x), len(rec_x)))
@@ -51,29 +52,30 @@ t_hw1 = np.zeros((len(shot_x), len(rec_x)))
 t_hw2 = np.zeros((len(shot_x), len(rec_x)))
 t_gr = np.zeros((len(shot_x), len(rec_x)))
 
-sism_shot = []
 
+sism_shot = []
+t_lag = 2 * np.sqrt(np.pi) / f0
 for i in range(len(shot_x)):
     sism = np.zeros((nt, len(rec_x)))
     for j in range(len(rec_x)):
         dist = np.sqrt((shot_x[i] - rec_x[j]) ** 2 + (shot_z[i] - rec_z[j]) ** 2)
-        t_direct[i, j] = dist / v1
-        t_ref1[i, j] = np.sqrt((2 * h1 / v1) ** 2 + (dist / v1) ** 2)
-        t_ref2[i, j] = np.sqrt((2 * h2 / v2) ** 2 + (dist / v2) ** 2)
-        # t_hw1[i,j] = dist/ v2 + (2*h1) * np.sqrt(v2**2 - v1**2) / (v1 * v2)
-        # t_hw2[i,j] = dist/ v3 + (2*h2) * np.sqrt(v3**2 - v2**2) / (v2 * v3)
+        t_direct[i, j] = dist / v1 + t_lag
+        t_ref1[i, j] = np.sqrt((2 * h1 / v1) ** 2 + (dist / v1) ** 2) + t_lag
+        # t_ref2[i, j] = np.sqrt((2 * h2 / v2) ** 2 + (dist / v2) ** 2) + (2 * h1 / v1)
+        # t_hw1[i,j] = dist/v2 + (2*h1) * np.sqrt(v2**2 - v1**2) / (v1 * v2)
+        # t_hw2[i,j] = dist/v3 + (2*h1)*(np.sqrt(v3**2 - v1**2))/v3*v1 + (2*h2)*(np.sqrt(v3**2 - v2**2))/v3*v2 
         # t_gr[i, j] = dist / v_gr
 
         if (t_direct[i, j] < T):
             sism[int(t_direct[i, j]/dt), j] = 1
         if (t_ref1[i, j] < T):
-            sism[int(t_ref1[i, j]/dt), j] = 1
-        if (t_ref2[i, j] < T):
-            sism[int(t_ref2[i, j]/dt), j] = 1
-        if (t_hw1[i, j] < T):
-            sism[int(t_hw1[i, j]/dt), j] = 1
-        if (t_hw2[i, j] < T):
-            sism[int(t_hw2[i, j]/dt), j] = 1
+            sism[int(t_ref1[i, j]/dt), j] = R1
+        # if (t_ref2[i, j] < T):
+        #     sism[int(t_ref2[i, j]/dt), j] = 1
+        # if (t_hw1[i, j] < T):
+        #     sism[int(t_hw1[i, j]/dt), j] = 1
+        # if (t_hw2[i, j] < T):
+        #     sism[int(t_hw2[i, j]/dt), j] = 1
         # # if (t_gr[i, j] < T):
         # #     sism[int(t_gr[i, j]/dt), j] = 1
 

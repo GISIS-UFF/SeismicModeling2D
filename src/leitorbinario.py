@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 
 def ler_sismograma(caminho_arquivo, shape):
     sism = np.fromfile(caminho_arquivo, dtype=np.float64)  

@@ -4,11 +4,17 @@ import numba
 from numba import jit
 import pandas as pd
     
-def v(nx, nz, v1=1500, v2=2000, v3=3000):
+# def v(nx, nz, v1=1500, v2=2000, v3=3000):
+#     vp = np.zeros([nz,nx])
+#     vp[0:int(nz/4),:]= v1
+#     vp[int(nz/4):int(nz/2),:] = v2
+#     vp[int(nz/2):nz,:] = v3
+#     return vp
+
+def v(nx, nz, v1=3000, v2=4000):
     vp = np.zeros([nz,nx])
-    vp[0:int(nz/4),:]= v1
-    vp[int(nz/4):int(nz/2),:] = v2
-    vp[int(nz/2):nz,:] = v3
+    vp[0:int(nz/2),:]= v1
+    vp[int(nz/2):nz,:] = v2
     return vp
 
 def ler_modelo(caminho_arquivo, shape):
@@ -57,7 +63,6 @@ def borda (nx,nz,fator, N):
                 A[j, i] *= np.exp(-((fator * (N - j)) ** 2))
             elif j >= nz - N:  
                 A[j, i] *= np.exp(-((fator * (j - (nz - N))) ** 2))
-
     return A
 
 # @numba.jit(parallel=True, nopython=True)
@@ -107,14 +112,14 @@ def marcha_no_tempo(u_anterior, u, u_posterior, source, nt, nx, nz, c, recx, rec
             u_snapshot[i_shot, k] = u.copy()
 
         sism_shot.append(sism_atual)
-    return sism, sism_shot, u_snapshot
+    return sism_shot, u_snapshot
                          
 def snapshot(u_snapshot, shot, nt, nz, nx):
     fig, ax = plt.subplots(figsize=(10, 10))
     for k in range(nt):
         if (k%100 == 0):
             ax.cla()
-            ax.imshow(u_snapshot[shot, k])
+            ax.imshow(u_snapshot[shot, k], cmap='gray')
             plt.pause(0.1)   
     # u_snapshot.astype(np.float32).tofile(f'D:/GitHub/ModelagemSismica/outputs/snapshots/snapshot_{u_snapshot.shape[0]}x{nt}x{nz}x{nx}.bin')
     # print(u_snapshot.shape)
@@ -146,7 +151,7 @@ dt = 0.001
 # dx = 15
 # dz = 15
 L = 5000
-H = 2000
+H = 5000
 dx = 10
 dz = 10
 N = 20
@@ -175,6 +180,8 @@ c = v(nx,nz)
 c_expand = expand_vp(c,nx_abc,nz_abc, N)
 
 plt.figure()
+plt.plot(shot_x,shot_z,"r*", markersize=5)
+plt.plot(rec_x,rec_z,'bv',markersize = 2)
 plt.imshow(c_expand,aspect='equal')
 plt.show()
 
@@ -194,7 +201,7 @@ else:
 
 u_anterior, u, u_posterior = ondas(nx_abc,nz_abc)
 A = borda(nx_abc, nz_abc, 0.015, N)
-sism, sism_shot, u_snapshot = marcha_no_tempo(u_anterior, u, u_posterior, source, nt, nx_abc, nz_abc, c_expand, rec_x, rec_z, dt, A, shot_x, shot_z, dx, dz)
+sism_shot, u_snapshot = marcha_no_tempo(u_anterior, u, u_posterior, source, nt, nx_abc, nz_abc, c_expand, rec_x, rec_z, dt, A, shot_x, shot_z, dx, dz)
 sism_shot = sism_shot[::-1]
 u_snapshot = u_snapshot[::-1]
 plot_shot(sism_shot)
