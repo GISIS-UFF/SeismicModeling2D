@@ -25,14 +25,14 @@ def ler_modelo(caminho_arquivo, shape):
 
 def expand_vp(v,nx_abc,nz_abc, N):
     v_expand = np.zeros((nz_abc, nx_abc))
-    v_expand[N:nz_abc-N, N:nx_abc - N] = v
-    v_expand[0:N,N: nx_abc - N]= v[0, :]
-    v_expand[nz_abc - N : nz_abc, N: nx_abc - N]= v[-1, :]
-    v_expand[N:nz_abc-N, 0:N] = v[:, 0][:, np.newaxis]
-    v_expand[N:nz_abc-N, nx_abc-N:nx_abc] = v[:, -1][:, np.newaxis]
-    v_expand[0:N, 0:N] = v[0, 0]  
-    v_expand[0:N, nx_abc-N:nx_abc] = v[0, -1] 
-    v_expand[nz_abc-N:nz_abc, 0:N] = v[-1, 0]  
+    v_expand[N:nz_abc-N, N:nx_abc-N] = v
+    v_expand[0:N, N:nx_abc-N] = v[0, :]
+    v_expand[nz_abc-N:nz_abc, N:nx_abc-N] = v[-1, :]
+    v_expand[N:nz_abc-N, 0:N] = v[:, 0:1]
+    v_expand[N:nz_abc-N, nx_abc-N:nx_abc] = v[:, -1:]
+    v_expand[0:N, 0:N] = v[0, 0]
+    v_expand[0:N, nx_abc-N:nx_abc] = v[0, -1]
+    v_expand[nz_abc-N:nz_abc, 0:N] = v[-1, 0]
     v_expand[nz_abc-N:nz_abc, nx_abc-N:nx_abc] = v[-1, -1]
     return v_expand
 
@@ -51,19 +51,24 @@ def ondas(nx,nz):
     return u_anterior, u, u_posterior
 
 def borda (nx,nz,fator, N):
-    A = np.ones((nz, nx))  
+    A = np.ones((nz, nx))
+    sb = 3*N 
     for i in range(nx):
         for j in range(nz):
-            if i < N: 
-                A[j, i] *= np.exp(-((fator * (N - i)) ** 2))
-            elif i >= nx - N:  
-                A[j, i] *= np.exp(-((fator * (i - (nx - N))) ** 2))
-
+            if i < N:  
+                fb = (N - i) / (np.sqrt(2) * sb)
+                A[j, i] *= np.exp(-fb * fb)
+            elif i >= nx - N: 
+                fb = (i - (nx - N)) / (np.sqrt(2) * sb)
+                A[j, i] *= np.exp(-fb * fb)
             if j < N:  
-                A[j, i] *= np.exp(-((fator * (N - j)) ** 2))
+                fb = (N - j) / (np.sqrt(2) * sb)
+                A[j, i] *= np.exp(-fb * fb)
             elif j >= nz - N:  
-                A[j, i] *= np.exp(-((fator * (j - (nz - N))) ** 2))
+                fb = (j - (nz - N)) / (np.sqrt(2) * sb)
+                A[j, i] *= np.exp(-fb * fb)
     return A
+
 
 # @numba.jit(parallel=True, nopython=True)
 # def marcha_no_espaço(u_anterior, u, u_posterior, nx, nz, c, dt, dx, dz):
@@ -89,16 +94,14 @@ def marcha_no_espaço(u_anterior, u, u_posterior, nx, nz, c, dt, dx, dz):
             u_posterior[j, i] = (c[j, i] ** 2) * (dt ** 2) * (pxx + pzz) + 2 * u[j, i] - u_anterior[j, i]
     return u_posterior
 
-def marcha_no_tempo(u_anterior, u, u_posterior, source, nt, nx, nz, c, recx, recz, dt, A, shot_x, shot_z, dx, dz):
-    sism = np.zeros((nt, len(recx)))
+def marcha_no_tempo(u_anterior, u, u_posterior, source, nt, nx, nz, c, recx, recz, dt, A, shot_x, shot_z, dx, dz, frame ):
     sism_shot = []
-    u_snapshot = np.zeros((len(shot_x),nt,nz, nx),dtype=np.float32)  
+    u_snapshot = []
     for i_shot, (sx, sz) in enumerate(zip(shot_x, shot_z)):
         u_anterior.fill(0)  
         u.fill(0)
         u_posterior.fill(0)
-        sism_atual = np.zeros((nt, len(recx)))
-
+        sism = np.zeros((nt, len(recx)))
         for k in range(nt):
             u[sz,sx]= u[sz,sx] + source[k]*(dt*c[sz, sx])**2
             u_posterior = marcha_no_espaço(u_anterior, u, u_posterior, nx, nz, c, dt, dx, dz) 
@@ -107,22 +110,22 @@ def marcha_no_tempo(u_anterior, u, u_posterior, source, nt, nx, nz, c, recx, rec
             u_anterior *= A
             u = np.copy(u_posterior)
 
-            sism_atual[k, :] = u[recz, recx]
-            sism[k, :] += u[recz, recx]
-            u_snapshot[i_shot, k] = u.copy()
+            sism[k, :] = u[recz, recx]
+            if k == frame:
+                u_snapshot.append(u.copy())
 
-        sism_shot.append(sism_atual)
-    return sism_shot, u_snapshot
+        sism_shot.append(sism)
+    return sism_shot , u_snapshot
                          
-def snapshot(u_snapshot, shot, nt, nz, nx):
+def snapshot(u_snapshot, shot, frame):
     fig, ax = plt.subplots(figsize=(10, 10))
-    for k in range(nt):
-        if (k%100 == 0):
-            ax.cla()
-            ax.imshow(u_snapshot[shot, k], cmap='gray')
-            plt.pause(0.1)   
-    # u_snapshot.astype(np.float32).tofile(f'D:/GitHub/ModelagemSismica/outputs/snapshots/snapshot_{u_snapshot.shape[0]}x{nt}x{nz}x{nx}.bin')
-    # print(u_snapshot.shape)
+    ax.imshow(u_snapshot[shot], cmap='gray')
+    plt.title(f"Snapshot no frame {frame} para o shot {shot}")
+    plt.show()
+    filename = f'D:/GitHub/ModelagemSismica/outputs/snapshots/snapshot_frame_{frame}_shot{shot}.bin'
+    u_snapshot[shot].astype(np.float32).tofile(filename)
+    print(f"Snapshot do frame {frame} salvo em: {filename}")
+
                     
 def plot_shot(sism_shot):
     for i in range(len(sism_shot)):
@@ -168,13 +171,12 @@ rec_z = np.round(rec_z/dz).astype(int) + N
 shot_x = np.round(shot_x/dx).astype(int) + N
 shot_z = np.round(shot_z/dz).astype(int) + N
 
-
-x = np.linspace(0, L, nx, endpoint=False)
-z = np.linspace(0, H, nz, endpoint=False)
 t = np.linspace(0, T, nt, endpoint=False)
 
 f0 = 60
 source = ricker(f0, t)
+plt.plot(t, source)
+plt.show()
 c = v(nx,nz)
 # c = ler_modelo('D:/GitHub/ModelagemSismica/inputs/marmousi_vp_383x141.bin', (nx, nz))
 c_expand = expand_vp(c,nx_abc,nz_abc, N)
@@ -201,9 +203,14 @@ else:
 
 u_anterior, u, u_posterior = ondas(nx_abc,nz_abc)
 A = borda(nx_abc, nz_abc, 0.015, N)
-sism_shot, u_snapshot = marcha_no_tempo(u_anterior, u, u_posterior, source, nt, nx_abc, nz_abc, c_expand, rec_x, rec_z, dt, A, shot_x, shot_z, dx, dz)
+plt.imshow(A, cmap="viridis", origin="upper")
+plt.colorbar()
+plt.show()
+
+frame = 1000
+sism_shot, u_snapshot = marcha_no_tempo(u_anterior, u, u_posterior, source, nt, nx_abc, nz_abc, c_expand, rec_x, rec_z, dt, A, shot_x, shot_z, dx, dz,frame)
 sism_shot = sism_shot[::-1]
 u_snapshot = u_snapshot[::-1]
 plot_shot(sism_shot)
-snapshot(u_snapshot, 1, nt, nz_abc, nx_abc)
+snapshot(u_snapshot, 1, frame)
 

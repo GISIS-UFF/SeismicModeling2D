@@ -10,28 +10,13 @@ sx = np.linspace(sx_init,sx_end,Nsource)
 sz = 1000*np.ones(len(sx))
 sIdx = np.arange(Nsource)
 
-# sx_init = 1000
-# sx_end  = 5000
-# Nsource = 3
-# sx = np.linspace(sx_init,sx_end,Nsource)
-# sz = 50 * np.ones(len(sx))
-# sIdx = np.arange(Nsource)
-
 # receivers
 rx_init = 0
 rx_end = 5001
-Nrec = 5001
+Nrec = 501
 rx = np.linspace(rx_init,rx_end,Nrec,endpoint=False)
 rz = 1000*np.ones(len(rx))
 rIdx = np.arange(Nrec)
-
-# rx_init = 0
-# rx_end = 5731
-# Nrec = 5730
-# rx = np.linspace(rx_init,rx_end,Nrec,endpoint=False)
-# rz = np.ones(len(rx))
-# rIdx = np.arange(Nrec)
-
 
 plt.figure()
 plt.plot(sx,sz,"r*", markersize=10)

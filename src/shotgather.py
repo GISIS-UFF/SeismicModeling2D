@@ -12,7 +12,7 @@ def ricker(f0, td):
 def half_derivative(sinal):
     fwavelet = np.fft.fft(sinal)
     omega = 2*np.pi*np.fft.fftfreq(len(sinal))
-    fwavelet_half = np.sqrt(1j*omega)*fwavelet
+    fwavelet_half = np.sqrt(-1j*omega)*fwavelet
     wavelet_half = np.real(np.fft.ifft(fwavelet_half))
     return wavelet_half
 
@@ -93,7 +93,7 @@ for i in range(len(shot_x)):
         # # if (t_gr[i, j] < T):
         # #     sism[int(t_gr[i, j]/dt), j] = 1
 
-        sism[:,j] = np.convolve(sism[:,j], wavelet_half, mode='same')
+        sism[:,j] = np.convolve(sism[:,j], wavelet, mode='same')
     sism_shot.append(sism.copy())   
 
 for i in range(len(sism_shot)):
