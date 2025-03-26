@@ -3,9 +3,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 # sources
-sx_init = 1000
+sx_init = 2500
 sx_end  = 4000
-Nsource = 3
+Nsource = 1
 sx = np.linspace(sx_init,sx_end,Nsource)
 sz = 1000*np.ones(len(sx))
 sIdx = np.arange(Nsource)
@@ -29,5 +29,5 @@ receiver_df = pd.DataFrame({'index': rIdx,'coordx': rx,'coordz': rz})
 
 source_df = pd.DataFrame({'index': sIdx,'coordx': sx,'coordz': sz})
 
-receiver_df.to_csv("D:/GitHub/ModelagemSismica/inputs/receivers.csv", index=False)
-source_df.to_csv("D:/GitHub/ModelagemSismica/inputs/sources.csv", index=False)
+receiver_df.to_csv("../ModelagemSismica/inputs/receivers.csv", index=False)
+source_df.to_csv("../ModelagemSismica/inputs/sources.csv", index=False)

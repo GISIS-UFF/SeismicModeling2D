@@ -12,9 +12,10 @@ def ricker(f0, td):
 def half_derivative(sinal):
     fwavelet = np.fft.fft(sinal)
     omega = 2*np.pi*np.fft.fftfreq(len(sinal))
-    fwavelet_half = np.sqrt(-1j*omega)*fwavelet
+    fwavelet_half = np.sqrt(1j*omega)*fwavelet
     wavelet_half = np.real(np.fft.ifft(fwavelet_half))
     return wavelet_half
+    
 
 receiverTable = pd.read_csv('D:/GitHub/ModelagemSismica/inputs/receivers.csv')
 sourceTable = pd.read_csv('D:/GitHub/ModelagemSismica/inputs/sources.csv')
@@ -27,7 +28,7 @@ shot_z = sourceTable['coordz'].to_numpy()
 L = 5000        
 H = 5000          
 T = 2            
-dt = 0.001        
+dt = 0.0005        
 dx = dz = 10      
 f0 = 60
            
@@ -43,7 +44,6 @@ t = np.linspace(-T/2, T/2, nt, endpoint=False)
 v1=3000
 v2=4000
 
-
 R1 = (v2 - v1)/ (v2 + v1)
 
 td = 0 #2 * np.sqrt(np.pi) / f0
@@ -58,14 +58,8 @@ plt.show()
 
 h1 = H/2 - shot_z[0]
 
-
 t_direct = np.zeros((len(shot_x), len(rec_x)))
 t_ref1 = np.zeros((len(shot_x), len(rec_x)))
-t_ref2 = np.zeros((len(shot_x), len(rec_x)))
-t_hw1 = np.zeros((len(shot_x), len(rec_x)))
-t_hw2 = np.zeros((len(shot_x), len(rec_x)))
-t_gr = np.zeros((len(shot_x), len(rec_x)))
-
 
 sism_shot = []
 t_lag = 2 * np.sqrt(np.pi) / f0
@@ -74,24 +68,12 @@ for i in range(len(shot_x)):
     for j in range(len(rec_x)):
         dist = np.sqrt((shot_x[i] - rec_x[j]) ** 2 + (shot_z[i] - rec_z[j]) ** 2)
         t_direct[i, j] = dist / v1 + t_lag
-        t_ref1[i, j] = np.sqrt((2 * h1 / v1) ** 2 + (dist / v1) ** 2) + t_lag
-        # t_ref2[i, j] = np.sqrt((2 * h2 / v2) ** 2 + (dist / v2) ** 2) + (2 * h1 / v1)
-        # t_hw1[i,j] = dist/v2 + (2*h1) * np.sqrt(v2**2 - v1**2) / (v1 * v2)
-        # t_hw2[i,j] = dist/v3 + (2*h1)*(np.sqrt(v3**2 - v1**2))/v3*v1 + (2*h2)*(np.sqrt(v3**2 - v2**2))/v3*v2 
-        # t_gr[i, j] = dist / v_gr
+        t_ref1[i, j] = np.sqrt(dist**2 + (2*h1)**2) / v1 + t_lag
 
         if (t_direct[i, j] < T):
             sism[int(t_direct[i, j]/dt), j] = 1
         if (t_ref1[i, j] < T):
             sism[int(t_ref1[i, j]/dt), j] = R1
-        # if (t_ref2[i, j] < T):
-        #     sism[int(t_ref2[i, j]/dt), j] = 1
-        # if (t_hw1[i, j] < T):
-        #     sism[int(t_hw1[i, j]/dt), j] = 1
-        # if (t_hw2[i, j] < T):
-        #     sism[int(t_hw2[i, j]/dt), j] = 1
-        # # if (t_gr[i, j] < T):
-        # #     sism[int(t_gr[i, j]/dt), j] = 1
 
         sism[:,j] = np.convolve(sism[:,j], wavelet, mode='same')
     sism_shot.append(sism.copy())   
@@ -103,20 +85,4 @@ for i in range(len(sism_shot)):
     plt.title(" shot %s"%i)
     plt.show()
 for i, shot in enumerate(sism_shot):
-    shot.tofile(f'D:/GitHub/ModelagemSismica/outputs/seismograms/sismograma_analitico_shot_{i}_{shot.shape[0]}x{shot.shape[1]}.bin')
-
-
-
-# plt.figure()
-# for i in range(len(shot_x)):
-#     plt.plot(rec_x, t_direct[i,:],label='Onda Direta')
-#     plt.plot(rec_x, t_ref1[i,:],label='Reflexão interface 1')
-#     plt.plot(rec_x, t_ref2[i,:],label='Reflexão interface 2')
-#     plt.plot(rec_x, t_hw1[i,:], label='Head Wave interface 1')
-#     plt.plot(rec_x, t_hw2[i,:], label='Head Wave interface 2')
-#     # plt.plot(rec_x, t_gr[i,:], label='Ground Roll')
-#     plt.gca().invert_yaxis() 
-#     plt.legend()
-#     plt.show()
-
-
+    shot.tofile(f'../ModelagemSismica/outputs/seismograms/sismograma_analitico_shot_{i}_{shot.shape[0]}x{shot.shape[1]}.bin')

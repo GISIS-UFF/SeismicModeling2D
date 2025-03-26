@@ -103,11 +103,11 @@ def marcha_no_tempo(u_anterior, u, u_posterior, source, nt, nx, nz, c, recx, rec
         u_posterior.fill(0)
         sism = np.zeros((nt, len(recx)))
         for k in range(nt):
-            u[sz,sx]= u[sz,sx] + source[k]*(dt*c[sz, sx])**2
+            u[sz,sx]= u[sz,sx] + source[k]
             u_posterior = marcha_no_espaço(u_anterior, u, u_posterior, nx, nz, c, dt, dx, dz) 
             u_posterior *= A
-            u_anterior = np.copy(u) 
-            u_anterior *= A
+            u_anterior = np.copy(u)
+            u_anterior *= A 
             u = np.copy(u_posterior)
 
             sism[k, :] = u[recz, recx]
@@ -122,7 +122,7 @@ def snapshot(u_snapshot, shot, frame):
     ax.imshow(u_snapshot[shot], cmap='gray')
     plt.title(f"Snapshot no frame {frame} para o shot {shot}")
     plt.show()
-    filename = f'D:/GitHub/ModelagemSismica/outputs/snapshots/snapshot_frame_{frame}_shot{shot}.bin'
+    filename = f'../ModelagemSismica/outputs/snapshots/snapshot_frame_{frame}_shot{shot}.bin'
     u_snapshot[shot].astype(np.float32).tofile(filename)
     print(f"Snapshot do frame {frame} salvo em: {filename}")
 
@@ -135,19 +135,19 @@ def plot_shot(sism_shot):
         plt.title(" shot %s"%i)
         plt.show()
     for i, shot in enumerate(sism_shot):
-        filename = f'D:/GitHub/ModelagemSismica/outputs/seismograms/sismograma_shot_{i}_{shot.shape[0]}x{shot.shape[1]}.bin'
+        filename = f'../ModelagemSismica/outputs/seismograms/sismograma_shot_{i}_{shot.shape[0]}x{shot.shape[1]}.bin'
         print(filename)
         shot.tofile(filename)
        
-receiverTable = pd.read_csv("D:/GitHub/ModelagemSismica/inputs/receivers.csv")
-sourceTable = pd.read_csv("D:/GitHub/ModelagemSismica/inputs/sources.csv")
+receiverTable = pd.read_csv("../ModelagemSismica/inputs/receivers.csv")
+sourceTable = pd.read_csv("../ModelagemSismica/inputs/sources.csv")
 rec_x = receiverTable['coordx'].to_numpy()
 rec_z = receiverTable['coordz'].to_numpy()
 shot_x = sourceTable['coordx'].to_numpy()
 shot_z = sourceTable['coordz'].to_numpy()
 
 T = 2 
-dt = 0.001
+dt = 0.0005
 
 # L  = 5730
 # H = 2100
@@ -175,10 +175,9 @@ t = np.linspace(0, T, nt, endpoint=False)
 
 f0 = 60
 source = ricker(f0, t)
-plt.plot(t, source)
-plt.show()
+
 c = v(nx,nz)
-# c = ler_modelo('D:/GitHub/ModelagemSismica/inputs/marmousi_vp_383x141.bin', (nx, nz))
+# c = ler_modelo('../inputs/marmousi_vp_383x141.bin', (nx, nz))
 c_expand = expand_vp(c,nx_abc,nz_abc, N)
 
 plt.figure()
@@ -193,7 +192,7 @@ vp_max = np.max(c_expand)
 lambda_min = vp_min / f0
 dx_lim = lambda_min / 5
 dt_lim = dx_lim / (4 * vp_max)
-if (dt>=dt_lim and dx>=dx_lim):
+if (dt<=dt_lim and dx<=dx_lim):
     print("Condições de estabilidade e dispersão satisfeitas")
 else:
     print("Condições de estabilidade e dispersão não satisfeitas")
@@ -203,14 +202,10 @@ else:
 
 u_anterior, u, u_posterior = ondas(nx_abc,nz_abc)
 A = borda(nx_abc, nz_abc, 0.015, N)
-plt.imshow(A, cmap="viridis", origin="upper")
-plt.colorbar()
-plt.show()
-
-frame = 1000
+frame = 2000
 sism_shot, u_snapshot = marcha_no_tempo(u_anterior, u, u_posterior, source, nt, nx_abc, nz_abc, c_expand, rec_x, rec_z, dt, A, shot_x, shot_z, dx, dz,frame)
 sism_shot = sism_shot[::-1]
 u_snapshot = u_snapshot[::-1]
 plot_shot(sism_shot)
-snapshot(u_snapshot, 1, frame)
+snapshot(u_snapshot, 0, frame)
 
