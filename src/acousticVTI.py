@@ -96,12 +96,13 @@ def marcha_no_tempo(p_anterior, p, p_posterior, q, q_anterior, q_posterior, sour
 
 
 def snapshot(p_snapshot, shot, frame):
+    p_cut = p_snapshot[shot][N:-N, N:-N]
     fig, ax = plt.subplots(figsize=(10, 10))
-    ax.imshow(p_snapshot[shot], cmap='gray')
+    ax.imshow(p_cut, cmap='gray')
     plt.title(f"Snapshot no frame {frame} para o shot {shot}")
     plt.show()
-    # filename = f'../outputs/snapshots/snapshot_frame_{frame}_shot{shot}.bin'
-    # p_snapshot[shot].astype(np.float32).tofile(filename)
+    # filename = f'../ModelagemSismica/outputs/snapshots/snapshot_frame_{frame}_shot_{shot}_nx_{p_cut.shape[1]}_nz_{p_cut.shape[0]}vti.bin'
+    # p_cut.astype(np.float32).tofile(filename)
     # print(f"Snapshot do frame {frame} salvo em: {filename}")
 
                     
