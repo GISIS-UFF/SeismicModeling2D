@@ -152,8 +152,7 @@ class wavefield:
         plt.imshow(self.seismogram, aspect='auto', cmap='gray', vmin=-perc, vmax=perc, extent=[0, self.Nrec, 0, self.T])
         plt.colorbar(label='Amplitude')
         plt.title("Seismogram")
-        plt.xlabel("Time (s)")
-        plt.ylabel("Amplitude")
+        plt.ylabel("Time (s)")
         plt.legend()
         plt.grid()
         plt.tight_layout()
@@ -237,6 +236,7 @@ class wavefield:
         self.A = self.createCerjanLayers()
 
         for shot in range(self.Nshot):
+            print(f"info: Shot {shot+1} of {self.Nshot}")
             self.current.fill(0)
             self.past.fill(0)
             self.future.fill(0)
@@ -265,3 +265,7 @@ class wavefield:
                     self.snapshot.append(self.current.copy())
                 if k == self.frame+200:
                     self.snapshot.append(self.current.copy())
+
+            seismogramFile = f"{self.seismogramFolder}seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
+            self.seismogram.tofile(seismogramFile)
+            print(f"info: Seismogram saved to {seismogramFile}")
