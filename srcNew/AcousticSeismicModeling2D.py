@@ -133,8 +133,7 @@ class wavefield:
 
     def viewSnapshot(self, k=0):
         plt.figure(figsize=(10, 5))
-        snapshot = self.snapshot[k][self.N_abc:self.nz_abc-self.N_abc, self.N_abc:self.nx_abc-self.N_abc]
-        plt.imshow(snapshot, aspect='auto', cmap='gray', extent=[0, self.L, self.D, 0])
+        plt.imshow(self.snapshot[k], aspect='auto', cmap='gray', extent=[0, self.L, self.D, 0])
         plt.plot(self.rec_x, self.rec_z, 'bv', markersize=2, label='Receivers')
         plt.plot(self.shot_x, self.shot_z, 'r*', markersize=5, label='Sources')
         plt.legend()
@@ -147,13 +146,14 @@ class wavefield:
         plt.show()
         plt.savefig(f"snapshot_{k}.png")
 
-    def viewSeismogram(self):
-        plt.figure(figsize=(4, 4))
-        plt.imshow(self.seismogram, aspect='auto', cmap='gray', extent=[0,self.Nrec, self.T, 0])
-        plt.title("Seismogram")
-        plt.xlabel("Amplitude")
-        plt.ylabel("Time (s)")
+    def viewSeismogram(self,perc=99):
+        plt.figure(figsize=(5, 5))
+        perc = np.percentile(self.seismogram, perc)
+        plt.imshow(self.seismogram, aspect='auto', cmap='gray', vmin=-perc, vmax=perc, extent=[0, self.Nrec, 0, self.T])
         plt.colorbar(label='Amplitude')
+        plt.title("Seismogram")
+        plt.xlabel("Time (s)")
+        plt.ylabel("Amplitude")
         plt.legend()
         plt.grid()
         plt.tight_layout()
