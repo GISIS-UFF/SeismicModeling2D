@@ -129,7 +129,7 @@ class wavefield:
         plt.grid()
         plt.tight_layout()
         plt.show()
-        plt.savefig("velocity_model.png")
+        # plt.savefig("velocity_model.png")
 
     def viewSnapshot(self, k=0):
         plt.figure(figsize=(10, 5))
@@ -144,7 +144,7 @@ class wavefield:
         plt.grid()
         plt.tight_layout()
         plt.show()
-        plt.savefig(f"snapshot_{k}.png")
+        # plt.savefig(f"snapshot_{k}.png")
 
     def viewSeismogram(self,perc=99):
         plt.figure(figsize=(5, 5))
@@ -157,7 +157,7 @@ class wavefield:
         plt.grid()
         plt.tight_layout()
         plt.show()
-        plt.savefig("seismogram.png")
+        # plt.savefig("seismogram.png")
 
 
     def checkDispersionAndStability(self):
@@ -201,7 +201,7 @@ class wavefield:
         print(f"info: Velocity model expanded to {nz_abc}x{nx_abc}")
         plt.figure()
         plt.imshow(self.vp_exp, cmap='jet', aspect='auto')
-        plt.savefig("expanded_velocity_model.png")
+        # plt.savefig("expanded_velocity_model.png")
     
     def createCerjanLayers(self):
         N = self.N_abc
@@ -226,7 +226,7 @@ class wavefield:
         plt.figure()
         plt.imshow(A, cmap='jet', aspect='auto')
         plt.title("Cerjan Absorbing Layer")
-        plt.savefig("cerjan_layer.png")
+        # plt.savefig("cerjan_layer.png")
         print(f"info: Cerjan absorbing layers")
         return A
 
