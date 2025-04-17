@@ -7,7 +7,7 @@ from utils import updateWaveEquation
 from utils import updateWaveEquationVTI
 
 class wavefield:
-    approximation = "acoustic" # "acousticVTI"
+    approximation = "acousticVTI" # "acoustic" # 
 
     def __init__(self):
         self.readParameters()
@@ -24,7 +24,7 @@ class wavefield:
         self.T    = 4
 
         # Number of point for absorbing boundary condition
-        self.N_abc = 100
+        self.N_abc = 50
 
         # Number of points in each direction
         self.nx = int(self.L/self.dx)+1
@@ -49,7 +49,7 @@ class wavefield:
         self.src_file = "../inputs/sources.csv"
 
         # Velocity model file
-        self.vpFile =  "../inputs/marmousi_vp_383x141.bin"
+        self.vpFile =  None#"../inputs/marmousi_vp_383x141.bin"
 
         # Snapshot flag
         self.snap       = False
@@ -133,7 +133,7 @@ class wavefield:
 
         #create or import velocity model
         if (self.vpFile==None):
-            self.createLayerdVelocityModel()
+            self.createLayerdVelocityModel(2000,3000)
         else:
             self.vp = self.ImportModel(self.vpFile)
         
@@ -356,7 +356,7 @@ class wavefield:
             for k in range(self.nt):
                 self.current[sz,sx] =+ self.source[k]
                 self.Qc[sz,sx] =+ self.source[k]
-                self.future = updateWaveEquationVTI(self.future, self.current, self.past, self.Qc, self.Qp, self.Qf, self.nx_abc, self.nz_abc, self.dt, self.dx, self.dz, self.vp_exp, self.epsilon_exp, self.delta_exp)
+                self.future,self.Qf = updateWaveEquationVTI(self.future, self.current, self.past, self.Qc, self.Qp, self.Qf, self.nx_abc, self.nz_abc, self.dt, self.dx, self.dz, self.vp_exp, self.epsilon_exp, self.delta_exp)
             
                 # Apply absorbing boundary condition
                 self.future *= self.A
