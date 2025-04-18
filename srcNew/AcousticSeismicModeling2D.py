@@ -7,7 +7,7 @@ from utils import updateWaveEquation
 from utils import updateWaveEquationVTI
 
 class wavefield:
-    approximation = "acousticVTI" # "acoustic" # 
+    approximation = "acoustic"  #"acousticVTI"  
 
     def __init__(self):
         self.readParameters()
@@ -309,7 +309,7 @@ class wavefield:
             rz = np.int32(self.rec_z/self.dz) + self.N_abc
 
             for k in range(self.nt):
-                self.current[sz,sx] =+ self.source[k]
+                self.current[sz,sx] += self.source[k]
                 self.future = updateWaveEquation(self.future, self.current, self.past, self.vp_exp, self.nz_abc, self.nx_abc, self.dz, self.dx, self.dt)
                 
                 # Apply absorbing boundary condition
@@ -354,8 +354,8 @@ class wavefield:
             rz = np.int32(self.rec_z/self.dz) + self.N_abc
 
             for k in range(self.nt):
-                self.current[sz,sx] =+ self.source[k]
-                self.Qc[sz,sx] =+ self.source[k]
+                self.current[sz,sx] += self.source[k]
+                self.Qc[sz,sx] += self.source[k]
                 self.future,self.Qf = updateWaveEquationVTI(self.future, self.current, self.past, self.Qc, self.Qp, self.Qf, self.nx_abc, self.nz_abc, self.dt, self.dx, self.dz, self.vp_exp, self.epsilon_exp, self.delta_exp)
             
                 # Apply absorbing boundary condition

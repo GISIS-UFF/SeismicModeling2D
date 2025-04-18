@@ -16,8 +16,8 @@ def updateWaveEquation(Uf,Uc,Up,vp,nz,nx,dz,dx,dt):
     c2 = -1 / 5
     c3 = 8 / 315
     c4 = -1 / 560
-    for i in prange(2,nx-3):
-        for j in prange(2,nz-3):
+    for i in prange(4,nx-4):
+        for j in prange(4,nz-4):
             pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) + c2 * (Uc[j, i+2] + Uc[j, i-2]) +c3 * (Uc[j, i+3] + Uc[j, i-3]) +c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
             pzz = (c0 * Uc[j, i] + c1 * (Uc[j+1, i] + Uc[j-1, i]) + c2 * (Uc[j+2, i] + Uc[j-2, i]) + c3 * (Uc[j+3, i] + Uc[j-3, i]) + c4 * (Uc[j+4, i] + Uc[j-4, i])) / (dz * dz)
             Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz) + 2 * Uc[j, i] - Up[j, i]
