@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable # nice colorbar
 import pandas as pd
 
 from utils import ricker
@@ -54,7 +55,7 @@ class wavefield:
         # Snapshot flag
         self.snap       = False
         self.snapshot = []
-        self.frame      = 500
+        self.frame      = 250
         self.folderSnapshot = "../outputs/snapshots/"
 
         if self.approximation == "acousticVTI":
@@ -115,8 +116,8 @@ class wavefield:
         model_exp[nz_abc-N:nz_abc, 0:N] = model_data[-1, 0]  
         model_exp[nz_abc-N:nz_abc, nx_abc-N:nx_abc] = model_data[-1, -1] 
         print(f"info: Model expanded to {nz_abc}x{nx_abc}")
-        plt.figure()
-        plt.imshow(model_exp, cmap='jet', aspect='auto')
+        # plt.figure()
+        # plt.imshow(model_exp, cmap='jet', aspect='auto')
         
         return model_exp
     
@@ -167,18 +168,35 @@ class wavefield:
     def createLayerdDeltaModel(self, d1=0, d2=0.1):
         self.delta[0:self.nz//2, :] = d1
         self.delta[self.nz//2:self.nz, :] = d2
-  
+
+    
+    def adjustColorBar(self,fig,ax,im):
+        # Create a divider for the existing axes instance
+        divider = make_axes_locatable(ax)
+        # Append an axes to the right of the current axes, with the same height
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        cbar = fig.colorbar(im,cax=cax)
+        return cbar
+
+
+    
     def viewModel(self, model, title):
-        plt.figure(figsize=(10, 5))
-        plt.imshow(model, aspect='auto', cmap='jet', extent=[0, self.L, self.D, 0])
-        plt.plot(self.rec_x, self.rec_z, 'bv', markersize=2, label='Receivers')
-        plt.plot(self.shot_x, self.shot_z, 'r*', markersize=5, label='Sources')
-        plt.legend()
-        plt.colorbar(label='Velocity (m/s)')
-        plt.title(title)
-        plt.xlabel("Distance (m)")
-        plt.ylabel("Depth (m)")
-        plt.grid()
+        fig, ax = plt.subplots(figsize=(10, 5))
+        im = ax.imshow(model, aspect='equal', cmap='jet', extent=[0, self.L, self.D, 0])
+        ax.plot(self.rec_x, self.rec_z, 'bv', markersize=2, label='Receivers')
+        ax.plot(self.shot_x, self.shot_z, 'r*', markersize=5, label='Sources')
+        ax.set_title(title)
+        ax.set_xlabel("Distance (m)")
+        ax.set_ylabel("Depth (m)")
+        ax.grid(True)
+        
+        # nice colorbar
+        cbar = self.adjustColorBar(fig,ax,im)
+        if title == "Velocity Model": units = " (m/s)"
+        else: units = ""
+        cbar.set_label(title+units)
+        
+        ax.legend()
         plt.tight_layout()
         plt.show()
         plt.savefig(f"{title}.png")
@@ -193,16 +211,20 @@ class wavefield:
 
 
     def viewSnapshot(self, k=0):
-        plt.figure(figsize=(10, 5))
-        plt.imshow(self.snapshot[k], aspect='auto', cmap='gray', extent=[0, self.L, self.D, 0])
-        plt.plot(self.rec_x, self.rec_z, 'bv', markersize=2, label='Receivers')
-        plt.plot(self.shot_x, self.shot_z, 'r*', markersize=5, label='Sources')
-        plt.legend()
-        plt.title(f"Snapshot at time step {k}")
-        plt.colorbar(label='Amplitude')
-        plt.xlabel("Distance (m)")
-        plt.ylabel("Depth (m)")
-        plt.grid()
+        fig, ax = plt.subplots(figsize=(10, 5))
+        im = ax.imshow(self.snapshot[k], aspect='equal', cmap='gray', extent=[0, self.L, self.D, 0])
+        ax.plot(self.rec_x, self.rec_z, 'bv', markersize=2, label='Receivers')
+        ax.plot(self.shot_x, self.shot_z, 'r*', markersize=5, label='Sources')
+        ax.legend()
+        ax.set_title(f"Snapshot at time step {k}")
+        
+        # nice colorbar
+        cbar = self.adjustColorBar(fig,ax,im)
+        cbar.set_label("Amplitude")
+        
+        ax.set_xlabel("Distance (m)")
+        ax.set_ylabel("Depth (m)")
+        ax.grid(True)
         plt.tight_layout()
         plt.show()
         plt.savefig(f"snapshot_{k}.png")
@@ -282,11 +304,11 @@ class wavefield:
                 elif j >= nz - N:  
                     fb = (j - (nz - N)) / (np.sqrt(2) * sb)
                     A[j, i] *= np.exp(-fb * fb)
-        plt.figure()
-        plt.imshow(A, cmap='jet', aspect='auto')
-        plt.title("Cerjan Absorbing Layer")
-        plt.savefig("cerjan_layer.png")
-        print(f"info: Cerjan absorbing layers")
+        # plt.figure()
+        # plt.imshow(A, cmap='jet', aspect='auto')
+        # plt.title("Cerjan Absorbing Layer")
+        # plt.savefig("cerjan_layer.png")
+        # print(f"info: Cerjan absorbing layers")
         return A
     
     def solveAcousticWaveEquation(self):
@@ -321,9 +343,9 @@ class wavefield:
                 self.seismogram[k, :] = self.current[rz, rx]
 
                 if k == self.frame:
-                    self.snapshot.append(self.current.copy())
+                    self.snapshot.append(self.current[self.N_abc : self.nz_abc - self.N_abc, self.N_abc : self.nx_abc - self.N_abc].copy())
                 if k == self.frame+200:
-                    self.snapshot.append(self.current.copy())
+                    self.snapshot.append(self.current[self.N_abc : self.nz_abc - self.N_abc, self.N_abc : self.nx_abc - self.N_abc].copy())
 
             seismogramFile = f"{self.seismogramFolder}seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
             self.seismogram.tofile(seismogramFile)
