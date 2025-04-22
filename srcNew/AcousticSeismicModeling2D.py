@@ -8,7 +8,7 @@ from utils import updateWaveEquation
 from utils import updateWaveEquationVTI
 
 class wavefield:
-    approximation = "acoustic"  #"acousticVTI"  
+    approximation = "acoustic"  #"acousticVTI"  #
 
     def __init__(self):
         self.readParameters()
@@ -390,7 +390,7 @@ class wavefield:
                 self.seismogram[k, :] = self.current[rz, rx]
 
                 if k == self.frame:
-                    self.snapshot.append(self.current.copy())
+                    self.snapshot.append(self.current[self.N_abc : self.nz_abc - self.N_abc, self.N_abc : self.nx_abc - self.N_abc].copy())
 
             seismogramFile = f"{self.seismogramFolder}seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
             self.seismogram.tofile(seismogramFile)
