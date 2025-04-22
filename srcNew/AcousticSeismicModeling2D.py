@@ -105,7 +105,7 @@ class wavefield:
         N = self.N_abc
         nz_abc, nx_abc = self.nz_abc, self.nx_abc
         
-        model_exp = np.zeros((nz_abc, nx_abc))
+        model_exp = np.zeros((nz_abc, nx_abc),dtype=np.float32)
         model_exp[N:nz_abc-N, N:nx_abc-N] = model_data
         model_exp[0:N, N:nx_abc-N] = model_data[0, :]  
         model_exp[nz_abc-N:nz_abc, N:nx_abc-N] = model_data[-1, :]  
@@ -123,13 +123,13 @@ class wavefield:
     
     def initializeWavefields(self):
         # Initialize velocity model and wavefields
-        self.vp         = np.zeros([self.nz,self.nx])
+        self.vp         = np.zeros([self.nz,self.nx],dtype=np.float32)
 
-        self.current    = np.zeros([self.nz_abc,self.nx_abc])
-        self.past       = np.zeros([self.nz_abc,self.nx_abc])
-        self.future     = np.zeros([self.nz_abc,self.nx_abc])
+        self.current    = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
+        self.past       = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
+        self.future     = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
 
-        self.seismogram = np.zeros([self.nt,self.Nrec])
+        self.seismogram = np.zeros([self.nt,self.Nrec],dtype=np.float32)
         print(f"info: Wavefields initialized: {self.nx}x{self.nz}x{self.nt}")
 
         #create or import velocity model
@@ -139,12 +139,12 @@ class wavefield:
             self.vp = self.ImportModel(self.vpFile)
         
         if self.approximation == "acousticVTI":
-            self.Qc = np.zeros([self.nz_abc,self.nx_abc])
-            self.Qp = np.zeros([self.nz_abc,self.nx_abc])
-            self.Qf = np.zeros([self.nz_abc,self.nx_abc])
+            self.Qc = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
+            self.Qp = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
+            self.Qf = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
             # Initialize epsilon and delta models
-            self.epsilon = np.zeros([self.nz,self.nx])
-            self.delta = np.zeros([self.nz,self.nx])
+            self.epsilon = np.zeros([self.nz,self.nx],dtype=np.float32)
+            self.delta = np.zeros([self.nz,self.nx],dtype=np.float32)
 
             #import epsilon and delta model
             if (self.epsilonFile == None):
@@ -236,7 +236,7 @@ class wavefield:
         plt.colorbar(label='Amplitude')
         plt.title("Seismogram")
         plt.ylabel("Time (s)")
-        plt.legend()
+        # plt.legend()
         plt.grid()
         plt.tight_layout()
         plt.show()
@@ -344,8 +344,6 @@ class wavefield:
 
                 if k == self.frame:
                     self.snapshot.append(self.current[self.N_abc : self.nz_abc - self.N_abc, self.N_abc : self.nx_abc - self.N_abc].copy())
-                if k == self.frame+200:
-                    self.snapshot.append(self.current[self.N_abc : self.nz_abc - self.N_abc, self.N_abc : self.nx_abc - self.N_abc].copy())
 
             seismogramFile = f"{self.seismogramFolder}seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
             self.seismogram.tofile(seismogramFile)
@@ -392,8 +390,6 @@ class wavefield:
                 self.seismogram[k, :] = self.current[rz, rx]
 
                 if k == self.frame:
-                    self.snapshot.append(self.current.copy())
-                if k == self.frame+200:
                     self.snapshot.append(self.current.copy())
 
             seismogramFile = f"{self.seismogramFolder}seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"

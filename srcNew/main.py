@@ -19,7 +19,7 @@ elif wavefield.approximation == 'acousticVTI':
 
 wavefield.viewSeismogram()
 wavefield.viewSnapshot(0)
-wavefield.viewSnapshot(1)
+
 
 
 
