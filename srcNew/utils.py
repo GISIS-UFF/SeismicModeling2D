@@ -1,5 +1,5 @@
 import numpy as np
-from numba import jit,njit,prange
+from numba import jit,njit,prange, cuda
 
 def ricker(f0, t):
     pi = np.pi
@@ -23,6 +23,33 @@ def updateWaveEquation(Uf,Uc,Up,vp,nz,nx,dz,dx,dt):
             Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz) + 2 * Uc[j, i] - Up[j, i]
 
     return Uf
+
+@cuda.jit
+def updateWaveEquationGPU(Uf, Uc, Up, vp, nz, nx, dz, dx, dt):
+    c0 = -205.0 / 72.0
+    c1 = 8.0 / 5.0
+    c2 = -1.0 / 5.0
+    c3 = 8.0 / 315.0
+    c4 = -1.0 / 560.0
+
+    i, j = cuda.grid(2)  # grid-based thread indices
+    if 4 <= i < nx-4 and 4 <= j < nz-4:
+        pxx = (c0 * Uc[j, i] +
+               c1 * (Uc[j, i+1] + Uc[j, i-1]) +
+               c2 * (Uc[j, i+2] + Uc[j, i-2]) +
+               c3 * (Uc[j, i+3] + Uc[j, i-3]) +
+               c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
+
+        pzz = (c0 * Uc[j, i] +
+               c1 * (Uc[j+1, i] + Uc[j-1, i]) +
+               c2 * (Uc[j+2, i] + Uc[j-2, i]) +
+               c3 * (Uc[j+3, i] + Uc[j-3, i]) +
+               c4 * (Uc[j+4, i] + Uc[j-4, i])) / (dz * dz)
+
+        Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz) + 2 * Uc[j, i] - Up[j, i]
+        
+    return Uf
+
 
 @jit(parallel=True, nopython=True)
 def updateWaveEquationVTI(Uf, Uc, Up, Qc, Qp, Qf, nx, nz, dt, dx, dz, vpz, epsilon, delta):  
