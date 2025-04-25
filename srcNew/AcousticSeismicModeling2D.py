@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable # nice colorbar
 import pandas as pd
 
 from utils import ricker
@@ -7,7 +8,7 @@ from utils import updateWaveEquation
 from utils import updateWaveEquationVTI
 
 class wavefield:
-    approximation = "acoustic"  #"acousticVTI"  
+    approximation = "acousticVTI"  # "acoustic" or "acousticVTI" 
 
     def __init__(self):
         self.readParameters()
@@ -16,12 +17,12 @@ class wavefield:
     def readParameters(self):
         self.dx   = 10.
         self.dz   = 10.
-        self.dt   = 0.001
+        self.dt   = 0.0005
         
         # Model size
         self.L    = 3820
         self.D    = 1400
-        self.T    = 4
+        self.T    = 2
 
         # Number of point for absorbing boundary condition
         self.N_abc = 50
@@ -49,18 +50,18 @@ class wavefield:
         self.src_file = "../inputs/sources.csv"
 
         # Velocity model file
-        self.vpFile =  None#"../inputs/marmousi_vp_383x141.bin"
+        self.vpFile =  None #"../inputs/marmousi_vp_383x141.bin"
 
         # Snapshot flag
         self.snap       = False
         self.snapshot = []
-        self.frame      = 500
+        self.frame      = [250, 500, 750] # time steps to save snapshots
         self.folderSnapshot = "../outputs/snapshots/"
 
         if self.approximation == "acousticVTI":
             # Anisotropy parameters files
-            self.epsilonFile = None #"../inputs/epsilon_model.bin"  
-            self.deltaFile = None #"../inputs/delta_model.bin"     
+            self.epsilonFile = None #"../inputs/marmousi_vp_383x141_epsilon.bin"  
+            self.deltaFile   = None #"../inputs/marmousi_vp_383x141_delta.bin"     
 
     def readAcquisitionGeometry(self):        
         # Read receiver and source coordinates from CSV files
@@ -91,8 +92,8 @@ class wavefield:
         plt.xlabel("Time (s)")
         plt.ylabel("Amplitude")
         plt.grid()
-        plt.show()
         plt.savefig("source_wavelet.png")
+        # plt.show()
         
     def ImportModel(self, filename):
         data = np.fromfile(filename, dtype=np.float32).reshape(self.nx, self.nz)
@@ -104,7 +105,7 @@ class wavefield:
         N = self.N_abc
         nz_abc, nx_abc = self.nz_abc, self.nx_abc
         
-        model_exp = np.zeros((nz_abc, nx_abc))
+        model_exp = np.zeros((nz_abc, nx_abc),dtype=np.float32)
         model_exp[N:nz_abc-N, N:nx_abc-N] = model_data
         model_exp[0:N, N:nx_abc-N] = model_data[0, :]  
         model_exp[nz_abc-N:nz_abc, N:nx_abc-N] = model_data[-1, :]  
@@ -115,44 +116,44 @@ class wavefield:
         model_exp[nz_abc-N:nz_abc, 0:N] = model_data[-1, 0]  
         model_exp[nz_abc-N:nz_abc, nx_abc-N:nx_abc] = model_data[-1, -1] 
         print(f"info: Model expanded to {nz_abc}x{nx_abc}")
-        plt.figure()
-        plt.imshow(model_exp, cmap='jet', aspect='auto')
+        # plt.figure()
+        # plt.imshow(model_exp, cmap='jet', aspect='auto')
         
         return model_exp
     
     def initializeWavefields(self):
         # Initialize velocity model and wavefields
-        self.vp         = np.zeros([self.nz,self.nx])
+        self.vp         = np.zeros([self.nz,self.nx],dtype=np.float32)
 
-        self.current    = np.zeros([self.nz_abc,self.nx_abc])
-        self.past       = np.zeros([self.nz_abc,self.nx_abc])
-        self.future     = np.zeros([self.nz_abc,self.nx_abc])
+        self.current    = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
+        self.past       = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
+        self.future     = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
 
-        self.seismogram = np.zeros([self.nt,self.Nrec])
+        self.seismogram = np.zeros([self.nt,self.Nrec],dtype=np.float32)
         print(f"info: Wavefields initialized: {self.nx}x{self.nz}x{self.nt}")
 
         #create or import velocity model
         if (self.vpFile==None):
-            self.createLayerdVelocityModel(2000,3000)
+            self.createLayerdVelocityModel(3000,3000)
         else:
             self.vp = self.ImportModel(self.vpFile)
         
         if self.approximation == "acousticVTI":
-            self.Qc = np.zeros([self.nz_abc,self.nx_abc])
-            self.Qp = np.zeros([self.nz_abc,self.nx_abc])
-            self.Qf = np.zeros([self.nz_abc,self.nx_abc])
+            self.Qc = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
+            self.Qp = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
+            self.Qf = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
             # Initialize epsilon and delta models
-            self.epsilon = np.zeros([self.nz,self.nx])
-            self.delta = np.zeros([self.nz,self.nx])
+            self.epsilon = np.zeros([self.nz,self.nx],dtype=np.float32)
+            self.delta = np.zeros([self.nz,self.nx],dtype=np.float32)
 
             #import epsilon and delta model
             if (self.epsilonFile == None):
-                self.createLayerdEpsilonModel()
+                self.createLayerdEpsilonModel(0.2,0.2)
             else:
                 self.epsilon = self.ImportModel(self.epsilonFile)
 
             if (self.deltaFile == None):
-                self.createLayerdDeltaModel()
+                self.createLayerdDeltaModel(0.2,0.2)
             else:
                 self.delta = self.ImportModel(self.deltaFile)
         
@@ -160,28 +161,84 @@ class wavefield:
         self.vp[0:self.nz//2, :] = v1
         self.vp[self.nz//2:self.nz, :] = v2
 
-    def createLayerdEpsilonModel(self,e1=0, e2=0.24):
+    def createLayerdEpsilonModel(self,e1=0.1, e2=0.2):
         self.epsilon[0:self.nz//2, :] = e1
         self.epsilon[self.nz//2:self.nz, :] = e2
 
-    def createLayerdDeltaModel(self, d1=0, d2=0.1):
+    def createLayerdDeltaModel(self, d1=0.1, d2=0.2):
         self.delta[0:self.nz//2, :] = d1
         self.delta[self.nz//2:self.nz, :] = d2
-  
-    def viewModel(self, model, title):
-        plt.figure(figsize=(10, 5))
-        plt.imshow(model, aspect='auto', cmap='jet', extent=[0, self.L, self.D, 0])
-        plt.plot(self.rec_x, self.rec_z, 'bv', markersize=2, label='Receivers')
-        plt.plot(self.shot_x, self.shot_z, 'r*', markersize=5, label='Sources')
-        plt.legend()
-        plt.colorbar(label='Velocity (m/s)')
-        plt.title(title)
-        plt.xlabel("Distance (m)")
-        plt.ylabel("Depth (m)")
-        plt.grid()
-        plt.tight_layout()
+
+    def createVTIModelFromVp(self):
+        if not (self.approximation == "acousticVTI"):
+            raise ValueError("ERROR: Change approximation parameter to 'acousticVTI' .")
+        
+        if self.vpFile == None:
+            raise ValueError("ERROR: Import or create a velocity model first.")
+        if self.epsilonFile != None:
+            raise ValueError("ERROR: Epsilon model already exists. Make sure epsilonFile = None.")
+        if self.deltaFile != None:
+            raise ValueError("ERROR:Delta model already exists.Make sure deltaFile = None.")
+            
+        idx_water = np.where(self.vp <= 1500)
+
+        # create density model with Gardner's equation
+        self.rho = np.zeros([self.nz,self.nx],dtype=np.float32)
+        a, b = 0.23, 0.25
+        self.rho = a * np.power(self.vp/0.3048,b)*1000 # Gardner relation - Rosa (2010) apud Gardner et al. (1974) pag. 496 rho = a * v^b
+        self.rho[idx_water] = 1000.0 # water density
+        self.viewModel(self.rho, "Density Model")
+
+        # create epsilon model epsilon = 0.25 rho - 0.3 - Petrov et al. (2021) 
+        self.epsilon = np.zeros([self.nz,self.nx],dtype=np.float32)
+        self.epsilon = 0.25 * self.rho/1000 - 0.3 # rho in g/cm3
+        self.epsilon[idx_water] = 0.0 # water epsilon
+        self.viewModel(self.epsilon, "Epsilon Model")
+        self.epsilon.T.tofile(self.vpFile.replace(".bin","_epsilon.bin"))	
+        print(f"info: Epsilon model saved to {self.vpFile.replace('.bin','_epsilon.bin')}")
+
+
+        # create delta model delta = 0.125 rho - 0.1 - Petrov et al. (2021)
+        self.delta = np.zeros([self.nz,self.nx],dtype=np.float32)
+        self.delta = 0.125 * self.rho/1000 - 0.1 # rho in g/cm3
+        self.delta[idx_water] = 0.0 # water delta
+        self.viewModel(self.delta, "Delta Model")
+        self.delta.T.tofile(self.vpFile.replace(".bin","_delta.bin"))
+        print(f"info: Delta model saved to {self.vpFile.replace('.bin','_delta.bin')}")
+
         plt.show()
+
+
+    def adjustColorBar(self,fig,ax,im):
+        # Create a divider for the existing axes instance
+        divider = make_axes_locatable(ax)
+        # Append an axes to the right of the current axes, with the same height
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        cbar = fig.colorbar(im,cax=cax)
+        return cbar
+
+
+    
+    def viewModel(self, model, title):
+        fig, ax = plt.subplots(figsize=(10, 5))
+        im = ax.imshow(model, aspect='equal', cmap='jet', extent=[0, self.L, self.D, 0])
+        ax.plot(self.rec_x, self.rec_z, 'bv', markersize=2, label='Receivers')
+        ax.plot(self.shot_x, self.shot_z, 'r*', markersize=5, label='Sources')
+        ax.set_title(title)
+        ax.set_xlabel("Distance (m)")
+        ax.set_ylabel("Depth (m)")
+        ax.grid(True)
+        
+        # nice colorbar
+        cbar = self.adjustColorBar(fig,ax,im)
+        if title == "Velocity Model": units = " (m/s)"
+        else: units = ""
+        cbar.set_label(title+units)
+        
+        ax.legend()
+        plt.tight_layout()
         plt.savefig(f"{title}.png")
+        # plt.show()
 
     def viewAllModels(self):
 
@@ -191,34 +248,48 @@ class wavefield:
             self.viewModel(self.epsilon, "Epsilon Model")
             self.viewModel(self.delta, "Delta Model")
 
-
-    def viewSnapshot(self, k=0):
-        plt.figure(figsize=(10, 5))
-        plt.imshow(self.snapshot[k], aspect='auto', cmap='gray', extent=[0, self.L, self.D, 0])
-        plt.plot(self.rec_x, self.rec_z, 'bv', markersize=2, label='Receivers')
-        plt.plot(self.shot_x, self.shot_z, 'r*', markersize=5, label='Sources')
-        plt.legend()
-        plt.title(f"Snapshot at time step {k}")
-        plt.colorbar(label='Amplitude')
-        plt.xlabel("Distance (m)")
-        plt.ylabel("Depth (m)")
-        plt.grid()
-        plt.tight_layout()
         plt.show()
+
+
+    def viewSnapshotAtTime(self, k):
+        fig, ax = plt.subplots(figsize=(10, 5))
+        im = ax.imshow(self.snapshot[k], aspect='equal', cmap='gray', extent=[0, self.L, self.D, 0])
+        ax.plot(self.rec_x, self.rec_z, 'bv', markersize=2, label='Receivers')
+        ax.plot(self.shot_x, self.shot_z, 'r*', markersize=5, label='Sources')
+        ax.legend()
+        ax.set_title(f"Snapshot at time step {self.frame[k]}")
+        
+        # nice colorbar
+        cbar = self.adjustColorBar(fig,ax,im)
+        cbar.set_label("Amplitude")
+        
+        ax.set_xlabel("Distance (m)")
+        ax.set_ylabel("Depth (m)")
+        ax.grid(True)
+        plt.tight_layout()
         plt.savefig(f"snapshot_{k}.png")
+       
+
+    def viewSnapshot(self):
+
+        for k in range(len(self.snapshot)):
+            self.viewSnapshotAtTime(k)
+        print(f"info: {len(self.snapshot)} snapshots saved to {self.folderSnapshot}")
+        
+        plt.show(block=False)
 
     def viewSeismogram(self,perc=99):
         plt.figure(figsize=(5, 5))
         perc = np.percentile(self.seismogram, perc)
-        plt.imshow(self.seismogram, aspect='auto', cmap='gray', vmin=-perc, vmax=perc, extent=[0, self.Nrec, 0, self.T])
+        plt.imshow(self.seismogram, aspect='auto', cmap='gray', vmin=-perc, vmax=perc, extent=[0, self.Nrec, self.T, 0])
         plt.colorbar(label='Amplitude')
         plt.title("Seismogram")
         plt.ylabel("Time (s)")
-        plt.legend()
+        # plt.legend()
         plt.grid()
         plt.tight_layout()
-        plt.show()
         plt.savefig("seismogram.png")
+        # plt.show()
 
 
     def checkDispersionAndStability(self):
@@ -282,14 +353,15 @@ class wavefield:
                 elif j >= nz - N:  
                     fb = (j - (nz - N)) / (np.sqrt(2) * sb)
                     A[j, i] *= np.exp(-fb * fb)
-        plt.figure()
-        plt.imshow(A, cmap='jet', aspect='auto')
-        plt.title("Cerjan Absorbing Layer")
-        plt.savefig("cerjan_layer.png")
-        print(f"info: Cerjan absorbing layers")
+        # plt.figure()
+        # plt.imshow(A, cmap='jet', aspect='auto')
+        # plt.title("Cerjan Absorbing Layer")
+        # plt.savefig("cerjan_layer.png")
+        # print(f"info: Cerjan absorbing layers")
         return A
     
     def solveAcousticWaveEquation(self):
+        print(f"info: Solving acoustic wave equation")
         # Expand velocity model and Create absorbing layers
         self.vp_exp = self.ExpandModel(self.vp)
         self.A = self.createCerjanLayers()
@@ -320,16 +392,15 @@ class wavefield:
                 # Register seismogram
                 self.seismogram[k, :] = self.current[rz, rx]
 
-                if k == self.frame:
-                    self.snapshot.append(self.current.copy())
-                if k == self.frame+200:
-                    self.snapshot.append(self.current.copy())
+                if k in self.frame:
+                    self.snapshot.append(self.current[self.N_abc : self.nz_abc - self.N_abc, self.N_abc : self.nx_abc - self.N_abc].copy())
 
             seismogramFile = f"{self.seismogramFolder}seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
             self.seismogram.tofile(seismogramFile)
             print(f"info: Seismogram saved to {seismogramFile}")
 
     def solveAcousticVTIWaveEquation(self):
+        print(f"info: Solving acoustic VTI wave equation")
         # Expand models and Create absorbing layers
         self.vp_exp = self.ExpandModel(self.vp)
         self.epsilon_exp = self.ExpandModel(self.epsilon)
@@ -369,10 +440,8 @@ class wavefield:
                 # Register seismogram
                 self.seismogram[k, :] = self.current[rz, rx]
 
-                if k == self.frame:
-                    self.snapshot.append(self.current.copy())
-                if k == self.frame+200:
-                    self.snapshot.append(self.current.copy())
+                if k in self.frame:
+                    self.snapshot.append(self.current[self.N_abc : self.nz_abc - self.N_abc, self.N_abc : self.nx_abc - self.N_abc].copy())
 
             seismogramFile = f"{self.seismogramFolder}seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
             self.seismogram.tofile(seismogramFile)

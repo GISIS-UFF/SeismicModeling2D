@@ -1,4 +1,5 @@
 from AcousticSeismicModeling2D import wavefield
+import copy
 
 
 wavefield = wavefield()
@@ -8,18 +9,25 @@ wavefield.viewSourceWavelet()
 
 wavefield.initializeWavefields()
 wavefield.viewAllModels()
-
 wavefield.checkDispersionAndStability()
 
-if wavefield.approximation == 'acoustic':
-   wavefield.solveAcousticWaveEquation()
+wavefield2 = copy.deepcopy(wavefield)
 
-elif wavefield.approximation == 'acousticVTI':
-   wavefield.solveAcousticVTIWaveEquation()
+wavefield.solveAcousticWaveEquation()
+wavefield2.solveAcousticVTIWaveEquation()
+
+# if wavefield.approximation == 'acoustic':
+#    wavefield.solveAcousticWaveEquation()
+
+# elif wavefield.approximation == 'acousticVTI':
+#    wavefield.solveAcousticVTIWaveEquation()
 
 wavefield.viewSeismogram()
-wavefield.viewSnapshot(0)
-wavefield.viewSnapshot(1)
+wavefield.viewSnapshot()
+
+wavefield2.viewSeismogram()
+wavefield2.viewSnapshot()
+
 
 
 
