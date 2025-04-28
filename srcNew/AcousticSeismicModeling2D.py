@@ -6,9 +6,10 @@ import pandas as pd
 from utils import ricker
 from utils import updateWaveEquation
 from utils import updateWaveEquationVTI
+from utils import AnalyticalModel
 
 class wavefield:
-    approximation = "acousticVTI"  # "acoustic" or "acousticVTI" 
+    approximation = "acousticVTI" #or "acoustic" 
 
     def __init__(self):
         self.readParameters()
@@ -50,7 +51,7 @@ class wavefield:
         self.src_file = "../inputs/sources.csv"
 
         # Velocity model file
-        self.vpFile =  None #"../inputs/marmousi_vp_383x141.bin"
+        self.vpFile =  None # "../inputs/marmousi_vp_383x141.bin"
 
         # Snapshot flag
         self.snap       = False
@@ -60,8 +61,8 @@ class wavefield:
 
         if self.approximation == "acousticVTI":
             # Anisotropy parameters files
-            self.epsilonFile = None #"../inputs/marmousi_vp_383x141_epsilon.bin"  
-            self.deltaFile   = None #"../inputs/marmousi_vp_383x141_delta.bin"     
+            self.epsilonFile = None # "../inputs/marmousi_vp_383x141_epsilon.bin"  
+            self.deltaFile   = None # "../inputs/marmousi_vp_383x141_delta.bin"     
 
     def readAcquisitionGeometry(self):        
         # Read receiver and source coordinates from CSV files
@@ -101,7 +102,6 @@ class wavefield:
         return data.T
 
     def ExpandModel(self, model_data):
-        nz, nx = self.nz, self.nx
         N = self.N_abc
         nz_abc, nx_abc = self.nz_abc, self.nx_abc
         
@@ -161,11 +161,11 @@ class wavefield:
         self.vp[0:self.nz//2, :] = v1
         self.vp[self.nz//2:self.nz, :] = v2
 
-    def createLayerdEpsilonModel(self,e1=0.1, e2=0.2):
+    def createLayerdEpsilonModel(self,e1=0, e2=0.24):
         self.epsilon[0:self.nz//2, :] = e1
         self.epsilon[self.nz//2:self.nz, :] = e2
 
-    def createLayerdDeltaModel(self, d1=0.1, d2=0.2):
+    def createLayerdDeltaModel(self, d1=0, d2=0.1):
         self.delta[0:self.nz//2, :] = d1
         self.delta[self.nz//2:self.nz, :] = d2
 
@@ -206,7 +206,7 @@ class wavefield:
         self.delta.T.tofile(self.vpFile.replace(".bin","_delta.bin"))
         print(f"info: Delta model saved to {self.vpFile.replace('.bin','_delta.bin')}")
 
-        plt.show()
+        # plt.show()
 
 
     def adjustColorBar(self,fig,ax,im):
@@ -235,7 +235,7 @@ class wavefield:
         else: units = ""
         cbar.set_label(title+units)
         
-        ax.legend()
+        # ax.legend()
         plt.tight_layout()
         plt.savefig(f"{title}.png")
         # plt.show()
@@ -248,7 +248,7 @@ class wavefield:
             self.viewModel(self.epsilon, "Epsilon Model")
             self.viewModel(self.delta, "Delta Model")
 
-        plt.show()
+        # plt.show()
 
 
     def viewSnapshotAtTime(self, k):
@@ -267,16 +267,85 @@ class wavefield:
         ax.set_ylabel("Depth (m)")
         ax.grid(True)
         plt.tight_layout()
-        plt.savefig(f"snapshot_{k}.png")
+        if self.approximation == "acousticVTI":
+            plt.savefig(f"snapshotVTI_{k}.png")
+        if self.approximation == "acoustic":
+            plt.savefig(f"snapshotAcoustic_{k}.png")
        
-
     def viewSnapshot(self):
-
         for k in range(len(self.snapshot)):
             self.viewSnapshotAtTime(k)
         print(f"info: {len(self.snapshot)} snapshots saved to {self.folderSnapshot}")
         
         plt.show(block=False)
+
+    def viewSnapshotAnalyticalComparison(self):
+        fig, ax = plt.subplots(figsize=(10, 5))
+        # Plot snapshot
+        im = ax.imshow(self.snapshot[0], aspect='equal', cmap='gray', extent=[0, self.L, self.D, 0])
+        ax.plot(self.rec_x, self.rec_z, 'bv', markersize=2, label='Receivers')
+        ax.plot(self.shot_x, self.shot_z, 'r*', markersize=5, label='Sources')
+        
+        # Compute the analytical wavefront
+        if self.approximation == "acoustic":
+            vel = self.vp[ int(self.shot_z[0]/self.dz), int(self.shot_x[0]/self.dx) ]
+            Rp = AnalyticalModel(vel, 0, 0, self.dt, self.fcut, self.frame[0])
+        elif self.approximation == "acousticVTI":
+            vel = self.vp[ int(self.shot_z[0]/self.dz), int(self.shot_x[0]/self.dx) ]
+            eps = self.epsilon[ int(self.shot_z[0]/self.dz), int(self.shot_x[0]/self.dx) ]
+            delt = self.delta[ int(self.shot_z[0]/self.dz), int(self.shot_x[0]/self.dx)]
+            Rp = AnalyticalModel(vel, eps, delt, self.dt, self.fcut, self.frame[0])
+        else:
+            raise ValueError("Info: Unknown approximation.")
+
+        # Source coordinates
+        x0 = self.shot_x[0]
+        z0 = self.shot_z[0]
+        
+        # coordenates of the analytical wavefront
+        theta = np.linspace(0, 2*np.pi, 500)
+        x_rp = x0 + Rp * np.sin(theta)
+        z_rp = z0 + Rp * np.cos(theta)
+
+        ax.plot(x_rp, z_rp, 'r', label='Analytical wavefront')
+        ax.legend()
+        ax.set_title(f"Snapshot at time step {self.frame[0]} (shot {1})")
+
+        # nice colorbar
+        cbar = self.adjustColorBar(fig, ax, im)
+        cbar.set_label("Amplitude")
+
+        ax.set_xlabel("Distance (m)")
+        ax.set_ylabel("Depth (m)")
+        ax.grid(True)
+        plt.tight_layout()
+        # plt.show()
+
+        if self.approximation == "acoustic":
+            plt.savefig(f"{self.folderSnapshot}SnapshotAnalyticalComparison_acoustic_{0}_shot{1}.png")
+        if self.approximation == "acousticVTI":
+            plt.savefig(f"{self.folderSnapshot}SnapshotAnalyticalComparison_acousticVTI_{0}_shot{1}.png")
+
+    def viewSeismogramComparison(self):
+        AcousticSeismogram = np.fromfile("../outputs/seismograms/Acousticseismogram_shot_1_Nt4001_Nrec383.bin", dtype=np.float32).reshape(self.nt, self.Nrec)
+        VTISeismogram = np.fromfile("../outputs/seismograms/VTIseismogram_shot_1_Nt4001_Nrec383.bin", dtype=np.float32).reshape(self.nt, self.Nrec)
+        difseismogram = AcousticSeismogram - VTISeismogram
+
+        fig, ax = plt.subplots(figsize=(10, 5))
+        perc = np.percentile(self.seismogram, 99)
+        im = ax.imshow(difseismogram, aspect='auto', cmap='gray', vmin=-perc, vmax=perc, extent=[0, self.Nrec, self.T, 0])
+        ax.set_title(f"Seismogram comparison")
+        
+        # nice colorbar
+        cbar = self.adjustColorBar(fig,ax,im)
+        cbar.set_label("Amplitude")
+        
+        ax.set_xlabel("Distance (m)")
+        ax.set_ylabel("Time (s)")
+        ax.grid(True)
+        plt.tight_layout()
+        # plt.show()
+        plt.savefig(f"seismogram_comparison.png")
 
     def viewSeismogram(self,perc=99):
         plt.figure(figsize=(5, 5))
@@ -288,9 +357,11 @@ class wavefield:
         # plt.legend()
         plt.grid()
         plt.tight_layout()
-        plt.savefig("seismogram.png")
+        if self.approximation == "acoustic":
+            plt.savefig("seismogramAcoustic.png")
+        if self.approximation == "acousticVTI":
+            plt.savefig("seismogramVTI.png")
         # plt.show()
-
 
     def checkDispersionAndStability(self):
         if self.approximation == "acoustic":
@@ -332,27 +403,18 @@ class wavefield:
                 print("info: Dispersion and stability conditions satisfied.")
             else:
                 print("WARNING: Dispersion or stability conditions not satisfied.")
+    
+    def createCerjanVector(self,n):
+        sb = 3 * self.N_abc
+        A = np.ones(n)
+        for i in range(n):
+            if i < self.N_abc:
+                fb = (self.N_abc - i) / (np.sqrt(2) * sb)
+                A[i] *= np.exp(-fb * fb)
+            elif i >= n - self.N_abc:
+                fb = (i - (n - self.N_abc)) / (np.sqrt(2) * sb)
+                A[i] *= np.exp(-fb * fb)
 
-    def createCerjanLayers(self):
-        N = self.N_abc
-        nx = self.nx_abc
-        nz = self.nz_abc
-        A = np.ones([self.nz_abc, self.nx_abc])
-        sb = 3*N 
-        for i in range(nx):
-            for j in range(nz):
-                if i < N:  
-                    fb = (N - i) / (np.sqrt(2) * sb)
-                    A[j, i] *= np.exp(-fb * fb)
-                elif i >= nx - N: 
-                    fb = (i - (nx - N)) / (np.sqrt(2) * sb)
-                    A[j, i] *= np.exp(-fb * fb)
-                if j < N:  
-                    fb = (N - j) / (np.sqrt(2) * sb)
-                    A[j, i] *= np.exp(-fb * fb)
-                elif j >= nz - N:  
-                    fb = (j - (nz - N)) / (np.sqrt(2) * sb)
-                    A[j, i] *= np.exp(-fb * fb)
         # plt.figure()
         # plt.imshow(A, cmap='jet', aspect='auto')
         # plt.title("Cerjan Absorbing Layer")
@@ -364,7 +426,8 @@ class wavefield:
         print(f"info: Solving acoustic wave equation")
         # Expand velocity model and Create absorbing layers
         self.vp_exp = self.ExpandModel(self.vp)
-        self.A = self.createCerjanLayers()
+        self.Ax = self.createCerjanVector(self.nx_abc)
+        self.Az = self.createCerjanVector(self.nz_abc)
 
         for shot in range(self.Nshot):
             print(f"info: Shot {shot+1} of {self.Nshot}")
@@ -385,8 +448,9 @@ class wavefield:
                 self.future = updateWaveEquation(self.future, self.current, self.past, self.vp_exp, self.nz_abc, self.nx_abc, self.dz, self.dx, self.dt)
                 
                 # Apply absorbing boundary condition
-                self.future *= self.A
-                self.past = np.copy(self.current*self.A)
+                self.future *= self.Az[:, np.newaxis] * self.Ax[np.newaxis, :]
+                self.past = np.copy(self.current)
+                self.past *= self.Az[:, np.newaxis] * self.Ax[np.newaxis, :]
                 self.current = np.copy(self.future)
 
                 # Register seismogram
@@ -395,7 +459,7 @@ class wavefield:
                 if k in self.frame:
                     self.snapshot.append(self.current[self.N_abc : self.nz_abc - self.N_abc, self.N_abc : self.nx_abc - self.N_abc].copy())
 
-            seismogramFile = f"{self.seismogramFolder}seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
+            seismogramFile = f"{self.seismogramFolder}AcousticSeismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
             self.seismogram.tofile(seismogramFile)
             print(f"info: Seismogram saved to {seismogramFile}")
 
@@ -405,7 +469,8 @@ class wavefield:
         self.vp_exp = self.ExpandModel(self.vp)
         self.epsilon_exp = self.ExpandModel(self.epsilon)
         self.delta_exp = self.ExpandModel(self.delta)
-        self.A = self.createCerjanLayers()
+        self.Ax = self.createCerjanVector(self.nx_abc)
+        self.Az = self.createCerjanVector(self.nz_abc)
 
         for shot in range(self.Nshot):
             print(f"info: Shot {shot+1} of {self.Nshot}")
@@ -430,10 +495,15 @@ class wavefield:
                 self.future,self.Qf = updateWaveEquationVTI(self.future, self.current, self.past, self.Qc, self.Qp, self.Qf, self.nx_abc, self.nz_abc, self.dt, self.dx, self.dz, self.vp_exp, self.epsilon_exp, self.delta_exp)
             
                 # Apply absorbing boundary condition
-                self.future *= self.A
-                self.Qf *= self.A
-                self.past = np.copy(self.current*self.A) 
-                self.Qp = np.copy(self.Qc*self.A) 
+                self.future *= self.Az[:, np.newaxis] * self.Ax[np.newaxis, :]
+                self.Qf *= self.Az[:, np.newaxis] * self.Ax[np.newaxis, :]
+
+                self.past = np.copy(self.current)
+                self.past *= self.Az[:, np.newaxis] * self.Ax[np.newaxis, :]
+
+                self.Qp = np.copy(self.Qc)
+                self.Qp *= self.Az[:, np.newaxis] * self.Ax[np.newaxis, :]
+
                 self.current = np.copy(self.future)
                 self.Qc = np.copy(self.Qf)
             
@@ -443,7 +513,8 @@ class wavefield:
                 if k in self.frame:
                     self.snapshot.append(self.current[self.N_abc : self.nz_abc - self.N_abc, self.N_abc : self.nx_abc - self.N_abc].copy())
 
-            seismogramFile = f"{self.seismogramFolder}seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
+            seismogramFile = f"{self.seismogramFolder}VTIseismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
             self.seismogram.tofile(seismogramFile)
             print(f"info: Seismogram saved to {seismogramFile}")
+
 

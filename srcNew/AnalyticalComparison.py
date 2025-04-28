@@ -4,18 +4,17 @@ import copy
 wavefield = wavefield()
 
 wavefield.createSourceWavelet()
-wavefield.viewSourceWavelet()
 
 wavefield.initializeWavefields()
-wavefield.viewAllModels()
 wavefield.checkDispersionAndStability()
 
 if wavefield.approximation == 'acoustic':
    wavefield.solveAcousticWaveEquation()
+   wavefield.viewSnapshotAnalyticalComparison()
+
 
 elif wavefield.approximation == 'acousticVTI':
    wavefield.solveAcousticVTIWaveEquation()
+   wavefield.viewSnapshotAnalyticalComparison()
 
-wavefield.viewSeismogram()
-wavefield.viewSnapshot()
-
+wavefield.viewSeismogramComparison()

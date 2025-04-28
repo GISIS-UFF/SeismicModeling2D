@@ -71,3 +71,13 @@ def updateWaveEquationVTI(Uf, Uc, Up, Qc, Qp, Qf, nx, nz, dt, dx, dz, vpz, epsil
             Qf[j, i] = 2 * Qc[j, i] - Qp[j, i] + (dt**2) * (bx * pxx  + bz * qzz)
 
     return Uf, Qf
+
+def AnalyticalModel(vpz, epsilon, delta, dt, f0, frame):
+    theta = np.linspace(0, 2*np.pi, 500)
+    vp = np.sqrt(vpz**2 * (1 + epsilon**2 * np.sin(theta)**2 - 1/2 + 1/2*np.sqrt((1+ 2*epsilon*np.sin(theta)**2)**2 - 2*(epsilon - delta)*np.sin(2*theta)**2)))
+    tlag =  2 * np.sqrt(np.pi) / f0
+    tt = (frame - 1) * dt - tlag
+    Rp = tt * vp  
+    return Rp
+
+
