@@ -8,14 +8,12 @@ wavefield.viewSourceWavelet()
 
 wavefield.initializeWavefields()
 wavefield.viewAllModels()
+
 wavefield.checkDispersionAndStability()
 
-if wavefield.approximation == 'acoustic':
-   wavefield.solveAcousticWaveEquation()
-
-elif wavefield.approximation == 'acousticVTI':
-   wavefield.solveAcousticVTIWaveEquation()
+wavefield.SolveWaveEquation()
 
 wavefield.viewSeismogram()
 wavefield.viewSnapshot()
+
 

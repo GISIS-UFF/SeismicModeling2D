@@ -7,6 +7,7 @@ from utils import ricker
 from utils import updateWaveEquation
 from utils import updateWaveEquationVTI
 from utils import AnalyticalModel
+from utils import AbsorbingBoundary
 
 class wavefield:
     approximation = "acousticVTI" #or "acoustic" 
@@ -59,10 +60,9 @@ class wavefield:
         self.frame      = [250, 500, 750] # time steps to save snapshots
         self.folderSnapshot = "../outputs/snapshots/"
 
-        if self.approximation == "acousticVTI":
-            # Anisotropy parameters files
-            self.epsilonFile = None # "../inputs/marmousi_vp_383x141_epsilon.bin"  
-            self.deltaFile   = None # "../inputs/marmousi_vp_383x141_delta.bin"     
+        # Anisotropy parameters files
+        self.epsilonFile = None # "../inputs/marmousi_vp_383x141_epsilon.bin"  
+        self.deltaFile   = None # "../inputs/marmousi_vp_383x141_delta.bin"     
 
     def readAcquisitionGeometry(self):        
         # Read receiver and source coordinates from CSV files
@@ -319,12 +319,14 @@ class wavefield:
         ax.set_ylabel("Depth (m)")
         ax.grid(True)
         plt.tight_layout()
-        # plt.show()
+        
 
         if self.approximation == "acoustic":
             plt.savefig(f"{self.folderSnapshot}SnapshotAnalyticalComparison_acoustic_{0}_shot{1}.png")
         if self.approximation == "acousticVTI":
             plt.savefig(f"{self.folderSnapshot}SnapshotAnalyticalComparison_acousticVTI_{0}_shot{1}.png")
+
+        plt.show()
 
     def viewSeismogramComparison(self):
         AcousticSeismogram = np.fromfile("../outputs/seismograms/Acousticseismogram_shot_1_Nt4001_Nrec383.bin", dtype=np.float32).reshape(self.nt, self.Nrec)
@@ -344,8 +346,8 @@ class wavefield:
         ax.set_ylabel("Time (s)")
         ax.grid(True)
         plt.tight_layout()
-        # plt.show()
         plt.savefig(f"seismogram_comparison.png")
+        plt.show()
 
     def viewSeismogram(self,perc=99):
         plt.figure(figsize=(5, 5))
@@ -404,30 +406,20 @@ class wavefield:
             else:
                 print("WARNING: Dispersion or stability conditions not satisfied.")
     
-    def createCerjanVector(self,n):
+    def createCerjanVector(self):
         sb = 3 * self.N_abc
-        A = np.ones(n)
-        for i in range(n):
-            if i < self.N_abc:
+        A = np.ones(self.N_abc)
+        for i in range(self.N_abc):
                 fb = (self.N_abc - i) / (np.sqrt(2) * sb)
-                A[i] *= np.exp(-fb * fb)
-            elif i >= n - self.N_abc:
-                fb = (i - (n - self.N_abc)) / (np.sqrt(2) * sb)
-                A[i] *= np.exp(-fb * fb)
-
-        # plt.figure()
-        # plt.imshow(A, cmap='jet', aspect='auto')
-        # plt.title("Cerjan Absorbing Layer")
-        # plt.savefig("cerjan_layer.png")
-        # print(f"info: Cerjan absorbing layers")
+                A[i] = np.exp(-fb * fb)
+                
         return A
     
     def solveAcousticWaveEquation(self):
         print(f"info: Solving acoustic wave equation")
         # Expand velocity model and Create absorbing layers
         self.vp_exp = self.ExpandModel(self.vp)
-        self.Ax = self.createCerjanVector(self.nx_abc)
-        self.Az = self.createCerjanVector(self.nz_abc)
+        self.A = self.createCerjanVector()
 
         for shot in range(self.Nshot):
             print(f"info: Shot {shot+1} of {self.Nshot}")
@@ -448,9 +440,9 @@ class wavefield:
                 self.future = updateWaveEquation(self.future, self.current, self.past, self.vp_exp, self.nz_abc, self.nx_abc, self.dz, self.dx, self.dt)
                 
                 # Apply absorbing boundary condition
-                self.future *= self.Az[:, np.newaxis] * self.Ax[np.newaxis, :]
+                self.future = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.future, self.A)
                 self.past = np.copy(self.current)
-                self.past *= self.Az[:, np.newaxis] * self.Ax[np.newaxis, :]
+                self.past = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.past, self.A)
                 self.current = np.copy(self.future)
 
                 # Register seismogram
@@ -469,8 +461,7 @@ class wavefield:
         self.vp_exp = self.ExpandModel(self.vp)
         self.epsilon_exp = self.ExpandModel(self.epsilon)
         self.delta_exp = self.ExpandModel(self.delta)
-        self.Ax = self.createCerjanVector(self.nx_abc)
-        self.Az = self.createCerjanVector(self.nz_abc)
+        self.A = self.createCerjanVector()
 
         for shot in range(self.Nshot):
             print(f"info: Shot {shot+1} of {self.Nshot}")
@@ -495,14 +486,14 @@ class wavefield:
                 self.future,self.Qf = updateWaveEquationVTI(self.future, self.current, self.past, self.Qc, self.Qp, self.Qf, self.nx_abc, self.nz_abc, self.dt, self.dx, self.dz, self.vp_exp, self.epsilon_exp, self.delta_exp)
             
                 # Apply absorbing boundary condition
-                self.future *= self.Az[:, np.newaxis] * self.Ax[np.newaxis, :]
-                self.Qf *= self.Az[:, np.newaxis] * self.Ax[np.newaxis, :]
+                self.future = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.future, self.A)
+                self.Qf = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.Qf, self.A)  
 
                 self.past = np.copy(self.current)
-                self.past *= self.Az[:, np.newaxis] * self.Ax[np.newaxis, :]
+                self.past = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.past, self.A)
 
                 self.Qp = np.copy(self.Qc)
-                self.Qp *= self.Az[:, np.newaxis] * self.Ax[np.newaxis, :]
+                self.Qp = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.Qp, self.A)
 
                 self.current = np.copy(self.future)
                 self.Qc = np.copy(self.Qf)
@@ -518,3 +509,11 @@ class wavefield:
             print(f"info: Seismogram saved to {seismogramFile}")
 
 
+    def SolveWaveEquation(self):
+        if self.approximation == "acoustic":
+            self.solveAcousticWaveEquation()
+        elif self.approximation == "acousticVTI":
+            self.solveAcousticVTIWaveEquation()
+        else:
+            raise ValueError("ERROR: Unknown approximation. Choose 'acoustic' or 'acousticVTI'.")
+        print(f"info: Wave equation solved")
