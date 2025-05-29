@@ -1,27 +1,46 @@
 from AcousticSeismicModeling2D import wavefield
 import copy
 
-wavefield = wavefield()
-wavefield.approximation = 'acoustic'
+# Compare the analytical solution of the acoustic wave equation with the numerical solution
+wf1 = wavefield("../inputs/parametersAnalytical.json")
+wf1.approximation = 'acoustic'
+wf1.createSourceWavelet()
 
-wavefield.createSourceWavelet()
+wf2 = copy.deepcopy(wf1)
+wf2.approximation = 'acousticVTI'
+wf1.initializeWavefields()
+wf2.initializeWavefields()
 
-wavefield2 = copy.deepcopy(wavefield)
-wavefield2.approximation = 'acousticVTI'
+wf1.viewAllModels()
+wf2.viewAllModels()
 
-wavefield.initializeWavefields()
-wavefield2.initializeWavefields()
+wf1.checkDispersionAndStability()
+wf2.checkDispersionAndStability()
 
-wavefield.viewAllModels()
-wavefield2.viewAllModels()
+wf1.SolveWaveEquation()
+wf2.SolveWaveEquation()
 
-wavefield.checkDispersionAndStability()
-wavefield2.checkDispersionAndStability()
+wf1.viewSnapshotAnalyticalComparison()
+wf2.viewSnapshotAnalyticalComparison()
 
-wavefield.SolveWaveEquation()
-wavefield.viewSnapshotAnalyticalComparison()
+# Compare the acoustic and acousticVTI sismograms
+wf3 = wavefield()
+wf3.approximation = 'acoustic'
+wf3.createSourceWavelet()
 
-wavefield2.SolveWaveEquation()
-wavefield2.viewSnapshotAnalyticalComparison()
+wf4 = copy.deepcopy(wf3)
+wf4.approximation = 'acousticVTI'
 
-wavefield.viewSeismogramComparison()
+wf3.initializeWavefields()
+wf4.initializeWavefields()
+
+wf3.viewAllModels()
+wf4.viewAllModels()
+
+wf3.checkDispersionAndStability()
+wf4.checkDispersionAndStability()
+
+wf3.SolveWaveEquation()
+wf4.SolveWaveEquation()
+
+wf3.viewSeismogramComparison()

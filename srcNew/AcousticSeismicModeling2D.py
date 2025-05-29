@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable # nice colorbar
 import pandas as pd
+import json
 
 from utils import ricker
 from utils import updateWaveEquation
@@ -12,22 +13,26 @@ from utils import AbsorbingBoundary
 class wavefield:
     approximation = "acousticVTI" #or "acoustic" 
 
-    def __init__(self):
+    def __init__(self, parameters_path = "../inputs/parametersMarmousi.json"):
+        self.parameters_path = parameters_path
         self.readParameters()
         self.readAcquisitionGeometry()
 
     def readParameters(self):
-        self.dx   = 10.
-        self.dz   = 10.
-        self.dt   = 0.0005
+        with open(self.parameters_path) as f:
+            parameters = json.load(f)
+
+        self.dx   = parameters["dx"]
+        self.dz   = parameters["dz"]
+        self.dt   = parameters["dt"]
         
         # Model size
-        self.L    = 3820
-        self.D    = 1400
-        self.T    = 2
+        self.L    = parameters["L"]
+        self.D    = parameters["D"]
+        self.T    = parameters["T"]
 
         # Number of point for absorbing boundary condition
-        self.N_abc = 50
+        self.N_abc = parameters["N_abc"]
 
         # Number of points in each direction
         self.nx = int(self.L/self.dx)+1
@@ -43,26 +48,32 @@ class wavefield:
         self.t = np.linspace(0, self.T, self.nt)
 
         # Max frequency
-        self.fcut = 60.
+        self.fcut = parameters["fcut"]
 
-        self.seismogramFolder = "../outputs/seismograms/"
+        self.seismogramFolder = parameters["seismogramFolder"]
 
         # Source and receiver files
-        self.rec_file = "../inputs/receivers.csv"
-        self.src_file = "../inputs/sources.csv"
+        self.rec_file = parameters["rec_file"]
+        self.src_file = parameters["src_file"]
 
         # Velocity model file
-        self.vpFile =  None # "../inputs/marmousi_vp_383x141.bin"
+        self.vpFile = parameters["vpFile"]
 
         # Snapshot flag
-        self.snap       = False
+        self.snap       = parameters["snap"]
         self.snapshot = []
-        self.frame      = [250, 500, 750] # time steps to save snapshots
-        self.folderSnapshot = "../outputs/snapshots/"
+        self.frame      = parameters["frame"] # time steps to save snapshots
+        self.folderSnapshot = parameters["folderSnapshot"]
 
         # Anisotropy parameters files
-        self.epsilonFile = None # "../inputs/marmousi_vp_383x141_epsilon.bin"  
-        self.deltaFile   = None # "../inputs/marmousi_vp_383x141_delta.bin"     
+        self.epsilonFile = parameters["epsilonFile"]  
+        self.deltaFile   = parameters["deltaFile"]  
+
+        #Anisotropy parameters for Layered model
+        self.epsilonLayer1 = parameters["epsilonLayer1"]
+        self.epsilonLayer2 = parameters["epsilonLayer2"]
+        self.deltaLayer1   = parameters["deltaLayer1"]
+        self.deltaLayer2  = parameters["deltaLayer2"]
 
     def readAcquisitionGeometry(self):        
         # Read receiver and source coordinates from CSV files
@@ -80,7 +91,7 @@ class wavefield:
         self.Nrec = len(self.rec_x)
         self.Nshot = len(self.shot_x)   
         
-
+        
     def createSourceWavelet(self):
         # Create Ricker wavelet
         self.source = ricker(self.fcut, self.t)
@@ -148,12 +159,12 @@ class wavefield:
 
             #import epsilon and delta model
             if (self.epsilonFile == None):
-                self.createLayerdEpsilonModel(0.2,0.2)
+                self.createLayerdEpsilonModel(self.epsilonLayer1,self.epsilonLayer2)
             else:
                 self.epsilon = self.ImportModel(self.epsilonFile)
 
             if (self.deltaFile == None):
-                self.createLayerdDeltaModel(0.2,0.2)
+                self.createLayerdDeltaModel(self.deltaLayer1,self.deltaLayer2)
             else:
                 self.delta = self.ImportModel(self.deltaFile)
         
@@ -161,13 +172,13 @@ class wavefield:
         self.vp[0:self.nz//2, :] = v1
         self.vp[self.nz//2:self.nz, :] = v2
 
-    def createLayerdEpsilonModel(self,e1=0, e2=0.24):
-        self.epsilon[0:self.nz//2, :] = e1
-        self.epsilon[self.nz//2:self.nz, :] = e2
+    def createLayerdEpsilonModel(self,e1=0, e2=0.2):
+        self.epsilon[0:self.nz//7, :] = e1
+        self.epsilon[self.nz//7:self.nz, :] = e2
 
     def createLayerdDeltaModel(self, d1=0, d2=0.1):
-        self.delta[0:self.nz//2, :] = d1
-        self.delta[self.nz//2:self.nz, :] = d2
+        self.delta[0:self.nz//7, :] = d1
+        self.delta[self.nz//7:self.nz, :] = d2
 
     def createVTIModelFromVp(self):
         if not (self.approximation == "acousticVTI"):
@@ -216,8 +227,6 @@ class wavefield:
         cax = divider.append_axes("right", size="5%", pad=0.05)
         cbar = fig.colorbar(im,cax=cax)
         return cbar
-
-
     
     def viewModel(self, model, title):
         fig, ax = plt.subplots(figsize=(10, 5))
@@ -292,9 +301,7 @@ class wavefield:
             Rp = AnalyticalModel(vel, 0, 0, self.dt, self.fcut, self.frame[0])
         elif self.approximation == "acousticVTI":
             vel = self.vp[ int(self.shot_z[0]/self.dz), int(self.shot_x[0]/self.dx) ]
-            eps = self.epsilon[ int(self.shot_z[0]/self.dz), int(self.shot_x[0]/self.dx) ]
-            delt = self.delta[ int(self.shot_z[0]/self.dz), int(self.shot_x[0]/self.dx)]
-            Rp = AnalyticalModel(vel, eps, delt, self.dt, self.fcut, self.frame[0])
+            Rp = AnalyticalModel(vel, 0.2, 0.2, self.dt, self.fcut, self.frame[0])
         else:
             raise ValueError("Info: Unknown approximation.")
 
@@ -333,7 +340,7 @@ class wavefield:
         VTISeismogram = np.fromfile("../outputs/seismograms/VTIseismogram_shot_1_Nt4001_Nrec383.bin", dtype=np.float32).reshape(self.nt, self.Nrec)
         difseismogram = AcousticSeismogram - VTISeismogram
 
-        fig, ax = plt.subplots(figsize=(10, 5))
+        fig, ax = plt.subplots(figsize=(5, 5))
         perc = np.percentile(self.seismogram, 99)
         im = ax.imshow(difseismogram, aspect='auto', cmap='gray', vmin=-perc, vmax=perc, extent=[0, self.Nrec, self.T, 0])
         ax.set_title(f"Seismogram comparison")

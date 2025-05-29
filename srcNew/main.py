@@ -1,5 +1,4 @@
 from AcousticSeismicModeling2D import wavefield
-import copy
 
 wavefield = wavefield()
 
