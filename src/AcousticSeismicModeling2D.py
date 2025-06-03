@@ -104,7 +104,7 @@ class wavefield:
         plt.xlabel("Time (s)")
         plt.ylabel("Amplitude")
         plt.grid()
-        plt.savefig("source_wavelet.png")
+        plt.savefig(f"{self.seismogramFolder}source_wavelet.png")
         # plt.show()
         
     def ImportModel(self, filename):
@@ -246,7 +246,16 @@ class wavefield:
         
         # ax.legend()
         plt.tight_layout()
-        plt.savefig(f"{title}.png")
+        if title == "Velocity Model":
+            modelFile = self.vpFile.replace(".bin","")
+        elif title == "Epsilon Model":
+            modelFile = self.epsilonFile.replace(".bin","")
+        elif title == "Delta Model":
+            modelFile = self.deltaFile.replace(".bin","")   
+        else:
+            modelFile = title
+
+        plt.savefig(f"{modelFile}.png")
         # plt.show()
 
     def viewAllModels(self):
@@ -277,9 +286,9 @@ class wavefield:
         ax.grid(True)
         plt.tight_layout()
         if self.approximation == "acousticVTI":
-            plt.savefig(f"snapshotVTI_{k}.png")
+            plt.savefig(f"{self.folderSnapshot}snapshotVTI_{k}.png")
         if self.approximation == "acoustic":
-            plt.savefig(f"snapshotAcoustic_{k}.png")
+            plt.savefig(f"{self.folderSnapshot}snapshotAcoustic_{k}.png")
        
     def viewSnapshot(self):
         for k in range(len(self.snapshot)):
@@ -353,7 +362,7 @@ class wavefield:
         ax.set_ylabel("Time (s)")
         ax.grid(True)
         plt.tight_layout()
-        plt.savefig(f"seismogram_comparison.png")
+        plt.savefig(f"{AcousticSeismogram}seismogram_comparison.png")
         plt.show()
 
     def viewSeismogram(self,perc=99):
@@ -367,9 +376,9 @@ class wavefield:
         plt.grid()
         plt.tight_layout()
         if self.approximation == "acoustic":
-            plt.savefig("seismogramAcoustic.png")
+            plt.savefig(f"{self.seismogramFile}.png")
         if self.approximation == "acousticVTI":
-            plt.savefig("seismogramVTI.png")
+            plt.savefig(f"{self.seismogramFile}.png")
         # plt.show()
 
     def checkDispersionAndStability(self):
@@ -458,9 +467,9 @@ class wavefield:
                 if k in self.frame:
                     self.snapshot.append(self.current[self.N_abc : self.nz_abc - self.N_abc, self.N_abc : self.nx_abc - self.N_abc].copy())
 
-            seismogramFile = f"{self.seismogramFolder}AcousticSeismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
-            self.seismogram.tofile(seismogramFile)
-            print(f"info: Seismogram saved to {seismogramFile}")
+            self.seismogramFile = f"{self.seismogramFolder}AcousticSeismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
+            self.seismogram.tofile(self.seismogramFile)
+            print(f"info: Seismogram saved to {self.seismogramFile}")
 
     def solveAcousticVTIWaveEquation(self):
         print(f"info: Solving acoustic VTI wave equation")
@@ -511,9 +520,9 @@ class wavefield:
                 if k in self.frame:
                     self.snapshot.append(self.current[self.N_abc : self.nz_abc - self.N_abc, self.N_abc : self.nx_abc - self.N_abc].copy())
 
-            seismogramFile = f"{self.seismogramFolder}VTIseismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
-            self.seismogram.tofile(seismogramFile)
-            print(f"info: Seismogram saved to {seismogramFile}")
+            self.seismogramFile = f"{self.seismogramFolder}VTIseismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
+            self.seismogram.tofile(self.seismogramFile)
+            print(f"info: Seismogram saved to {self.seismogramFile}")
 
 
     def SolveWaveEquation(self):
