@@ -117,7 +117,7 @@ class wavefield:
         plt.xlabel("Time (s)")
         plt.ylabel("Amplitude")
         plt.grid()
-        plt.savefig(f"{self.seismogramFolder}source_wavelet.png")
+        plt.savefig("source_wavelet.png")
         # plt.show()
         
     def ImportModel(self, filename):
@@ -299,16 +299,7 @@ class wavefield:
         
         # ax.legend()
         plt.tight_layout()
-        if title == "Velocity Model":
-            modelFile = self.vpFile.replace(".bin","")
-        elif title == "Epsilon Model":
-            modelFile = self.epsilonFile.replace(".bin","")
-        elif title == "Delta Model":
-            modelFile = self.deltaFile.replace(".bin","")   
-        else:
-            modelFile = title
-
-        plt.savefig(f"{modelFile}.png")
+        plt.savefig(f"{title}.png")
         # plt.show()
 
     def viewAllModels(self):
@@ -345,9 +336,9 @@ class wavefield:
         ax.grid(True)
         plt.tight_layout()
         if self.approximation == "acousticVTI":
-            plt.savefig(f"{self.folderSnapshot}snapshotVTI_{k}.png")
+            plt.savefig(f"snapshotVTI_{k}.png")
         if self.approximation == "acoustic":
-            plt.savefig(f"{self.folderSnapshot}snapshotAcoustic_{k}.png")
+            plt.savefig(f"snapshotAcoustic_{k}.png")
        
     def viewSnapshot(self):
         for k in range(len(self.snapshot)):
@@ -422,7 +413,7 @@ class wavefield:
         cbar.set_label(f"Amplitude ({title})")
 
         plt.tight_layout()
-        plt.savefig(f"seismogram_comparison.png")
+        plt.savefig(f"Comparison_{title}.png")
         plt.show()
 
     def viewSeismogram(self,perc=99):
@@ -436,9 +427,9 @@ class wavefield:
         plt.grid()
         plt.tight_layout()
         if self.approximation == "acoustic":
-            plt.savefig(f"{self.seismogramFile}.png")
+            plt.savefig("seismogramAcoustic.png")
         if self.approximation == "acousticVTI":
-            plt.savefig(f"{self.seismogramFile}.png")
+            plt.savefig("seismogramVTI.png")
         # plt.show()
 
     def checkDispersionAndStability(self):
@@ -525,9 +516,13 @@ class wavefield:
                 if k in self.frame:
                     self.snapshot.append(self.current[self.N_abc : self.nz_abc - self.N_abc, self.N_abc : self.nx_abc - self.N_abc].copy())
 
+                #swap
+                self.current, self.future = self.future, self.current
+
             seismogramFile = f"{self.seismogramFolder}AcousticSeismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
             self.seismogram.tofile(seismogramFile)
             print(f"info: Seismogram saved to {seismogramFile}")
+            print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
 
     def solveAcousticVTIWaveEquation(self):
         start_time = time.time()
@@ -572,10 +567,66 @@ class wavefield:
                 if k in self.frame:
                     self.snapshot.append(self.current[self.N_abc : self.nz_abc - self.N_abc, self.N_abc : self.nx_abc - self.N_abc].copy())
 
+                #swap
+                self.current, self.future, self.Qc, self.Qf = self.future, self.current, self.Qf, self.Qc
+
             seismogramFile = f"{self.seismogramFolder}VTIseismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
             self.seismogram.tofile(seismogramFile)
             print(f"info: Seismogram saved to {seismogramFile}")
+            print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
 
+    def solveAcousticTTIWaveEquation(self):
+        start_time = time.time()
+        print(f"info: Solving acoustic TTI wave equation")
+        # Expand models and Create absorbing layers
+        self.vp_exp = self.ExpandModel(self.vp)
+        self.vs_exp = self.ExpandModel(self.vs)
+        self.theta_exp = self.ExpandModel(self.theta)
+        self.epsilon_exp = self.ExpandModel(self.epsilon)
+        self.delta_exp = self.ExpandModel(self.delta)
+        self.A = self.createCerjanVector()
+
+        for shot in range(self.Nshot):
+            print(f"info: Shot {shot+1} of {self.Nshot}")
+            self.current.fill(0)
+            self.future.fill(0)
+            self.seismogram.fill(0)
+            self.Qc.fill(0)
+            self.Qf.fill(0)
+
+            # convert acquisition geometry coordinates to grid points
+            sx = int(self.shot_x[shot]/self.dx) + self.N_abc
+            sz = int(self.shot_z[shot]/self.dz) + self.N_abc            
+
+            rx = np.int32(self.rec_x/self.dx) + self.N_abc
+            rz = np.int32(self.rec_z/self.dz) + self.N_abc
+
+            for k in range(self.nt):
+                self.current[sz,sx] += self.source[k]
+                self.Qc[sz,sx] += self.source[k]
+
+                self.future,self.Qf = updateWaveEquationTTI(self.future, self.current, self.Qc, self.Qf, self.nx_abc, self.nz_abc, self.dt, self.dx, self.dz, self.vp_exp, self.vs_exp, self.epsilon_exp, self.delta_exp, self.theta_exp)
+            
+                # Apply absorbing boundary condition
+                self.future = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.future, self.A)
+                self.Qf = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.Qf, self.A)  
+
+                self.current = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.current, self.A)
+                self.Qc = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.Qc, self.A)
+            
+                # Register seismogram
+                self.seismogram[k, :] = self.current[rz, rx]
+
+                if k in self.frame:
+                    self.snapshot.append(self.current[self.N_abc : self.nz_abc - self.N_abc, self.N_abc : self.nx_abc - self.N_abc].copy())
+
+                #swap
+                self.current, self.future, self.Qc, self.Qf = self.future, self.current, self.Qf, self.Qc
+
+            seismogramFile = f"{self.seismogramFolder}TTIseismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
+            self.seismogram.tofile(seismogramFile)
+            print(f"info: Seismogram saved to {seismogramFile}")
+            print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
 
     def SolveWaveEquation(self):
         if self.approximation == "acoustic":
