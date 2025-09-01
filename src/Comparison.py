@@ -8,20 +8,28 @@ wf1.createSourceWavelet()
 
 wf2 = copy.deepcopy(wf1)
 wf2.approximation = 'acousticVTI'
+wf0 = copy.deepcopy(wf1)
+wf0.approximation = 'acousticTTI'
+
 wf1.initializeWavefields()
 wf2.initializeWavefields()
+wf0.initializeWavefields()
 
 wf1.viewAllModels()
 wf2.viewAllModels()
+wf0.viewAllModels()
 
 wf1.checkDispersionAndStability()
 wf2.checkDispersionAndStability()
+wf0.checkDispersionAndStability()
 
 wf1.SolveWaveEquation()
 wf2.SolveWaveEquation()
+wf0.SolveWaveEquation()
 
 wf1.viewSnapshotAnalyticalComparison()
 wf2.viewSnapshotAnalyticalComparison()
+wf0.viewSnapshotAnalyticalComparison()
 
 # Compare the acoustic and acousticVTI sismograms
 wf3 = wavefield("../inputs/parametersMarmousi.json")

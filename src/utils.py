@@ -24,6 +24,379 @@ def updateWaveEquation(Uf,Uc,vp,nz,nx,dz,dx,dt):
 
     return Uf
 
+@jit(nopython=True, parallel=True)
+def updateWaveEquationCPML(Uf, Uc, vp, nx_abc, nz_abc, N_abc, dz, dx, dt,
+                          PsixF, PsizF, ZetaxF, ZetazF, a_x, a_z, b_x, b_z):
+    
+    c0 = -205 / 72
+    c1 = 8 / 5
+    c2 = -1 / 5
+    c3 = 8 / 315
+    c4 = -1 / 560
+    a1 = 4 / 5
+    a2 = -1 / 5
+    a3 = 4 / 105
+    a4 = -1 / 280
+    for i in prange(4, nx_abc - 4):
+        # cpml_i = (nx_abc - N_abc) - i
+        for j in range(4, nz_abc - 4):
+            # cpml_j = (nz_abc - N_abc) - j
+
+            pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) +
+                    c2 * (Uc[j, i+2] + Uc[j, i-2]) + 
+                    c3 * (Uc[j, i+3] + Uc[j, i-3]) +
+                    c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
+            pzz = (c0 * Uc[j, i] + c1 * (Uc[j+1, i] + Uc[j-1, i]) +
+                c2 * (Uc[j+2, i] + Uc[j-2, i]) + 
+                c3 * (Uc[j+3, i] + Uc[j-3, i]) +
+                c4 * (Uc[j+4, i] + Uc[j-4, i])) / (dz * dz)
+            px = (a1 * (Uc[j, i+1] - Uc[j, i-1]) +
+                a2 * (Uc[j, i+2] - Uc[j, i-2]) +
+                a3 * (Uc[j, i+3] - Uc[j, i-3]) +
+                a4 * (Uc[j, i+4] - Uc[j, i-4])) / (2 * dx)
+            # psix = (a1 * (PsixF[j, cpml_i+1] - PsixF[j, cpml_i-1]) +
+            #         a2 * (PsixF[j, cpml_i+2] - PsixF[j, cpml_i-2]) +
+            #         a3 * (PsixF[j, cpml_i+3] - PsixF[j, cpml_i-3]) +
+            #         a4 * (PsixF[j, cpml_i+4] - PsixF[j, cpml_i-4])) / (2 * dx)
+            psix = (a1 * (PsixF[j, i+1] - PsixF[j, i-1]) +
+                    a2 * (PsixF[j, i+2] - PsixF[j, i-2]) +
+                    a3 * (PsixF[j, i+3] - PsixF[j, i-3]) +
+                    a4 * (PsixF[j, i+4] - PsixF[j, i-4])) / (2 * dx)
+            pz = (a1 * (Uc[j+1, i] - Uc[j-1, i]) +
+                  a2 * (Uc[j+2, i] - Uc[j-2, i]) +
+                  a3 * (Uc[j+3, i] - Uc[j-3, i]) +
+                  a4 * (Uc[j+4, i] - Uc[j-4, i])) / (2 * dz)
+            # psiz = (a1 * (PsizF[cpml_j+1, i] - PsizF[cpml_j-1, i]) +
+            #         a2 * (PsizF[cpml_j+2, i] - PsizF[cpml_j-2, i]) +
+            #         a3 * (PsizF[cpml_j+3, i] - PsizF[cpml_j-3, i]) +
+            #         a4 * (PsizF[cpml_j+4, i] - PsizF[cpml_j-4, i])) / (2*dz)
+            psiz = (a1 * (PsizF[j+1, i] - PsizF[j-1, i]) +
+                    a2 * (PsizF[j+2, i] - PsizF[j-2, i]) +
+                    a3 * (PsizF[j+3, i] - PsizF[j-3, i]) +
+                    a4 * (PsizF[j+4, i] - PsizF[j-4, i])) / (2*dz)
+
+            # PsizF[cpml_j, i] = a_z[j] * PsizF[cpml_j, i] + b_z[j] * pz
+            # ZetazF[cpml_j, i] = a_z[j] * ZetazF[cpml_j, i] + b_z[j] * (pzz + psiz)
+            # PsixF[j, cpml_i] = a_x[i] * PsixF[j, cpml_i] + b_x[i] * px
+            # ZetaxF[j, cpml_i] = a_x[i] * ZetaxF[j, cpml_i] + b_x[i] * (pxx + psix)
+
+            PsizF[j, i] = a_z[j] * PsizF[j, i] + b_z[j] * pz
+            ZetazF[j, i] = a_z[j] * ZetazF[j, i] + b_z[j] * (pzz + psiz)
+            PsixF[j, i] = a_x[i] * PsixF[j, i] + b_x[i] * px
+            ZetaxF[j, i] = a_x[i] * ZetaxF[j, i] + b_x[i] * (pxx + psix)
+            
+            # Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz + psix + psiz + ZetaxF[j, cpml_i] + ZetazF[cpml_j, i]) + 2 * Uc[j, i] - Uf[j, i]
+            Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz + psix + psiz + ZetaxF[j, i] + ZetazF[j, i]) + 2 * Uc[j, i] - Uf[j, i]
+
+    return Uf
+
+# @jit(nopython=True, parallel=True)
+# def updateWaveEquationCPML(Uf, Uc, vp, nx_abc, nz_abc, N_abc, dz, dx, dt,
+#                           PsixF, PsizF, ZetaxF, ZetazF, a_x, a_z, b_x, b_z):
+    
+#     c0 = -205 / 72
+#     c1 = 8 / 5
+#     c2 = -1 / 5
+#     c3 = 8 / 315
+#     c4 = -1 / 560
+#     a1 = 4 / 5
+#     a2 = -1 / 5
+#     a3 = 4 / 105
+#     a4 = -1 / 280
+
+#     # Região Interior 
+#     for i in prange(N_abc, nx_abc - N_abc):
+#         for j in range(N_abc, nz_abc - N_abc):
+#             pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) +
+#                    c2 * (Uc[j, i+2] + Uc[j, i-2]) + c3 * (Uc[j, i+3] + Uc[j, i-3]) +
+#                    c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
+#             pzz = (c0 * Uc[j, i] + c1 * (Uc[j+1, i] + Uc[j-1, i]) +
+#                    c2 * (Uc[j+2, i] + Uc[j-2, i]) + c3 * (Uc[j+3, i] + Uc[j-3, i]) +
+#                    c4 * (Uc[j+4, i] + Uc[j-4, i])) / (dz * dz)
+#             Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz) + 2 * Uc[j, i] - Uf[j, i]
+
+#     # Região Esquerda 
+#     for i in prange(4, N_abc):
+#         for j in range(N_abc, nz_abc - N_abc):
+#             pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) +
+#                    c2 * (Uc[j, i+2] + Uc[j, i-2]) + c3 * (Uc[j, i+3] + Uc[j, i-3]) +
+#                    c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
+#             pzz = (c0 * Uc[j, i] + c1 * (Uc[j+1, i] + Uc[j-1, i]) +
+#                    c2 * (Uc[j+2, i] + Uc[j-2, i]) + c3 * (Uc[j+3, i] + Uc[j-3, i]) +
+#                    c4 * (Uc[j+4, i] + Uc[j-4, i])) / (dz * dz)
+#             px = (a1 * (Uc[j, i+1] - Uc[j, i-1]) +
+#                   a2 * (Uc[j, i+2] - Uc[j, i-2]) +
+#                   a3 * (Uc[j, i+3] - Uc[j, i-3]) +
+#                   a4 * (Uc[j, i+4] - Uc[j, i-4])) / (2 * dx)
+#             psix = (a1 * (PsixF[j, i+1] - PsixF[j, i-1]) +
+#                     a2 * (PsixF[j, i+2] - PsixF[j, i-2]) +
+#                     a3 * (PsixF[j, i+3] - PsixF[j, i-3]) +
+#                     a4 * (PsixF[j, i+4] - PsixF[j, i-4])) / (2 * dx)
+            
+#             PsixF[j, i] = a_x[i] * PsixF[j, i] + b_x[i] * px
+#             ZetaxF[j, i] = a_x[i] * ZetaxF[j, i] + b_x[i] * (pxx + psix)
+#             Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz + psix + ZetaxF[j, i]) + 2 * Uc[j, i] - Uf[j, i]
+            
+#     # Região Direita
+#     for i in prange(nx_abc - N_abc, nx_abc - 4):
+#             # idx_cpml = (nx_abc - N_abc) - i
+#             for j in range(N_abc, nz_abc - N_abc):
+#                 pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) +
+#                     c2 * (Uc[j, i+2] + Uc[j, i-2]) + c3 * (Uc[j, i+3] + Uc[j, i-3]) +
+#                     c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
+#                 pzz = (c0 * Uc[j, i] + c1 * (Uc[j+1, i] + Uc[j-1, i]) +
+#                     c2 * (Uc[j+2, i] + Uc[j-2, i]) + c3 * (Uc[j+3, i] + Uc[j-3, i]) +
+#                     c4 * (Uc[j+4, i] + Uc[j-4, i])) / (dz * dz)
+#                 px = (a1 * (Uc[j, i+1] - Uc[j, i-1]) +
+#                     a2 * (Uc[j, i+2] - Uc[j, i-2]) +
+#                     a3 * (Uc[j, i+3] - Uc[j, i-3]) +
+#                     a4 * (Uc[j, i+4] - Uc[j, i-4])) / (2 * dx)
+#                 # psix = (a1 * (PsixF[j, idx_cpml+1] - PsixF[j, idx_cpml-1]) +
+#                 #         a2 * (PsixF[j, idx_cpml+2] - PsixF[j, idx_cpml-2]) +
+#                 #         a3 * (PsixF[j, idx_cpml+3] - PsixF[j, idx_cpml-3]) +
+#                 #         a4 * (PsixF[j, idx_cpml+4] - PsixF[j, idx_cpml-4])) / (2 * dx)
+#                 psix = (a1 * (PsixF[j, i+1] - PsixF[j, i-1]) +
+#                         a2 * (PsixF[j, i+2] - PsixF[j, i-2]) +
+#                         a3 * (PsixF[j, i+3] - PsixF[j, i-3]) +
+#                         a4 * (PsixF[j, i+4] - PsixF[j, i-4])) / (2 * dx)
+#                 # PsixF[j, idx_cpml] = a_x[i] * PsixF[j, idx_cpml] + b_x[i] * px
+#                 PsixF[j, i] = a_x[i] * PsixF[j, i] + b_x[i] * px
+#                 # ZetaxF[j, idx_cpml] = a_x[i] * ZetaxF[j, idx_cpml] + b_x[i] * (pxx + psix)
+#                 ZetaxF[j, i] = a_x[i] * ZetaxF[j, i] + b_x[i] * (pxx + psix)
+#                 # Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz + psix + ZetaxF[j, idx_cpml]) + 2 * Uc[j, i] - Uf[j, i]
+#                 Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz + psix + ZetaxF[j, i]) + 2 * Uc[j, i] - Uf[j, i]
+
+#     # Região Superior 
+#     for j in prange(4, N_abc):
+#         for i in range(N_abc, nx_abc - N_abc):
+#             pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) +
+#                    c2 * (Uc[j, i+2] + Uc[j, i-2]) + c3 * (Uc[j, i+3] + Uc[j, i-3]) +
+#                    c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
+#             pzz = (c0 * Uc[j, i] + c1 * (Uc[j+1, i] + Uc[j-1, i]) +
+#                    c2 * (Uc[j+2, i] + Uc[j-2, i]) + c3 * (Uc[j+3, i] + Uc[j-3, i]) +
+#                    c4 * (Uc[j+4, i] + Uc[j-4, i])) / (dz * dz)
+#             pz = (a1 * (Uc[j+1, i] - Uc[j-1, i]) +
+#                   a2 * (Uc[j+2, i] - Uc[j-2, i]) +
+#                   a3 * (Uc[j+3, i] - Uc[j-3, i]) +
+#                   a4 * (Uc[j+4, i] - Uc[j-4, i])) / (2 * dz)
+#             psiz = (a1 * (PsizF[j+1, i] - PsizF[j-1, i]) +
+#                     a2 * (PsizF[j+2, i] - PsizF[j-2, i]) +
+#                     a3 * (PsizF[j+3, i] - PsizF[j-3, i]) +
+#                     a4 * (PsizF[j+4, i] - PsizF[j-4, i])) / (2*dz)          
+
+#             PsizF[j, i] = a_z[j] * PsizF[j, i] + b_z[j] * pz
+#             ZetazF[j, i] = a_z[j] * ZetazF[j, i] + b_z[j] * (pzz + psiz)
+#             Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz + psiz + ZetazF[j, i]) + 2 * Uc[j, i] - Uf[j, i]
+
+#     # Região Inferior
+#     for j in prange(nz_abc - N_abc, nz_abc - 4):
+#         # idx_cpml = (nz_abc - N_abc) - j
+#         for i in range(N_abc, nx_abc - N_abc):
+#             pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) +
+#                    c2 * (Uc[j, i+2] + Uc[j, i-2]) + c3 * (Uc[j, i+3] + Uc[j, i-3]) +
+#                    c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
+#             pzz = (c0 * Uc[j, i] + c1 * (Uc[j+1, i] + Uc[j-1, i]) +
+#                    c2 * (Uc[j+2, i] + Uc[j-2, i]) + c3 * (Uc[j+3, i] + Uc[j-3, i]) +
+#                    c4 * (Uc[j+4, i] + Uc[j-4, i])) / (dz * dz)
+#             pz = (a1 * (Uc[j+1, i] - Uc[j-1, i]) +
+#                   a2 * (Uc[j+2, i] - Uc[j-2, i]) +
+#                   a3 * (Uc[j+3, i] - Uc[j-3, i]) +
+#                   a4 * (Uc[j+4, i] - Uc[j-4, i])) / (2 * dz)
+#             # psiz = (a1 * (PsizF[idx_cpml+1, i] - PsizF[idx_cpml-1, i]) +
+#             #         a2 * (PsizF[idx_cpml+2, i] - PsizF[idx_cpml-2, i]) +
+#             #         a3 * (PsizF[idx_cpml+3, i] - PsizF[idx_cpml-3, i]) +
+#             #         a4 * (PsizF[idx_cpml+4, i] - PsizF[idx_cpml-4, i])) / (2*dz)
+#             psiz = (a1 * (PsizF[j+1, i] - PsizF[j-1, i]) +
+#                     a2 * (PsizF[j+2, i] - PsizF[j-2, i]) +
+#                     a3 * (PsizF[j+3, i] - PsizF[j-3, i]) +
+#                     a4 * (PsizF[j+4, i] - PsizF[j-4, i])) / (2*dz)
+
+#             # PsizF[j, i] = a_z[j] * PsizF[idx_cpml, i] + b_z[j] * pz
+#             # ZetazF[j, i] = a_z[j] * ZetazF[idx_cpml, i] + b_z[j] * (pzz + psiz)
+#             # Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz + psiz + ZetazF[idx_cpml, i]) + 2 * Uc[j, i] - Uf[j, i]
+
+#             PsizF[j, i] = a_z[j] * PsizF[j, i] + b_z[j] * pz
+#             ZetazF[j, i] = a_z[j] * ZetazF[j, i] + b_z[j] * (pzz + psiz)
+#             Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz + psiz + ZetazF[j, i]) + 2 * Uc[j, i] - Uf[j, i]
+
+#     # Quina Superior Esquerda
+#     for i in prange(4, N_abc):
+#         for j in range(4, N_abc):
+#             pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) +
+#                    c2 * (Uc[j, i+2] + Uc[j, i-2]) + c3 * (Uc[j, i+3] + Uc[j, i-3]) +
+#                    c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
+#             pzz = (c0 * Uc[j, i] + c1 * (Uc[j+1, i] + Uc[j-1, i]) +
+#                    c2 * (Uc[j+2, i] + Uc[j-2, i]) + c3 * (Uc[j+3, i] + Uc[j-3, i]) +
+#                    c4 * (Uc[j+4, i] + Uc[j-4, i])) / (dz * dz)
+#             px = (a1 * (Uc[j, i+1] - Uc[j, i-1]) +
+#                   a2 * (Uc[j, i+2] - Uc[j, i-2]) +
+#                   a3 * (Uc[j, i+3] - Uc[j, i-3]) +
+#                   a4 * (Uc[j, i+4] - Uc[j, i-4])) / (2 * dx)
+#             pz = (a1 * (Uc[j+1, i] - Uc[j-1, i]) +
+#                   a2 * (Uc[j+2, i] - Uc[j-2, i]) +
+#                   a3 * (Uc[j+3, i] - Uc[j-3, i]) +
+#                   a4 * (Uc[j+4, i] - Uc[j-4, i])) / (2 * dz)
+#             psiz = (a1 * (PsizF[j+1, i] - PsizF[j-1, i]) +
+#                     a2 * (PsizF[j+2, i] - PsizF[j-2, i]) +
+#                     a3 * (PsizF[j+3, i] - PsizF[j-3, i]) +
+#                     a4 * (PsizF[j+4, i] - PsizF[j-4, i])) / (2*dz)   
+#             psix = (a1 * (PsixF[j, i+1] - PsixF[j, i-1]) +
+#                     a2 * (PsixF[j, i+2] - PsixF[j, i-2]) +
+#                     a3 * (PsixF[j, i+3] - PsixF[j, i-3]) +
+#                     a4 * (PsixF[j, i+4] - PsixF[j, i-4])) / (2 * dx)
+            
+#             PsixF[j, i] = a_x[i] * PsixF[j, i] + b_x[i] * px
+#             ZetaxF[j, i] = a_x[i] * ZetaxF[j, i] + b_x[i] * (pxx + psix)
+#             PsizF[j, i] = a_z[j] * PsizF[j, i] + b_z[j] * pz
+#             ZetazF[j, i] = a_z[j] * ZetazF[j, i] + b_z[j] * (pzz + psiz)
+            
+#             Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz + psix + psiz + ZetaxF[j, i] + ZetazF[j, i]) + 2 * Uc[j, i] - Uf[j, i]
+
+#     # Quina Superior Direita 
+#     for i in prange(nx_abc - N_abc, nx_abc - 4):
+#         # idx_cpml = (nx_abc - N_abc) - i 
+#         for j in range(4, N_abc):
+#             pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) +
+#                    c2 * (Uc[j, i+2] + Uc[j, i-2]) + c3 * (Uc[j, i+3] + Uc[j, i-3]) +
+#                    c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
+#             pzz = (c0 * Uc[j, i] + c1 * (Uc[j+1, i] + Uc[j-1, i]) +
+#                    c2 * (Uc[j+2, i] + Uc[j-2, i]) + c3 * (Uc[j+3, i] + Uc[j-3, i]) +
+#                    c4 * (Uc[j+4, i] + Uc[j-4, i])) / (dz * dz)
+#             px = (a1 * (Uc[j, i+1] - Uc[j, i-1]) +
+#                   a2 * (Uc[j, i+2] - Uc[j, i-2]) +
+#                   a3 * (Uc[j, i+3] - Uc[j, i-3]) +
+#                   a4 * (Uc[j, i+4] - Uc[j, i-4])) / (2 * dx)
+#             pz = (a1 * (Uc[j+1, i] - Uc[j-1, i]) +
+#                   a2 * (Uc[j+2, i] - Uc[j-2, i]) +
+#                   a3 * (Uc[j+3, i] - Uc[j-3, i]) +
+#                   a4 * (Uc[j+4, i] - Uc[j-4, i])) / (2 * dz)
+#             # psix = (a1 * (PsixF[j, idx_cpml+1] - PsixF[j, idx_cpml-1]) +
+#             #             a2 * (PsixF[j, idx_cpml+2] - PsixF[j, idx_cpml-2]) +
+#             #             a3 * (PsixF[j, idx_cpml+3] - PsixF[j, idx_cpml-3]) +
+#             #             a4 * (PsixF[j, idx_cpml+4] - PsixF[j, idx_cpml-4])) / (2 * dx)
+#             psix = (a1 * (PsixF[j, i+1] - PsixF[j, i-1]) +
+#                         a2 * (PsixF[j, i+2] - PsixF[j, i-2]) +
+#                         a3 * (PsixF[j, i+3] - PsixF[j, i-3]) +
+#                         a4 * (PsixF[j, i+4] - PsixF[j, i-4])) / (2 * dx)
+#             psiz = (a1 * (PsizF[j+1, i] - PsizF[j-1, i]) +
+#                     a2 * (PsizF[j+2, i] - PsizF[j-2, i]) +
+#                     a3 * (PsizF[j+3, i] - PsizF[j-3, i]) +
+#                     a4 * (PsizF[j+4, i] - PsizF[j-4, i])) / (2*dz)          
+
+#             # PsixF[j, idx_cpml] = a_x[i] * PsixF[j, idx_cpml] + b_x[i] * px
+#             # ZetaxF[j, idx_cpml] = a_x[i] * ZetaxF[j, idx_cpml] + b_x[i] * (pxx + psix)
+#             # PsizF[j, i] = a_z[j] * PsizF[j, i] + b_z[j] * pz
+#             # ZetazF[j, i] = a_z[j] * ZetazF[j, i] + b_z[j] * (pzz + psiz)
+            
+#             # Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz + psix + psiz + ZetaxF[j, idx_cpml] + ZetazF[j, i]) + 2 * Uc[j, i] - Uf[j, i]
+
+#             PsixF[j, i] = a_x[i] * PsixF[j, i] + b_x[i] * px
+#             ZetaxF[j, i] = a_x[i] * ZetaxF[j, i] + b_x[i] * (pxx + psix)
+#             PsizF[j, i] = a_z[j] * PsizF[j, i] + b_z[j] * pz
+#             ZetazF[j, i] = a_z[j] * ZetazF[j, i] + b_z[j] * (pzz + psiz)
+            
+#             Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz + psix + psiz + ZetaxF[j, i] + ZetazF[j, i]) + 2 * Uc[j, i] - Uf[j, i]
+
+#     # Quina Inferior Esquerda 
+#     for i in prange(4, N_abc):
+#         for j in range(nz_abc - N_abc, nz_abc - 4):
+#             # idx_cpml = (nz_abc - N_abc) - j  
+
+#             pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) +
+#                    c2 * (Uc[j, i+2] + Uc[j, i-2]) + c3 * (Uc[j, i+3] + Uc[j, i-3]) +
+#                    c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
+#             pzz = (c0 * Uc[j, i] + c1 * (Uc[j+1, i] + Uc[j-1, i]) +
+#                    c2 * (Uc[j+2, i] + Uc[j-2, i]) + c3 * (Uc[j+3, i] + Uc[j-3, i]) +
+#                    c4 * (Uc[j+4, i] + Uc[j-4, i])) / (dz * dz)
+#             px = (a1 * (Uc[j, i+1] - Uc[j, i-1]) +
+#                   a2 * (Uc[j, i+2] - Uc[j, i-2]) +
+#                   a3 * (Uc[j, i+3] - Uc[j, i-3]) +
+#                   a4 * (Uc[j, i+4] - Uc[j, i-4])) / (2 * dx)
+#             psix = (a1 * (PsixF[j, i+1] - PsixF[j, i-1]) +
+#                     a2 * (PsixF[j, i+2] - PsixF[j, i-2]) +
+#                     a3 * (PsixF[j, i+3] - PsixF[j, i-3]) +
+#                     a4 * (PsixF[j, i+4] - PsixF[j, i-4])) / (2 * dx)
+#             pz = (a1 * (Uc[j+1, i] - Uc[j-1, i]) +
+#                   a2 * (Uc[j+2, i] - Uc[j-2, i]) +
+#                   a3 * (Uc[j+3, i] - Uc[j-3, i]) +
+#                   a4 * (Uc[j+4, i] - Uc[j-4, i])) / (2 * dz)
+#             # psiz = (a1 * (PsizF[idx_cpml+1, i] - PsizF[idx_cpml-1, i]) +
+#             #         a2 * (PsizF[idx_cpml+2, i] - PsizF[idx_cpml-2, i]) +
+#             #         a3 * (PsizF[idx_cpml+3, i] - PsizF[idx_cpml-3, i]) +
+#             #         a4 * (PsizF[idx_cpml+4, i] - PsizF[idx_cpml-4, i])) / (2*dz)
+#             psiz = (a1 * (PsizF[j+1, i] - PsizF[j-1, i]) +
+#                     a2 * (PsizF[j+2, i] - PsizF[j-2, i]) +
+#                     a3 * (PsizF[j+3, i] - PsizF[j-3, i]) +
+#                     a4 * (PsizF[j+4, i] - PsizF[j-4, i])) / (2*dz)
+
+            
+#             # PsixF[j, i] = a_x[i] * PsixF[j, i] + b_x[i] * px
+#             # ZetaxF[j, i] = a_x[i] * ZetaxF[j, i] + b_x[i] * (pxx + psix)
+#             # PsizF[idx_cpml, i] = a_z[j] * PsizF[idx_cpml, i] + b_z[j] * pz
+#             # ZetazF[idx_cpml, i] = a_z[j] * ZetazF[idx_cpml, i] + b_z[j] * (pzz + psiz)
+            
+#             # Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz + psix + psiz + ZetaxF[j, i] + ZetazF[idx_cpml, i]) + 2 * Uc[j, i] - Uf[j, i]
+
+#             PsixF[j, i] = a_x[i] * PsixF[j, i] + b_x[i] * px
+#             ZetaxF[j, i] = a_x[i] * ZetaxF[j, i] + b_x[i] * (pxx + psix)
+#             PsizF[j, i] = a_z[j] * PsizF[j, i] + b_z[j] * pz
+#             ZetazF[j, i] = a_z[j] * ZetazF[j, i] + b_z[j] * (pzz + psiz)
+            
+#             Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz + psix + psiz + ZetaxF[j, i] + ZetazF[j, i]) + 2 * Uc[j, i] - Uf[j, i]
+
+#     # Quina Inferior Direita 
+#     for i in prange(nx_abc - N_abc, nx_abc - 4):
+#         # cpml_i = (nx_abc - N_abc) - i
+#         for j in range(nz_abc - N_abc, nz_abc - 4):
+#             # cpml_j = (nz_abc - N_abc) - j
+
+#             pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) +
+#                     c2 * (Uc[j, i+2] + Uc[j, i-2]) + c3 * (Uc[j, i+3] + Uc[j, i-3]) +
+#                     c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
+#             pzz = (c0 * Uc[j, i] + c1 * (Uc[j+1, i] + Uc[j-1, i]) +
+#                 c2 * (Uc[j+2, i] + Uc[j-2, i]) + c3 * (Uc[j+3, i] + Uc[j-3, i]) +
+#                 c4 * (Uc[j+4, i] + Uc[j-4, i])) / (dz * dz)
+#             px = (a1 * (Uc[j, i+1] - Uc[j, i-1]) +
+#                 a2 * (Uc[j, i+2] - Uc[j, i-2]) +
+#                 a3 * (Uc[j, i+3] - Uc[j, i-3]) +
+#                 a4 * (Uc[j, i+4] - Uc[j, i-4])) / (2 * dx)
+#             # psix = (a1 * (PsixF[j, cpml_i+1] - PsixF[j, cpml_i-1]) +
+#             #         a2 * (PsixF[j, cpml_i+2] - PsixF[j, cpml_i-2]) +
+#             #         a3 * (PsixF[j, cpml_i+3] - PsixF[j, cpml_i-3]) +
+#             #         a4 * (PsixF[j, cpml_i+4] - PsixF[j, cpml_i-4])) / (2 * dx)
+#             psix = (a1 * (PsixF[j, i+1] - PsixF[j, i-1]) +
+#                     a2 * (PsixF[j, i+2] - PsixF[j, i-2]) +
+#                     a3 * (PsixF[j, i+3] - PsixF[j, i-3]) +
+#                     a4 * (PsixF[j, i+4] - PsixF[j, i-4])) / (2 * dx)
+#             pz = (a1 * (Uc[j+1, i] - Uc[j-1, i]) +
+#                   a2 * (Uc[j+2, i] - Uc[j-2, i]) +
+#                   a3 * (Uc[j+3, i] - Uc[j-3, i]) +
+#                   a4 * (Uc[j+4, i] - Uc[j-4, i])) / (2 * dz)
+#             # psiz = (a1 * (PsizF[cpml_j+1, i] - PsizF[cpml_j-1, i]) +
+#             #         a2 * (PsizF[cpml_j+2, i] - PsizF[cpml_j-2, i]) +
+#             #         a3 * (PsizF[cpml_j+3, i] - PsizF[cpml_j-3, i]) +
+#             #         a4 * (PsizF[cpml_j+4, i] - PsizF[cpml_j-4, i])) / (2*dz)
+#             psiz = (a1 * (PsizF[j+1, i] - PsizF[j-1, i]) +
+#                     a2 * (PsizF[j+2, i] - PsizF[j-2, i]) +
+#                     a3 * (PsizF[j+3, i] - PsizF[j-3, i]) +
+#                     a4 * (PsizF[j+4, i] - PsizF[j-4, i])) / (2*dz)
+            
+#             # PsizF[cpml_j, i] = a_z[j] * PsizF[cpml_j, i] + b_z[j] * pz
+#             # ZetazF[cpml_j, i] = a_z[j] * ZetazF[cpml_j, i] + b_z[j] * (pzz + psiz)
+#             # PsixF[j, cpml_i] = a_x[i] * PsixF[j, cpml_i] + b_x[i] * px
+#             # ZetaxF[j, cpml_i] = a_x[i] * ZetaxF[j, cpml_i] + b_x[i] * (pxx + psix)
+            
+#             # Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz + psix + psiz + ZetaxF[j, cpml_i] + ZetazF[cpml_j, i]) + 2 * Uc[j, i] - Uf[j, i]
+
+#             PsizF[j, i] = a_z[j] * PsizF[j, i] + b_z[j] * pz
+#             ZetazF[j, i] = a_z[j] * ZetazF[j, i] + b_z[j] * (pzz + psiz)
+#             PsixF[j, i] = a_x[i] * PsixF[j, i] + b_x[i] * px
+#             ZetaxF[j, i] = a_x[i] * ZetaxF[j, i] + b_x[i] * (pxx + psix)
+            
+#             Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz + psix + psiz + ZetaxF[j, i] + ZetazF[j, i]) + 2 * Uc[j, i] - Uf[j, i]
+
+#     return Uf
+
 @jit(parallel=True, nopython=True)
 def updateWaveEquationVTI(Uf, Uc, Qc, Qf, nx, nz, dt, dx, dz, vpz, epsilon, delta):  
     c0 = -205 / 72
@@ -44,6 +417,57 @@ def updateWaveEquationVTI(Uf, Uc, Qc, Qf, nx, nz, dt, dx, dz, vpz, epsilon, delt
             Qf[j, i] = 2 * Qc[j, i] - Qf[j, i] + (dt**2) * (bx * pxx  + bz * qzz)
 
     return Uf, Qf
+
+
+@jit(nopython=True, parallel=True)
+def updateWaveEquationVTICPML(Uf, Uc, Qc, Qf, dt, dx, dz, vpz, epsilon, delta,
+                               nx_abc, nz_abc, PsixF, PsizqF, ZetaxF, ZetazqF, a_x, a_z, b_x, b_z):
+    
+    c0 = -205 / 72
+    c1 = 8 / 5
+    c2 = -1 / 5
+    c3 = 8 / 315
+    c4 = -1 / 560
+    a1 = 4 / 5
+    a2 = -1 / 5
+    a3 = 4 / 105
+    a4 = -1 / 280
+    for i in prange(4, nx_abc - 4):
+        for j in range(4, nz_abc - 4):
+            cx = vpz[j,i]**2 * (1 + 2 * epsilon[j,i])
+            bx = vpz[j,i]**2 * (1 + 2 * delta[j,i])
+            cz = bz = vpz[j,i]**2
+            pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) + c2 * (Uc[j, i+2] + Uc[j, i-2]) + 
+                   c3 * (Uc[j, i+3] + Uc[j, i-3]) + c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
+            qzz = (c0 * Qc[j, i] + c1 * (Qc[j+1, i] + Qc[j-1, i]) + c2 * (Qc[j+2, i] + Qc[j-2, i]) + 
+                   c3 * (Qc[j+3, i] + Qc[j-3, i]) + c4 * (Qc[j+4, i] + Qc[j-4, i])) / (dz * dz)
+            px = (a1 * (Uc[j, i+1] - Uc[j, i-1]) +
+                a2 * (Uc[j, i+2] - Uc[j, i-2]) +
+                a3 * (Uc[j, i+3] - Uc[j, i-3]) +
+                a4 * (Uc[j, i+4] - Uc[j, i-4])) / (2 * dx)
+            psix = (a1 * (PsixF[j, i+1] - PsixF[j, i-1]) +
+                    a2 * (PsixF[j, i+2] - PsixF[j, i-2]) +
+                    a3 * (PsixF[j, i+3] - PsixF[j, i-3]) +
+                    a4 * (PsixF[j, i+4] - PsixF[j, i-4])) / (2 * dx)
+            qz = (a1 * (Qc[j+1, i] - Qc[j-1, i]) +
+                  a2 * (Qc[j+2, i] - Qc[j-2, i]) +
+                  a3 * (Qc[j+3, i] - Qc[j-3, i]) +
+                  a4 * (Qc[j+4, i] - Qc[j-4, i])) / (2 * dz)
+            psiqz = (a1 * (PsizqF[j+1, i] - PsizqF[j-1, i]) +
+                    a2 * (PsizqF[j+2, i] - PsizqF[j-2, i]) +
+                    a3 * (PsizqF[j+3, i] - PsizqF[j-3, i]) +
+                    a4 * (PsizqF[j+4, i] - PsizqF[j-4, i])) / (2*dz)
+
+            PsizqF[j, i] = a_z[j] * PsizqF[j, i] + b_z[j] * qz
+            ZetazqF[j, i] = a_z[j] * ZetazqF[j, i] + b_z[j] * (qzz + psiqz)
+            PsixF[j, i] = a_x[i] * PsixF[j, i] + b_x[i] * px
+            ZetaxF[j, i] = a_x[i] * ZetaxF[j, i] + b_x[i] * (pxx + psix)
+            
+            Uf[j, i] = 2 * Uc[j, i] - Uf[j, i] + (dt**2) * (cx * (pxx + psix + ZetaxF[j,i] ) + cz *(qzz + psiqz + ZetazqF[j,i]))
+            Qf[j, i] = 2 * Qc[j, i] - Qf[j, i] + (dt**2) * (bx * (pxx + psix + ZetaxF[j,i]) + bz * (qzz + psiqz + ZetazqF[j,i]))
+
+    return Uf, Qf
+
 
 @jit(nopython=True, parallel=True)
 def updateWaveEquationTTI(Uf, Uc, Qc, Qf, nx, nz, dt, dx, dz, vpz, vsz, epsilon, delta, theta):

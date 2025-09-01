@@ -1,6 +1,6 @@
 from AcousticSeismicModeling2D import wavefield
 
-wavefield = wavefield("../inputs/parametersTTI.json")
+wavefield = wavefield("../inputs/Teste.json")
 
 wavefield.createSourceWavelet()
 wavefield.viewSourceWavelet()
@@ -13,6 +13,6 @@ wavefield.checkDispersionAndStability()
 wavefield.SolveWaveEquation()
 
 wavefield.viewSeismogram()
-wavefield.viewSnapshot()
+# wavefield.viewMigratedImage()
 
 
