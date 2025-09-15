@@ -10,7 +10,7 @@
     "fcut": 60.0,
     "rec_file": "../inputs/receivers.csv",
     "src_file": "../inputs/sources.csv",
-    "vpFile": "../inputs/Suave_v15_marmousi_vp_383x141.bin",
+    "vpFile": "../inputs/marmousi_vp_383x141.bin",
     "vsFile": null,
     "thetaFile": null,
     "epsilonFile": "../inputs/marmousi_vp_383x141_epsilon.bin",
