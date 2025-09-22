@@ -3,6 +3,23 @@ import numpy as np
 import time
 
 
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Tue May 14 14:03:56 2019
+
+@author: bmoseley
+"""
+
+# This code is my own python implementation of the SEISMIC_CPML library here: https://github.com/geodynamics/seismic_cpml/blob/master/seismic_CPML_2D_pressure_second_order.f90
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+
+
+## Code to get dampening profiles for seismic CPML, can cope with any number of dimensions
+
 def get_dampening_profiles(velocity, NPOINTS_PML, Rcoef, K_MAX_PML, ALPHA_MAX_PML, NPOWER, DELTAT, DELTAS, dtype=np.float64, qc=False):
     "Get dampening profiles for seismic CPML. Can cope with any number of dimensions defined by velocity array"
     
@@ -79,5 +96,91 @@ def get_dampening_profiles(velocity, NPOINTS_PML, Rcoef, K_MAX_PML, ALPHA_MAX_PM
     if qc:
         return profiles, qc_profiles
     return profiles
+    
+    
+def _plot_cpml_qc_profiles(qc_profiles):
+    
+    n_row = len(qc_profiles)
+    figsize = (7,2.3*n_row)
+    
+    fa = plt.figure(figsize=figsize)
+    plt.suptitle("a")
+    fb = plt.figure(figsize=figsize)
+    plt.suptitle("b")
+    falpha = plt.figure(figsize=figsize)
+    plt.suptitle("alpha")
+    fd = plt.figure(figsize=figsize)
+    plt.suptitle("d")
+    fk = plt.figure(figsize=figsize)
+    plt.suptitle("K")
+
+    for i,qc_profile in enumerate(qc_profiles):
+        
+        d, d_half, K, K_half, alpha, alpha_half, b, b_half, a, a_half = qc_profile
+    
+        # plot dampening profiles
+        plt.figure(fa.number)
+        plt.subplot(n_row,1,i+1)
+        plt.plot(a)
+        plt.plot(a_half)
+        
+        plt.figure(fb.number)
+        plt.subplot(n_row,1,i+1)
+        plt.plot(b)
+        plt.plot(b_half)
+        
+        plt.figure(falpha.number)
+        plt.subplot(n_row,1,i+1)
+        plt.plot(alpha)
+        plt.plot(alpha_half)
+        
+        plt.figure(fd.number)
+        plt.subplot(n_row,1,i+1)
+        plt.plot(d)
+        plt.plot(d_half)
+        
+        plt.figure(fk.number)
+        plt.subplot(n_row,1,i+1)
+        plt.plot(K)
+        plt.plot(K_half)
+    
+if __name__ == "__main__":
+
+
+
+    ##
+    NX = 51
+    NY = 61
+    NZ = 71
+    DELTAX = 5
+    DELTAY = 5
+    DELTAZ = 30
+    DELTAT = 0.0005
+    NPOINTS_PML = 10
+    
+    dtype = np.float32
+
+    velocity = 2000.*np.ones((NX,NY,NZ), dtype=dtype)
+    ##
+    
+    f0 = 7.
+    K_MAX_PML = 1.
+    ALPHA_MAX_PML = 2.*np.pi*(f0/2.)# from Festa and Vilotte
+    NPOWER = 2.# power to compute d0 profile
+    Rcoef = 0.001
+    ##
+    
+    profiles, qc_profiles = get_dampening_profiles(velocity, NPOINTS_PML, Rcoef, K_MAX_PML, ALPHA_MAX_PML, NPOWER, DELTAT, DELTAS=(DELTAX, DELTAY, DELTAZ), dtype=np.float32, qc=True)
+    
+    _plot_cpml_qc_profiles(qc_profiles)
+    
+    plt.figure()
+    for profile in profiles:
+        for p in profile:
+            print(p.shape, p.dtype)
+            plt.plot(p.flatten())
+    
+
+    plt.show()
     
  
