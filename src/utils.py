@@ -123,13 +123,6 @@ def updateZeta(PsixF, PsizF, ZetaxF, ZetazF, nx_abc, nz_abc, a_z, a_x, b_z, b_x,
 
     return ZetaxF, ZetazF
 
-
-
-
-
-    
-
-
 # @jit(nopython=True, parallel=True)
 # def updateWaveEquationCPML(Uf, Uc, vp, nx_abc, nz_abc, N_abc, dz, dx, dt,
 #                           PsixF, PsizF, ZetaxF, ZetazF, a_x, a_z, b_x, b_z):

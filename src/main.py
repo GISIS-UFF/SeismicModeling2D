@@ -13,6 +13,6 @@ wavefield.checkDispersionAndStability()
 wavefield.SolveWaveEquation()
 
 wavefield.viewSeismogram()
-# wavefield.viewMigratedImage()
+wavefield.viewMigratedImage()
 
 

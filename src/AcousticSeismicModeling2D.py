@@ -284,15 +284,22 @@ class wavefield:
         self.delta.T.tofile(self.vpFile.replace(".bin","_delta.bin"))
         print(f"info: Delta model saved to {self.vpFile.replace('.bin','_delta.bin')}")
 
+        # create vs model
+        self.vs = np.zeros([self.nz,self.nx],dtype=np.float32)
+        self.vs = np.sqrt(self.vp*self.vp*(self.epsilon - self.delta)/0.8)
+        self.viewModel(self.vs, "Vs Model")
+        self.vs.T.tofile(self.vpFile.replace(".bin","_vs.bin"))
+        print(f"info: Vs model saved to {self.vpFile.replace('.bin','_vs.bin')}") 
+        
         # plt.show()
 
     def Reflectioncoefficient(self):
         borda_ref = 10
         R_ref = 1e-3
-        R = R_ref ** (self.N_abc / borda_ref)
+        R = R_ref ** (self.N_abc/borda_ref)
 
         if self.N_abc >= 150:
-            R = R_ref ** (150 / borda_ref)
+            R = R_ref ** (150/borda_ref)
 
         return R
 
@@ -709,41 +716,43 @@ class wavefield:
             print(f"info: Seismogram saved to {self.seismogramFile}")
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
 
-        #      # backward propagation
-        #     print(f"info: Starting backward migration for shot {shot+1}")
-        #     self.current.fill(0)
-        #     self.future.fill(0)
-        #     self.PsixF.fill(0)
-        #     self.PsizF.fill(0)
-        #     self.ZetaxF.fill(0)
-        #     self.ZetazF.fill(0)
-        #     self.migrated_partial = np.zeros_like(self.migrated_image)
+             # backward propagation
+            print(f"info: Starting backward migration for shot {shot+1}")
+            self.current.fill(0)
+            self.future.fill(0)
+            self.PsixF.fill(0)
+            self.PsizF.fill(0)
+            self.ZetaxF.fill(0)
+            self.ZetazF.fill(0)
+            self.migrated_partial = np.zeros_like(self.migrated_image)
 
-        #     # Top muting
-        #     self.muted_seismogram = self.Mute(self.seismogram, shot)
+            # Top muting
+            self.muted_seismogram = self.Mute(self.seismogram, shot)
 
-        #     # Last time step with significant source amplitude
-        #     self.last_t = self.LastTimeStepWithSignificantSourceAmplitude()    
+            # Last time step with significant source amplitude
+            self.last_t = self.LastTimeStepWithSignificantSourceAmplitude()    
                     
-        #     # Begin backward propagation
-        #     for t in range(self.nt - 1, self.last_t, -1):
-        #         for r in range(len(rx)):
-        #             self.current[rz[r], rx[r]] += self.muted_seismogram[t, r]
-        #         self.future = updateWaveEquationCPML(self.future, self.current, self.vp_exp, self.nx_abc, self.nz_abc, self.N_abc, self.dz, self.dx, self.dt, self.PsixF, self.PsizF, self.ZetaxF, self.ZetazF, self.ax, self.az, self.bx, self.bz)
+            # Begin backward propagation
+            for t in range(self.nt - 1, self.last_t, -1):
+                for r in range(len(rx)):
+                    self.current[rz[r], rx[r]] += self.muted_seismogram[t, r]
+                self.PsixF, self.PsizF = updatePsi(self.PsixF, self.PsizF, self.nx_abc, self.nz_abc, self.az, self.ax, self.bz, self.bx, self.current, self.dz, self.dx)
+                self.ZetaxF, self.ZetazF = updateZeta(self.PsixF, self.PsizF, self.ZetaxF, self.ZetazF, self.nx_abc, self.nz_abc, self.az, self.ax, self.bz, self.bx, self.current, self.dz, self.dx)
+                self.future = updateWaveEquationCPML(self.future, self.current, self.vp_exp, self.nx_abc, self.nz_abc, self.dz, self.dx, self.dt, self.PsixF, self.PsizF, self.ZetaxF, self.ZetazF)
                 
-        #         self.migrated_partial += self.snapshot[t, self.N_abc:self.nz_abc - self.N_abc, self.N_abc:self.nx_abc - self.N_abc] * self.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc] 
+                self.migrated_partial += self.snapshot[t, self.N_abc:self.nz_abc - self.N_abc, self.N_abc:self.nx_abc - self.N_abc] * self.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc] 
 
-        #         self.current, self.future = self.future, self.current
+                self.current, self.future = self.future, self.current
 
-        #     self.migrated_image += self.migrated_partial
-        #     print(f"info: Shot {shot+1} backward done.")
+            self.migrated_image += self.migrated_partial
+            print(f"info: Shot {shot+1} backward done.")
 
-        # # Apply Laplacian filter 
-        # self.migrated_image = self.laplacian(self.migrated_image)
+        # Apply Laplacian filter 
+        self.migrated_image = self.laplacian(self.migrated_image)
         
-        # self.migratedFile = f"{self.migratedimageFolder}migrated_image_acoustic_CPML.bin"
-        # self.migrated_image.tofile(self.migratedFile)
-        # print(f"info: Final migrated image saved to {self.migratedFile}")
+        self.migratedFile = f"{self.migratedimageFolder}migrated_image_acoustic_CPML.bin"
+        self.migrated_image.tofile(self.migratedFile)
+        print(f"info: Final migrated image saved to {self.migratedFile}")
    
     def solveAcousticWaveEquation(self):
         start_time = time.time()
