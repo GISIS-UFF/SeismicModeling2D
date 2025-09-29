@@ -6,6 +6,7 @@ wavefield.createSourceWavelet()
 wavefield.viewSourceWavelet()
 
 wavefield.initializeWavefields()
+# wavefield.createModelFromVp()
 wavefield.viewAllModels()
 
 wavefield.checkDispersionAndStability()
@@ -13,6 +14,7 @@ wavefield.checkDispersionAndStability()
 wavefield.SolveWaveEquation()
 
 wavefield.viewSeismogram()
-wavefield.viewMigratedImage()
+# wavefield.plotEnergyComparison()
+# wavefield.viewMigratedImage()
 
 
