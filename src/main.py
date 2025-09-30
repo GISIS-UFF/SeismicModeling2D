@@ -12,8 +12,6 @@ wavefield.viewAllModels()
 wavefield.checkDispersionAndStability()
 
 wavefield.SolveWaveEquation()
-
-wavefield.viewSeismogram()
 # wavefield.plotEnergyComparison()
 # wavefield.viewMigratedImage()
 
