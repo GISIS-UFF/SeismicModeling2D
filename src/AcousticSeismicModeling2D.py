@@ -14,10 +14,12 @@ from utils import updateWaveEquationTTI
 from utils import updateWaveEquationTTICPML
 from utils import AnalyticalModel
 from utils import AbsorbingBoundary
-from utils import updatePsi
-from utils import updateZeta
-from utils import updatePsiVTI
-from utils import updateZetaVTI
+from utils import updatePsiRL
+from utils import updatePsiUD
+from utils import updateZetaRL
+from utils import updateZetaUD
+from utils import updatePsiVTIUD
+from utils import updateZetaVTIUD
 from utils import updatePsiTTI
 from utils import updateZetaTTI
 
@@ -160,10 +162,14 @@ class wavefield:
         self.snapshot    = np.zeros([self.nt,self.nz_abc,self.nx_abc],dtype=np.float32)
         self.migrated_image = np.zeros((self.nz, self.nx), dtype=np.float32)
         # Initialize absorbing layers        
-        self.PsixF      = np.zeros([self.nz_abc, self.N_abc], dtype=np.float32)
-        self.PsizF      = np.zeros([self.N_abc, self.nx_abc], dtype=np.float32) 
-        self.ZetaxF     = np.zeros([self.nz_abc, self.N_abc], dtype=np.float32)
-        self.ZetazF     = np.zeros([self.N_abc, self.nx_abc], dtype=np.float32)
+        self.PsixFR      = np.zeros([self.nz_abc, self.N_abc], dtype=np.float32)
+        self.PsixFL      = np.zeros([self.nz_abc, self.N_abc], dtype=np.float32)     
+        self.PsizFU      = np.zeros([self.N_abc, self.nx_abc], dtype=np.float32) 
+        self.PsizFD      = np.zeros([self.N_abc, self.nx_abc], dtype=np.float32)       
+        self.ZetaxFR     = np.zeros([self.nz_abc, self.N_abc], dtype=np.float32)
+        self.ZetaxFL     = np.zeros([self.nz_abc, self.N_abc], dtype=np.float32)
+        self.ZetazFU     = np.zeros([self.N_abc, self.nx_abc], dtype=np.float32)
+        self.ZetazFD     = np.zeros([self.N_abc, self.nx_abc], dtype=np.float32)
         
         self.seismogram = np.zeros([self.nt,self.Nrec],dtype=np.float32)
         print(f"info: Wavefields initialized: {self.nx}x{self.nz}x{self.nt}")
@@ -180,8 +186,10 @@ class wavefield:
             self.Qc = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
             self.Qf = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
             # Initialize absorbing layers
-            self.PsizqF     = np.zeros([self.N_abc, self.nx_abc], dtype=np.float32)
-            self.ZetazqF    = np.zeros([self.N_abc, self.nx_abc], dtype=np.float32)
+            self.PsizqFU     = np.zeros([self.N_abc, self.nx_abc], dtype=np.float32)
+            self.PsizqFD     = np.zeros([self.N_abc, self.nx_abc], dtype=np.float32)
+            self.ZetazqFU    = np.zeros([self.N_abc, self.nx_abc], dtype=np.float32)
+            self.ZetazqFD    = np.zeros([self.N_abc, self.nx_abc], dtype=np.float32)
             # Initialize epsilon and delta models
             self.epsilon = np.zeros([self.nz,self.nx],dtype=np.float32)
             self.delta = np.zeros([self.nz,self.nx],dtype=np.float32)
@@ -301,43 +309,13 @@ class wavefield:
 
         return R
 
-    # def dampening_profiles(self,vp):     
-    #     profiles = []
-    #     deltas=(self.dz, self.dx)
-    #     maxvel = np.max(vp)
-    #     M = 2
-    #     Rcoef = self.Reflectioncoefficient()
-    #     f_pico = self.fcut/ (np.sqrt(np.pi) * 3)
-    #     for iN, N in enumerate(vp.shape):  
-    #         dk = deltas[iN]    
-    #         bordaCPML = self.N_abc * dk
-    #         d0 = - (M + 1) * maxvel * np.log(Rcoef) / (2 * bordaCPML) 
-    #         d, alpha, b, a = np.zeros(N, dtype=np.float32), np.zeros(N, dtype=np.float32), np.zeros(N, dtype=np.float32), np.zeros(N, dtype=np.float32)
-    #         limite_esquerda = bordaCPML
-    #         limite_direita = (N-1)*dk - bordaCPML  
-    #         for i in range(N):
-    #             posicao = dk * i
-    #             for posicaoCPML in [limite_esquerda - posicao, posicao - limite_direita]:
-    #                 if (posicaoCPML >= 0.):
-    #                     posicao_relativa = posicaoCPML / bordaCPML
-    #                     d[i] = d0 * (posicao_relativa**M)
-    #                     alpha[i] = np.pi* f_pico * (1 - posicao_relativa**2)
-      
-    #             a[i] = np.exp(-(d[i] + alpha[i]) * self.dt)
-    #             if (np.abs((d[i] + alpha[i])) > 1e-6):
-    #                 b[i] = (d[i] / (d[i] + alpha[i])) * (a[i] - 1)
-    
-    #         profiles.append([a.copy(), b.copy(), d.copy(), alpha.copy()])
-
-    #     return profiles
-
     def dampening_profiles(self,vp):     
         profiles = []
         deltas=(self.dz, self.dx)
         maxvel = np.max(vp)
         M = 2
         Rcoef = self.Reflectioncoefficient()
-        f_pico = self.fcut/ (np.sqrt(np.pi) * 3)
+        f_pico = self.fcut/3
         for dk in deltas:  
             bordaCPML = self.N_abc * dk
             d0 = - (M + 1) * maxvel * np.log(Rcoef) / (2 * bordaCPML) 
@@ -696,12 +674,9 @@ class wavefield:
         # Expand velocity model and Create absorbing layers
         self.vp_exp = self.ExpandModel(self.vp)
         profiles = self.dampening_profiles(self.vp_exp)
-        self.az, self.bz, sigmax = profiles[0][0], profiles[0][1], profiles[0][2]
-        self.ax, self.bx, sigmaz= profiles[1][0], profiles[1][1], profiles[1][2]
-       
-        plt.figure()
-        plt.plot(sigmaz)
-        plt.show()
+        self.az, self.bz = profiles[0][0], profiles[0][1]
+        self.ax, self.bx = profiles[1][0], profiles[1][1]
+
         rx = np.int32(self.rec_x/self.dx) + self.N_abc
         rz = np.int32(self.rec_z/self.dz) + self.N_abc
 
@@ -711,10 +686,14 @@ class wavefield:
             self.future.fill(0)
             self.seismogram.fill(0)
             self.snapshot.fill(0)
-            self.PsixF.fill(0)
-            self.PsizF.fill(0)  
-            self.ZetaxF.fill(0)
-            self.ZetazF.fill(0)
+            self.PsixFR.fill(0)
+            self.PsixFL.fill(0)
+            self.PsizFU.fill(0)  
+            self.PsizFD.fill(0) 
+            self.ZetaxFR.fill(0)
+            self.ZetaxFL.fill(0)
+            self.ZetazFU.fill(0)
+            self.ZetazFD.fill(0)
 
             # convert acquisition geometry coordinates to grid points
             sx = int(self.shot_x[shot]/self.dx) + self.N_abc
@@ -723,16 +702,18 @@ class wavefield:
             energy = np.zeros(self.nt)
             for k in range(self.nt):
                 self.current[sz,sx] += self.source[k]
-                self.PsixF, self.PsizF = updatePsi(self.PsixF, self.PsizF, self.nx_abc, self.nz_abc, self.az, self.ax, self.bz, self.bx, self.current, self.dz, self.dx)
-                self.ZetaxF, self.ZetazF = updateZeta(self.PsixF, self.PsizF, self.ZetaxF, self.ZetazF, self.nx_abc, self.nz_abc, self.az, self.ax, self.bz, self.bx, self.current, self.dz, self.dx)
-                self.future = updateWaveEquationCPML(self.future, self.current, self.vp_exp, self.nx_abc, self.nz_abc, self.dz, self.dx, self.dt, self.PsixF, self.PsizF, self.ZetaxF, self.ZetazF)
+                self.PsixFR, self.PsixFL = updatePsiRL(self.PsixFR, self.PsixFL, self.nx_abc, self.nz_abc, self.ax, self.bx, self.current, self.dx, self.N_abc)
+                self.PsizFU, self.PsizFD = updatePsiUD(self.PsizFU, self.PsizFD, self.nx_abc, self.nz_abc, self.az, self.bz, self.current, self.dz, self.N_abc)
+                self.ZetaxFR, self.ZetaxFL = updateZetaRL(self.PsixFR, self.PsixFL, self.ZetaxFR, self.ZetaxFL, self.nx_abc, self.nz_abc, self.ax, self.bx, self.current, self.dx, self.N_abc)
+                self.ZetazFU, self.ZetazFD = updateZetaUD(self.PsizFU, self.PsizFD, self.ZetazFU, self.ZetazFD, self.nx_abc, self.nz_abc, self.az, self.bz, self.current, self.dz, self.N_abc)
+                self.future = updateWaveEquationCPML(self.future, self.current, self.vp_exp, self.nx_abc, self.nz_abc, self.dz, self.dx, self.dt, self.PsixFR, self.PsixFL, self.PsizFU, self.PsizFD, self.ZetaxFR, self.ZetaxFL, self.ZetazFU, self.ZetazFD, self.N_abc)
                 
                 # Register seismogram
                 self.seismogram[k, :] = self.current[rz, rx]
 
                 self.snapshot[k,:,:] = self.current
 
-                energy[k] = np.sum(self.current**2)
+                # energy[k] = np.sum(self.current**2)
                 
                 if (shot + 1) in self.shot_frame and k in self.frame:
                     self.viewSnapshotAtTime(k, shot_idx = shot)
@@ -748,18 +729,22 @@ class wavefield:
             if (shot + 1) in self.shot_frame:
                 self.viewSeismogram()
 
-            energy_filename = f"{self.seismogramFolder}energy_acoustic_cpml_shot_{shot+1}.npy"
-            np.save(energy_filename, energy)
-            print(f"info: Energia salvo em {energy_filename}")
+            # energy_filename = f"{self.seismogramFolder}energy_acoustic_cpml_shot_{shot+1}.npy"
+            # np.save(energy_filename, energy)
+            # print(f"info: Energia salvo em {energy_filename}")
 
              # backward propagation
             print(f"info: Starting backward migration for shot {shot+1}")
             self.current.fill(0)
             self.future.fill(0)
-            self.PsixF.fill(0)
-            self.PsizF.fill(0)
-            self.ZetaxF.fill(0)
-            self.ZetazF.fill(0)
+            self.PsixFR.fill(0)
+            self.PsixFL.fill(0)
+            self.PsizFU.fill(0)  
+            self.PsizFD.fill(0) 
+            self.ZetaxFR.fill(0)
+            self.ZetaxFL.fill(0)
+            self.ZetazFU.fill(0)
+            self.ZetazFD.fill(0)
             self.migrated_partial = np.zeros_like(self.migrated_image)
 
             # Top muting
@@ -772,10 +757,11 @@ class wavefield:
             for t in range(self.nt - 1, self.last_t, -1):
                 for r in range(len(rx)):
                     self.current[rz[r], rx[r]] += self.muted_seismogram[t, r]
-                self.PsixF, self.PsizF = updatePsi(self.PsixF, self.PsizF, self.nx_abc, self.nz_abc, self.az, self.ax, self.bz, self.bx, self.current, self.dz, self.dx)
-                self.ZetaxF, self.ZetazF = updateZeta(self.PsixF, self.PsizF, self.ZetaxF, self.ZetazF, self.nx_abc, self.nz_abc, self.az, self.ax, self.bz, self.bx, self.current, self.dz, self.dx)
-                self.future = updateWaveEquationCPML(self.future, self.current, self.vp_exp, self.nx_abc, self.nz_abc, self.dz, self.dx, self.dt, self.PsixF, self.PsizF, self.ZetaxF, self.ZetazF)
-                
+                self.PsixFR, self.PsixFL = updatePsiRL(self.PsixFR, self.PsixFL, self.nx_abc, self.nz_abc, self.ax, self.bx, self.current, self.dx, self.N_abc)
+                self.PsizFU, self.PsizFD = updatePsiUD(self.PsizFU, self.PsizFD, self.nx_abc, self.nz_abc, self.az, self.bz, self.current, self.dz, self.N_abc)
+                self.ZetaxFR, self.ZetaxFL = updateZetaRL(self.PsixFR, self.PsixFL, self.ZetaxFR, self.ZetaxFL, self.nx_abc, self.nz_abc, self.ax, self.bx, self.current, self.dx, self.N_abc)
+                self.ZetazFU, self.ZetazFD = updateZetaRL(self.PsizFU, self.PsizFD, self.ZetazFU, self.ZetazFD, self.nx_abc, self.nz_abc, self.az, self.bz, self.current, self.dz, self.N_abc)
+                self.future = updateWaveEquationCPML(self.future, self.current, self.vp_exp, self.nx_abc, self.nz_abc, self.dz, self.dx, self.dt, self.PsixFR, self.PsixFL, self.PsizFU, self.PsizFD, self.ZetaxFR, self.ZetaxFL, self.ZetazFU, self.ZetazFD, self.N_abc)
                 self.migrated_partial += self.snapshot[t, self.N_abc:self.nz_abc - self.N_abc, self.N_abc:self.nx_abc - self.N_abc] * self.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc] 
 
                 self.current, self.future = self.future, self.current
@@ -1009,10 +995,14 @@ class wavefield:
             self.snapshot.fill(0)
             self.Qc.fill(0)
             self.Qf.fill(0)
-            self.PsixF.fill(0)
-            self.PsizqF.fill(0)
-            self.ZetaxF.fill(0)
-            self.ZetazqF.fill(0)
+            self.PsixFR.fill(0)
+            self.PsixFL.fill(0)
+            self.PsizqFU.fill(0)
+            self.PsizqFD.fill(0)
+            self.ZetaxFR.fill(0)
+            self.ZetaxFL.fill(0)
+            self.ZetazqFU.fill(0)
+            self.ZetazqFD.fill(0)
 
             # convert acquisition geometry coordinates to grid points
             sx = int(self.shot_x[shot]/self.dx) + self.N_abc
@@ -1021,9 +1011,11 @@ class wavefield:
             for k in range(self.nt):
                 self.current[sz,sx] += self.source[k]
                 self.Qc[sz,sx] += self.source[k]
-                self.PsixF, self.PsizqF = updatePsiVTI(self.PsixF, self.PsizqF, self.nx_abc, self.nz_abc, self.az, self.ax, self.bz, self.bx, self.current, self.Qc, self.dz, self.dx)
-                self.ZetaxF, self.ZetazqF = updateZetaVTI(self.PsixF, self.PsizqF, self.ZetaxF, self.ZetazqF, self.nx_abc, self.nz_abc, self.az, self.ax, self.bz, self.bx, self.current, self.Qc, self.dz, self.dx)
-                self.future,self.Qf = updateWaveEquationVTICPML(self.future, self.current, self.Qc,self.Qf, self.dt, self.dx, self.dz, self.vp_exp, self.epsilon_exp, self.delta_exp,self.nx_abc, self.nz_abc, self.PsixF, self.PsizqF, self.ZetaxF, self.ZetazqF)
+                self.PsixFR, self.PsixFL = updatePsiRL(self.PsixFR, self.PsixFL, self.nx_abc, self.nz_abc, self.ax, self.bx, self.current, self.dx, self.N_abc)
+                self.PsizqFU, self.PsizqFD = updatePsiVTIUD(self.PsizqFU, self.PsizqFD, self.nx_abc, self.nz_abc, self.az, self.bz, self.Qc, self.dz, self.N_abc) 
+                self.ZetaxFR, self.ZetaxFL = updateZetaRL(self.PsixFR, self.PsixFL, self.ZetaxFR, self.ZetaxFL, self.nx_abc, self.nz_abc, self.ax, self.bx, self.current, self.dx, self.N_abc)
+                self.ZetazqFU, self.ZetazqFD = updateZetaVTIUD(self.PsizqFU, self.PsizqFD, self.ZetazqFU, self.ZetazqFD, self.nx_abc, self.nz_abc, self.az, self.bz, self.Qc, self.dz, self.N_abc)
+                self.future,self.Qf = updateWaveEquationVTICPML(self.future, self.current, self.Qc,self.Qf, self.dt, self.dx, self.dz, self.vp_exp, self.epsilon_exp, self.delta_exp,self.nx_abc, self.nz_abc, self.PsixFR, self.PsixFL, self.PsizqFU, self.PsizqFD, self.ZetaxFR, self.ZetaxFL, self.ZetazqFU, self.ZetazqFD, self.N_abc)
                 # Register seismogram
                 self.seismogram[k, :] = self.current[rz, rx]
                 
