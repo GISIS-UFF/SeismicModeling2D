@@ -1,4 +1,4 @@
-from AcousticSeismicModeling2D import wavefield
+from AcousticSeismicModeling2D_antigo import wavefield
 
 wavefield = wavefield("../inputs/Teste.json")
 
@@ -12,7 +12,8 @@ wavefield.viewAllModels()
 wavefield.checkDispersionAndStability()
 
 wavefield.SolveWaveEquation()
-# wavefield.plotEnergyComparison()
+wavefield.viewSeismogram()
+wavefield.plotEnergyComparison()
 # wavefield.viewMigratedImage()
 
 
