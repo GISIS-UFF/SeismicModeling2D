@@ -139,7 +139,6 @@ class Plotting:
                 # nice colorbar
                 cbar = self.adjustColorBar(fig,ax,im)
                 cbar.set_label("Amplitude")
-                
                 ax.set_xlabel("Distance (m)")
                 ax.set_ylabel("Depth (m)")
                 plt.show()

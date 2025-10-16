@@ -82,8 +82,8 @@ def updateWaveEquationCPML(Uf, Uc, vp, nx_abc, nz_abc, dz, dx, dt, PsixFR, PsixF
     a4 = -3. / 840.
 
     # Região Interior 
-    for j in prange(N_abc, nz_abc - N_abc):
-        for i in prange(N_abc, nx_abc - N_abc):
+    for j in prange(N_abc + 4, nz_abc - N_abc - 4):
+        for i in prange(N_abc + 4, nx_abc - N_abc - 4):
             pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) +
                    c2 * (Uc[j, i+2] + Uc[j, i-2]) + c3 * (Uc[j, i+3] + Uc[j, i-3]) +
                    c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
@@ -93,8 +93,8 @@ def updateWaveEquationCPML(Uf, Uc, vp, nx_abc, nz_abc, dz, dx, dt, PsixFR, PsixF
             Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz) + 2 * Uc[j, i] - Uf[j, i]
 
     # Região Esquerda 
-    for j in prange(N_abc, nz_abc - N_abc):
-        for i in prange(4, N_abc):
+    for j in prange(N_abc + 4, nz_abc - N_abc - 4):
+        for i in prange(4, N_abc + 4):
             pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) +
                    c2 * (Uc[j, i+2] + Uc[j, i-2]) + c3 * (Uc[j, i+3] + Uc[j, i-3]) +
                    c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
@@ -109,9 +109,9 @@ def updateWaveEquationCPML(Uf, Uc, vp, nx_abc, nz_abc, dz, dx, dt, PsixFR, PsixF
             Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz + psix + ZetaxFL[j, i]) + 2 * Uc[j, i] - Uf[j, i]
             
     # Região Direita
-    for i in prange(nx_abc - N_abc, nx_abc - 4):
+    for i in prange(nx_abc - N_abc - 4, nx_abc - 4):
             idx = i - (nx_abc - N_abc)
-            for j in range(N_abc, nz_abc - N_abc):
+            for j in range(N_abc + 4, nz_abc - N_abc - 4):
                 pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) +
                     c2 * (Uc[j, i+2] + Uc[j, i-2]) + c3 * (Uc[j, i+3] + Uc[j, i-3]) +
                     c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
@@ -126,8 +126,8 @@ def updateWaveEquationCPML(Uf, Uc, vp, nx_abc, nz_abc, dz, dx, dt, PsixFR, PsixF
                 Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz + psix + ZetaxFR[j, idx]) + 2 * Uc[j, i] - Uf[j, i]
 
     # Região Superior 
-    for j in prange(4, N_abc):
-        for i in range(N_abc, nx_abc - N_abc):
+    for j in prange(4, N_abc + 4):
+        for i in range(N_abc + 4, nx_abc - N_abc - 4):
             pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) +
                    c2 * (Uc[j, i+2] + Uc[j, i-2]) + c3 * (Uc[j, i+3] + Uc[j, i-3]) +
                    c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
@@ -142,9 +142,9 @@ def updateWaveEquationCPML(Uf, Uc, vp, nx_abc, nz_abc, dz, dx, dt, PsixFR, PsixF
             Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz + psiz + ZetazFU[j, i]) + 2 * Uc[j, i] - Uf[j, i]
 
     # Região Inferior
-    for j in prange(nz_abc - N_abc, nz_abc - 4):
+    for j in prange(nz_abc - N_abc - 4, nz_abc - 4):
         jdx = j - (nz_abc - N_abc)
-        for i in range(N_abc, nx_abc - N_abc):
+        for i in range(N_abc + 4, nx_abc - N_abc - 4):
             pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) +
                    c2 * (Uc[j, i+2] + Uc[j, i-2]) + c3 * (Uc[j, i+3] + Uc[j, i-3]) +
                    c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
@@ -159,8 +159,8 @@ def updateWaveEquationCPML(Uf, Uc, vp, nx_abc, nz_abc, dz, dx, dt, PsixFR, PsixF
             Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz + psiz + ZetazFD[jdx, i]) + 2 * Uc[j, i] - Uf[j, i]
 
     # Quina Superior Esquerda
-    for i in prange(4, N_abc):
-        for j in range(4, N_abc):
+    for i in prange(4, N_abc + 4):
+        for j in range(4, N_abc + 4):
             pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) +
                    c2 * (Uc[j, i+2] + Uc[j, i-2]) + c3 * (Uc[j, i+3] + Uc[j, i-3]) +
                    c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
@@ -179,9 +179,9 @@ def updateWaveEquationCPML(Uf, Uc, vp, nx_abc, nz_abc, dz, dx, dt, PsixFR, PsixF
             Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz + psix + psiz + ZetaxFL[j, i] + ZetazFU[j, i]) + 2 * Uc[j, i] - Uf[j, i]
 
     # Quina Superior Direita 
-    for i in prange(nx_abc - N_abc, nx_abc - 4):
+    for i in prange(nx_abc - N_abc - 4, nx_abc - 4):
         idx = i - (nx_abc - N_abc)
-        for j in range(4, N_abc):
+        for j in range(4, N_abc + 4):
             pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) +
                    c2 * (Uc[j, i+2] + Uc[j, i-2]) + c3 * (Uc[j, i+3] + Uc[j, i-3]) +
                    c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
@@ -200,8 +200,8 @@ def updateWaveEquationCPML(Uf, Uc, vp, nx_abc, nz_abc, dz, dx, dt, PsixFR, PsixF
             Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz + psix + psiz + ZetaxFR[j, idx] + ZetazFU[j, i]) + 2 * Uc[j, i] - Uf[j, i]
 
     # Quina Inferior Esquerda 
-    for i in prange(4, N_abc):
-        for j in range(nz_abc - N_abc, nz_abc - 4):
+    for i in prange(4, N_abc + 4):
+        for j in range(nz_abc - N_abc - 4, nz_abc - 4):
             jdx = j - (nz_abc - N_abc)
 
             pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) +
@@ -222,9 +222,9 @@ def updateWaveEquationCPML(Uf, Uc, vp, nx_abc, nz_abc, dz, dx, dt, PsixFR, PsixF
             Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz + psix + psiz + ZetaxFL[j, i] + ZetazFD[jdx, i]) + 2 * Uc[j, i] - Uf[j, i]
 
     # Quina Inferior Direita 
-    for i in prange(nx_abc - N_abc, nx_abc - 4):
+    for i in prange(nx_abc - N_abc - 4, nx_abc - 4):
         idx = i - (nx_abc - N_abc)
-        for j in range(nz_abc - N_abc, nz_abc - 4):
+        for j in range(nz_abc - N_abc - 4, nz_abc - 4):
             jdx = j - (nz_abc - N_abc)
 
             pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) +
@@ -409,8 +409,8 @@ def updateWaveEquationVTICPML(Uf, Uc, Qc, Qf, dt, dx, dz, vpz, epsilon, delta,
     a4 = -3. / 840.
 
     # Região Interior
-    for i in prange(N_abc, nx_abc - N_abc):  
-        for j in prange(N_abc, nz_abc - N_abc):
+    for i in prange(N_abc + 4, nx_abc - N_abc - 4):  
+        for j in prange(N_abc + 4, nz_abc - N_abc - 4):
             cx = vpz[j,i]**2 * (1 + 2 * epsilon[j,i])
             bx = vpz[j,i]**2 * (1 + 2 * delta[j,i])
             cz = bz = vpz[j,i]**2      
@@ -422,8 +422,8 @@ def updateWaveEquationVTICPML(Uf, Uc, Qc, Qf, dt, dx, dz, vpz, epsilon, delta,
             Qf[j, i] = 2 * Qc[j, i] - Qf[j, i] + (dt**2) * (bx * pxx  + bz * qzz)
 
     # Região Esquerda
-    for i in prange(4, N_abc):
-        for j in range(N_abc, nz_abc - N_abc):
+    for i in prange(4, N_abc + 4):
+        for j in range(N_abc + 4, nz_abc - N_abc - 4):
             cx = vpz[j,i]**2 * (1 + 2 * epsilon[j,i])
             bx = vpz[j,i]**2 * (1 + 2 * delta[j,i])
             cz = bz = vpz[j,i]**2
@@ -440,9 +440,9 @@ def updateWaveEquationVTICPML(Uf, Uc, Qc, Qf, dt, dx, dz, vpz, epsilon, delta,
             Qf[j, i] = 2 * Qc[j, i] - Qf[j, i] + (dt**2) * (bx * (pxx + psix + ZetaxFL[j,i]) + bz * qzz)
 
     # Região Direita
-    for i in prange(nx_abc - N_abc, nx_abc - 4):
+    for i in prange(nx_abc - N_abc - 4, nx_abc - 4):
         idx = i - (nx_abc - N_abc)
-        for j in range(N_abc, nz_abc - N_abc):
+        for j in range(N_abc + 4, nz_abc - N_abc - 4):
             cx = vpz[j,i]**2 * (1 + 2 * epsilon[j,i])
             bx = vpz[j,i]**2 * (1 + 2 * delta[j,i])
             cz = bz = vpz[j,i]**2
@@ -459,8 +459,8 @@ def updateWaveEquationVTICPML(Uf, Uc, Qc, Qf, dt, dx, dz, vpz, epsilon, delta,
             Qf[j, i] = 2 * Qc[j, i] - Qf[j, i] + (dt**2) * (bx * (pxx + psix + ZetaxFR[j,idx]) + bz * qzz)
     
     # Região Superior
-    for i in prange(N_abc, nx_abc - N_abc):
-        for j in range(4, N_abc):
+    for i in prange(N_abc + 4, nx_abc - N_abc - 4):
+        for j in range(4, N_abc + 4):
             cx = vpz[j,i]**2 * (1 + 2 * epsilon[j,i])
             bx = vpz[j,i]**2 * (1 + 2 * delta[j,i])
             cz = bz = vpz[j,i]**2
@@ -477,8 +477,8 @@ def updateWaveEquationVTICPML(Uf, Uc, Qc, Qf, dt, dx, dz, vpz, epsilon, delta,
             Qf[j, i] = 2 * Qc[j, i] - Qf[j, i] + (dt**2) * (bx * pxx + bz *(qzz + psiqz + ZetazqFU[j,i]))
 
     # Região Inferior
-    for i in prange(N_abc, nx_abc - N_abc):
-        for j in range(nz_abc - N_abc, nz_abc - 4):
+    for i in prange(N_abc + 4, nx_abc - N_abc - 4):
+        for j in range(nz_abc - N_abc - 4, nz_abc - 4):
             jdx = j - (nz_abc - N_abc)
 
             cx = vpz[j,i]**2 * (1 + 2 * epsilon[j,i])
@@ -497,8 +497,8 @@ def updateWaveEquationVTICPML(Uf, Uc, Qc, Qf, dt, dx, dz, vpz, epsilon, delta,
             Qf[j, i] = 2 * Qc[j, i] - Qf[j, i] + (dt**2) * (bx * pxx  + bz *(qzz + psiqz + ZetazqFD[jdx,i]))
 
     # Quina Superior Esquerda
-    for i in prange(4, N_abc):
-        for j in range(4, N_abc):
+    for i in prange(4, N_abc + 4):
+        for j in range(4, N_abc + 4):
             cx = vpz[j,i]**2 * (1 + 2 * epsilon[j,i])
             bx = vpz[j,i]**2 * (1 + 2 * delta[j,i])
             cz = bz = vpz[j,i]**2
@@ -519,9 +519,9 @@ def updateWaveEquationVTICPML(Uf, Uc, Qc, Qf, dt, dx, dz, vpz, epsilon, delta,
             Qf[j, i] = 2 * Qc[j, i] - Qf[j, i] + (dt**2) * (bx * (pxx + psix + ZetaxFL[j,i]) + bz *(qzz + psiqz + ZetazqFU[j,i]))
 
     # Quina Superior Direita
-    for i in prange(nx_abc - N_abc, nx_abc - 4):
+    for i in prange(nx_abc - N_abc - 4, nx_abc - 4):
         idx = i - (nx_abc - N_abc)
-        for j in range(4, N_abc):
+        for j in range(4, N_abc + 4 ):
             cx = vpz[j,i]**2 * (1 + 2 * epsilon[j,i])
             bx = vpz[j,i]**2 * (1 + 2 * delta[j,i])
             cz = bz = vpz[j,i]**2
@@ -542,8 +542,8 @@ def updateWaveEquationVTICPML(Uf, Uc, Qc, Qf, dt, dx, dz, vpz, epsilon, delta,
             Qf[j, i] = 2 * Qc[j, i] - Qf[j, i] + (dt**2) * (bx * (pxx + psix + ZetaxFR[j,idx]) + bz *(qzz + psiqz + ZetazqFU[j,i]))
     
     # Quina Inferior Esquerda
-    for i in prange(4, N_abc):
-        for j in range(nz_abc - N_abc, nz_abc - 4):
+    for i in prange(4, N_abc + 4):
+        for j in range(nz_abc - N_abc - 4, nz_abc - 4):
             jdx = j - (nz_abc - N_abc)
 
             cx = vpz[j,i]**2 * (1 + 2 * epsilon[j,i])
@@ -566,9 +566,9 @@ def updateWaveEquationVTICPML(Uf, Uc, Qc, Qf, dt, dx, dz, vpz, epsilon, delta,
             Qf[j, i] = 2 * Qc[j, i] - Qf[j, i] + (dt**2) * (bx * (pxx + psix + ZetaxFL[j,i]) + bz *(qzz + psiqz + ZetazqFD[jdx,i]))
     
     # Quina Inferior Direita
-    for i in prange(nx_abc - N_abc, nx_abc - 4):
+    for i in prange(nx_abc - N_abc - 4, nx_abc - 4):
         idx = i - (nx_abc - N_abc)
-        for j in range(nz_abc - N_abc, nz_abc - 4):
+        for j in range(nz_abc - N_abc - 4, nz_abc - 4):
             jdx = j - (nz_abc - N_abc)
 
             cx = vpz[j,i]**2 * (1 + 2 * epsilon[j,i])
@@ -602,7 +602,7 @@ def updatePsiVTI (PsizqFU, PsizqFD, nx_abc, nz_abc, a_z, b_z, Qc, dz, N_abc):
     a4 = -3. / 840.
 
     for i in prange(4, nx_abc - 4):
-        for j in prange(4, N_abc):
+        for j in prange(4, N_abc + 4):
             jdx = N_abc - j
 
             qz = (a1 * (Qc[j+1, i] - Qc[j-1, i]) +
@@ -613,7 +613,7 @@ def updatePsiVTI (PsizqFU, PsizqFD, nx_abc, nz_abc, a_z, b_z, Qc, dz, N_abc):
             PsizqFU[j, i] = a_z[j, i] * PsizqFU[j, i] + b_z[j, i] * qz
 
     for i in prange(4, nx_abc - 4):
-        for j in prange(nz_abc - N_abc, nz_abc - 4):
+        for j in prange(nz_abc - N_abc - 4, nz_abc - 4):
             jdx = j - (nz_abc - N_abc)
 
             qz = (a1 * (Qc[j+1, i] - Qc[j-1, i]) +
@@ -639,7 +639,7 @@ def updateZetaVTI (PsizqFU, PsizqFD, ZetazqFU, ZetazqFD, nx_abc, nz_abc, a_z, b_
     a4 = -3. / 840.
 
     for i in prange(4, nx_abc - 4):
-        for j in prange(4, N_abc- 4):
+        for j in prange(4, N_abc + 4):
             jdx = N_abc - j
 
             qzz = (c0 * Qc[j, i] + c1 * (Qc[j+1, i] + Qc[j-1, i]) + 
@@ -654,7 +654,7 @@ def updateZetaVTI (PsizqFU, PsizqFD, ZetazqFU, ZetazqFD, nx_abc, nz_abc, a_z, b_
             ZetazqFU[j, i] = a_z[j, i] * ZetazqFU[j, i] + b_z[j, i] * (qzz + psiqz)
 
     for i in prange(4, nx_abc - 4):
-        for j in prange(nz_abc - N_abc, nz_abc - 4):
+        for j in prange(nz_abc - N_abc - 4, nz_abc - 4):
             jdx = j - (nz_abc - N_abc) 
 
             qzz = (c0 * Qc[j, i] + c1 * (Qc[j+1, i] + Qc[j-1, i]) + 
@@ -768,8 +768,8 @@ def updateWaveEquationTTICPML(Uf, Uc, Qc, Qf, nx_abc, nz_abc, dt, dx, dz, vpz, v
     a4 = -1./280.
 
     # Região Interior
-    for i in prange(N_abc, nx_abc - N_abc):
-        for j in prange(N_abc, nz_abc - N_abc):
+    for i in prange(N_abc + 4, nx_abc - N_abc - 4):
+        for j in prange(N_abc + 4, nz_abc - N_abc - 4):
             vpx = vpz[j, i] * np.sqrt(1 + 2*epsilon[j, i])
             vpn = vpz[j, i] * np.sqrt(1 + 2*delta[j, i])
             cpx = vpx**2 * np.cos(theta[j, i])**2 + vsz[j, i]**2 * np.sin(theta[j, i])**2
@@ -841,8 +841,8 @@ def updateWaveEquationTTICPML(Uf, Uc, Qc, Qf, nx_abc, nz_abc, dt, dx, dz, vpz, v
             Qf[j, i] = 2 * Qc[j, i] - Qf[j, i] + (dt**2) * (cqx * pxx + cqz * pzz + cqxz * pxz + dqx * qxx + dqz * qzz + dqxz * qxz)
     
     # Região Esquerda
-    for i in prange(4, N_abc):
-        for j in prange(N_abc, nz_abc - N_abc):
+    for i in prange(4, N_abc + 4):
+        for j in prange(N_abc + 4, nz_abc - N_abc - 4):
             vpx = vpz[j, i] * np.sqrt(1 + 2*epsilon[j, i])
             vpn = vpz[j, i] * np.sqrt(1 + 2*delta[j, i])
             cpx = vpx**2 * np.cos(theta[j, i])**2 + vsz[j, i]**2 * np.sin(theta[j, i])**2
@@ -923,9 +923,9 @@ def updateWaveEquationTTICPML(Uf, Uc, Qc, Qf, nx_abc, nz_abc, dt, dx, dz, vpz, v
             Qf[j, i] = 2 * Qc[j, i] - Qf[j, i] + (dt**2) * (cqx * (pxx + psix + ZetaxFL[j, i]) + cqz * pzz + cqxz * (pxz) + dqx * (qxx + psiqx + ZetaxqFL[j, i]) + dqz * qzz  + dqxz * (qxz))
 
     # Região Direita
-    for i in prange(nx_abc - N_abc, nx_abc - 4):
+    for i in prange(nx_abc - N_abc - 4, nx_abc - 4):
         idx = i - (nx_abc - N_abc)
-        for j in range(N_abc, nz_abc - N_abc):
+        for j in range(N_abc + 4, nz_abc - N_abc - 4):
             vpx = vpz[j, i] * np.sqrt(1 + 2*epsilon[j, i])
             vpn = vpz[j, i] * np.sqrt(1 + 2*delta[j, i])
             cpx = vpx**2 * np.cos(theta[j, i])**2 + vsz[j, i]**2 * np.sin(theta[j, i])**2
@@ -1005,8 +1005,8 @@ def updateWaveEquationTTICPML(Uf, Uc, Qc, Qf, nx_abc, nz_abc, dt, dx, dz, vpz, v
             Qf[j, i] = 2 * Qc[j, i] - Qf[j, i] + (dt**2) * (cqx * (pxx + psix + ZetaxFR[j, idx]) + cqz * pzz + cqxz * (pxz) + dqx * (qxx + psiqx + ZetaxqFR[j, idx]) + dqz * qzz  + dqxz * (qxz))
 
     # Região Superior
-    for j in prange(4, N_abc):
-        for i in range(N_abc, nx_abc - N_abc):
+    for j in prange(4, N_abc + 4):
+        for i in range(N_abc + 4, nx_abc - N_abc - 4):
             vpx = vpz[j, i] * np.sqrt(1 + 2*epsilon[j, i])
             vpn = vpz[j, i] * np.sqrt(1 + 2*delta[j, i])
             cpx = vpx**2 * np.cos(theta[j, i])**2 + vsz[j, i]**2 * np.sin(theta[j, i])**2
@@ -1088,9 +1088,9 @@ def updateWaveEquationTTICPML(Uf, Uc, Qc, Qf, nx_abc, nz_abc, dt, dx, dz, vpz, v
             Qf[j, i] = 2 * Qc[j, i] - Qf[j, i] + (dt**2) * (cqx * pxx + cqz * (pzz + psiz + ZetazFU[j, i]) + cqxz * (pxz) + dqx * qxx  + dqz * (qzz + psiqz + ZetazqFU[j,i]) + dqxz * (qxz))
    
     # Região inferior
-    for j in prange(nz_abc - N_abc, nz_abc - 4):
+    for j in prange(nz_abc - N_abc - 4, nz_abc - 4):
         jdx = j - (nz_abc - N_abc)
-        for i in range(N_abc, nx_abc - N_abc):
+        for i in range(N_abc + 4, nx_abc - N_abc - 4):
             vpx = vpz[j, i] * np.sqrt(1 + 2*epsilon[j, i])
             vpn = vpz[j, i] * np.sqrt(1 + 2*delta[j, i])
             cpx = vpx**2 * np.cos(theta[j, i])**2 + vsz[j, i]**2 * np.sin(theta[j, i])**2
@@ -1172,8 +1172,8 @@ def updateWaveEquationTTICPML(Uf, Uc, Qc, Qf, nx_abc, nz_abc, dt, dx, dz, vpz, v
             Qf[j, i] = 2 * Qc[j, i] - Qf[j, i] + (dt**2) * (cqx * pxx + cqz * (pzz + psiz + ZetazFD[jdx, i]) + cqxz * (pxz) + dqx * qxx  + dqz * (qzz + psiqz + ZetazqFD[jdx,i]) + dqxz * (qxz))
 
     # Quina Superior Esquerda
-    for i in prange(4, N_abc):
-        for j in range(4, N_abc):
+    for i in prange(4, N_abc + 4):
+        for j in range(4, N_abc + 4):
             vpx = vpz[j, i] * np.sqrt(1 + 2*epsilon[j, i])
             vpn = vpz[j, i] * np.sqrt(1 + 2*delta[j, i])
             cpx = vpx**2 * np.cos(theta[j, i])**2 + vsz[j, i]**2 * np.sin(theta[j, i])**2
@@ -1270,9 +1270,9 @@ def updateWaveEquationTTICPML(Uf, Uc, Qc, Qf, nx_abc, nz_abc, dt, dx, dz, vpz, v
             Qf[j, i] = 2 * Qc[j, i] - Qf[j, i] + (dt**2) * (cqx * (pxx + psix + ZetaxFL[j, i]) + cqz * (pzz + psiz + ZetazFU[j, i]) + cqxz * (pxz + psizxU + ZetaxzFUL[j,i]) + dqx * (qxx + psiqx + ZetaxqFL[j, i]) + dqz * (qzz + psiqz + ZetazqFU[j,i]) + dqxz * (qxz + psiqzxU + ZetaxzqFUL[j,i]))
 
     # Quina Superior Direita 
-    for i in prange(nx_abc - N_abc, nx_abc - 4):
+    for i in prange(nx_abc - N_abc - 4, nx_abc - 4):
         idx = i - (nx_abc - N_abc)
-        for j in range(4, N_abc):
+        for j in range(4, N_abc + 4):
             vpx = vpz[j, i] * np.sqrt(1 + 2*epsilon[j, i])
             vpn = vpz[j, i] * np.sqrt(1 + 2*delta[j, i])
             cpx = vpx**2 * np.cos(theta[j, i])**2 + vsz[j, i]**2 * np.sin(theta[j, i])**2
@@ -1369,8 +1369,8 @@ def updateWaveEquationTTICPML(Uf, Uc, Qc, Qf, nx_abc, nz_abc, dt, dx, dz, vpz, v
             Qf[j, i] = 2 * Qc[j, i] - Qf[j, i] + (dt**2) * (cqx * (pxx + psix + ZetaxFR[j, idx]) + cqz * (pzz + psiz + ZetazFU[j, i]) + cqxz * (pxz  + psizxU + ZetaxzFUR[j,idx] ) + dqx * (qxx + psiqx + ZetaxqFR[j, idx])  + dqz * (qzz + psiqz + ZetazqFU[j,i]) + dqxz * (qxz + psiqzxU + ZetaxzqFUR[j,idx]))
 
     # Quina Inferior Esquerda 
-    for i in prange(4, N_abc):
-        for j in range(nz_abc - N_abc, nz_abc - 4):
+    for i in prange(4, N_abc + 4):
+        for j in range(nz_abc - N_abc - 4, nz_abc - 4):
             jdx = j - (nz_abc - N_abc)
 
             vpx = vpz[j, i] * np.sqrt(1 + 2*epsilon[j, i])
@@ -1469,9 +1469,9 @@ def updateWaveEquationTTICPML(Uf, Uc, Qc, Qf, nx_abc, nz_abc, dt, dx, dz, vpz, v
             Qf[j, i] = 2 * Qc[j, i] - Qf[j, i] + (dt**2) * (cqx * (pxx + psix + ZetaxFL[j, i]) + cqz * (pzz + psiz + ZetazFD[jdx, i]) + cqxz * (pxz + psizxD + ZetaxzFDL[jdx,i]) + dqx * (qxx + psiqx + ZetaxqFL[j, i])  + dqz * (qzz + psiqz + ZetazqFD[jdx,i]) + dqxz * (qxz + psiqzxD + ZetaxzqFDL[jdx,i]))
 
     # Quina Inferior Direita 
-    for i in prange(nx_abc - N_abc, nx_abc - 4):
+    for i in prange(nx_abc - N_abc - 4, nx_abc - 4):
         idx = i - (nx_abc - N_abc)
-        for j in range(nz_abc - N_abc, nz_abc - 4):
+        for j in range(nz_abc - N_abc - 4, nz_abc - 4):
             jdx = j - (nz_abc - N_abc)
 
             vpx = vpz[j, i] * np.sqrt(1 + 2*epsilon[j, i])
@@ -1579,7 +1579,7 @@ def updatePsiTTI(PsixqFR, PsixqFL, nx_abc, nz_abc, a_x, b_x, Qc, dx, N_abc):
     a3 = 32. / 840.
     a4 = -3. / 840.
 
-    for i in prange(4, N_abc - 4):
+    for i in prange(4, N_abc + 4):
         for j in prange(4, nz_abc - 4):
 
             qx = (a1 * (Qc[j, i+1] - Qc[j, i-1]) +
@@ -1589,7 +1589,7 @@ def updatePsiTTI(PsixqFR, PsixqFL, nx_abc, nz_abc, a_x, b_x, Qc, dx, N_abc):
         
             PsixqFL[j, i] = a_x[j,i] * PsixqFL[j, i] + b_x[j,i] * qx
 
-    for i in prange(nx_abc - N_abc, nx_abc - 4):
+    for i in prange(nx_abc - N_abc - 4, nx_abc - 4):
         idx = i - (nx_abc - N_abc)
         for j in prange(4, nz_abc - 4):
 
@@ -1615,7 +1615,7 @@ def updateZetaTTI(PsixqFR, PsixqFL, PsizFU, PsizFD, PsizqFU, PsizqFD, ZetaxqFL, 
     a3 = 32. / 840.
     a4 = -3. / 840.
 
-    for i in prange(4, N_abc - 4):
+    for i in prange(4, N_abc + 4):
         for j in prange(4, nz_abc - 4):
 
             qxx = (c0 * Qc[j, i] + c1 * (Qc[j, i+1] + Qc[j, i-1]) + 
@@ -1630,7 +1630,7 @@ def updateZetaTTI(PsixqFR, PsixqFL, PsizFU, PsizFD, PsizqFU, PsizqFD, ZetaxqFL, 
             
             ZetaxqFL[j, i] = a_x[j,i] * ZetaxqFL[j, i] + b_x[j,i] * (qxx + psiqx)
 
-    for i in prange(nx_abc - N_abc, nx_abc - 4):
+    for i in prange(nx_abc - N_abc - 4, nx_abc - 4):
         idx = i - (nx_abc - N_abc) 
         for j in prange(4, nz_abc - 4):
 
@@ -1646,9 +1646,9 @@ def updateZetaTTI(PsixqFR, PsixqFL, PsizFU, PsizFD, PsizqFU, PsizqFD, ZetaxqFL, 
 
             ZetaxqFR[j, idx] = a_x[j,i] * ZetaxqFR[j, idx] + b_x[j,i] * (qxx + psiqx)
     
-    for i in prange(4, N_abc - 4):
+    for i in prange(4, N_abc + 4):
         idx = N_abc - i
-        for j in prange(4, N_abc - 4):
+        for j in prange(4, N_abc + 4):
             jdx = N_abc - j
 
             pxz = (a1*a1*(Uc[j+1,i+1] - Uc[j-1,i+1] + Uc[j-1,i-1] - Uc[j+1,i-1]) +
@@ -1678,9 +1678,9 @@ def updateZetaTTI(PsixqFR, PsixqFL, PsizFU, PsizFD, PsizqFU, PsizqFD, ZetaxqFL, 
            
             ZetaxzFUL[jdx, idx] = a_x[j,i] * ZetaxzFUL[jdx, idx] + b_x[j,i] * (pxz + psizx)
 
-    for i in prange(nx_abc - N_abc, nx_abc - 4):
+    for i in prange(nx_abc - N_abc - 4, nx_abc - 4):
         idx = i - (nx_abc - N_abc)
-        for j in prange(4, N_abc - 4):
+        for j in prange(4, N_abc + 4):
             jdx = N_abc - j
 
             pxz = (a1*a1*(Uc[j+1,i+1] - Uc[j-1,i+1] + Uc[j-1,i-1] - Uc[j+1,i-1]) +
@@ -1710,9 +1710,9 @@ def updateZetaTTI(PsixqFR, PsixqFL, PsizFU, PsizFD, PsizqFU, PsizqFD, ZetaxqFL, 
            
             ZetaxzFUR[jdx, idx] = a_x[j, i] * ZetaxzFUR[jdx, idx] + b_x[j, i] * (pxz + psizx)
     
-    for i in prange(4, N_abc - 4):
+    for i in prange(4, N_abc + 4):
         idx = N_abc - i
-        for j in prange(nz_abc - N_abc, nz_abc - 4):
+        for j in prange(nz_abc - N_abc - 4, nz_abc - 4):
             jdx = j - (nz_abc - N_abc)
 
             pxz = (a1*a1*(Uc[j+1,i+1] - Uc[j-1,i+1] + Uc[j-1,i-1] - Uc[j+1,i-1]) +
@@ -1742,9 +1742,9 @@ def updateZetaTTI(PsixqFR, PsixqFL, PsizFU, PsizFD, PsizqFU, PsizqFD, ZetaxqFL, 
            
             ZetaxzFDL[jdx, idx] = a_x[j, i] * ZetaxzFDL[jdx, idx] + b_x[j, i] * (pxz + psizx)
 
-    for i in prange(nx_abc - N_abc, nx_abc - 4):
+    for i in prange(nx_abc - N_abc - 4, nx_abc - 4):
         idx = i - (nx_abc - N_abc)
-        for j in prange(nz_abc - N_abc, nz_abc - 4):
+        for j in prange(nz_abc - N_abc - 4, nz_abc - 4):
             jdx = j - (nz_abc - N_abc)
 
             pxz = (a1*a1*(Uc[j+1,i+1] - Uc[j-1,i+1] + Uc[j-1,i-1] - Uc[j+1,i-1]) +
@@ -1774,9 +1774,9 @@ def updateZetaTTI(PsixqFR, PsixqFL, PsizFU, PsizFD, PsizqFU, PsizqFD, ZetaxqFL, 
            
             ZetaxzFDR[jdx, idx] = a_x[j, i] * ZetaxzFDR[jdx, idx] + b_x[j, i] * (pxz + psizx)
     
-    for i in prange(4, N_abc - 4):
+    for i in prange(4, N_abc + 4):
         idx = N_abc - i
-        for j in prange(4, N_abc - 4):
+        for j in prange(4, N_abc + 4):
             jdx = N_abc - j
             
             qxz =  (a1*a1*(Qc[j+1,i+1] - Qc[j-1,i+1] + Qc[j-1,i-1] - Qc[j+1,i-1]) +
@@ -1806,9 +1806,9 @@ def updateZetaTTI(PsixqFR, PsixqFL, PsizFU, PsizFD, PsizqFU, PsizqFD, ZetaxqFL, 
 
             ZetaxzqFUL[jdx, idx] = a_x[j, i] * ZetaxzqFUL[jdx, idx] + b_x[j, i] * (qxz + psiqzx)
 
-    for i in prange(nx_abc - N_abc, nx_abc - 4):
+    for i in prange(nx_abc - N_abc - 4, nx_abc - 4):
         idx = i - (nx_abc - N_abc)
-        for j in prange(4, N_abc - 4):
+        for j in prange(4, N_abc + 4):
             jdx = N_abc - j
             
             qxz =  (a1*a1*(Qc[j+1,i+1] - Qc[j-1,i+1] + Qc[j-1,i-1] - Qc[j+1,i-1]) +
@@ -1838,9 +1838,9 @@ def updateZetaTTI(PsixqFR, PsixqFL, PsizFU, PsizFD, PsizqFU, PsizqFD, ZetaxqFL, 
 
             ZetaxzqFUR[jdx, idx] = a_x[j, i] * ZetaxzqFUR[jdx, idx] + b_x[j, i] * (qxz + psiqzx)
 
-    for i in prange(4, N_abc - 4):
+    for i in prange(4, N_abc + 4):
         idx = N_abc - i
-        for j in prange(nz_abc - N_abc, nz_abc - 4):
+        for j in prange(nz_abc - N_abc - 4, nz_abc - 4):
             jdx = j - (nz_abc - N_abc)
             
             qxz =  (a1*a1*(Qc[j+1,i+1] - Qc[j-1,i+1] + Qc[j-1,i-1] - Qc[j+1,i-1]) +
@@ -1870,9 +1870,9 @@ def updateZetaTTI(PsixqFR, PsixqFL, PsizFU, PsizFD, PsizqFU, PsizqFD, ZetaxqFL, 
 
             ZetaxzqFDL[jdx, idx] = a_x[j, i] * ZetaxzqFDL[jdx, idx] + b_x[j,i] * (qxz + psiqzx)
 
-    for i in prange(nx_abc - N_abc, nx_abc - 4):
+    for i in prange(nx_abc - N_abc - 4, nx_abc - 4):
         idx = i - (nx_abc - N_abc)
-        for j in prange(nz_abc - N_abc, nz_abc - 4):
+        for j in prange(nz_abc - N_abc - 4, nz_abc - 4):
             jdx = j - (nz_abc - N_abc)
             
             qxz =  (a1*a1*(Qc[j+1,i+1] - Qc[j-1,i+1] + Qc[j-1,i-1] - Qc[j+1,i-1]) +
@@ -1932,23 +1932,3 @@ def AbsorbingBoundary(N_abc, nz_abc, nx_abc, f, A):
             f[nz_abc - j - 1, i] *= A[j]
 
     return f
-
-def laplacian(self, f):
-    dim1,dim2 = np.shape(f)
-    g = np.zeros([dim1,dim2])
-    lap_z = 0
-    lap_x = 0
-    for ix in range(1, dim2 - 1):
-        for iz in range(1, dim1 - 1):
-            lap_z = f[iz+1, ix] + f[iz-1, ix] - 2 * f[iz, ix]
-            lap_x = f[iz, ix+1] + f[iz, ix-1] - 2 * f[iz, ix]
-            g[iz, ix] = lap_z/(self.dz*self.dz) + lap_x/(self.dx*self.dx)
-
-    for ix in range(dim2):
-        g[0, ix] = g[1, ix]
-        g[-1, ix] = g[-2, ix]
-    for iz in range(dim1):
-        g[iz, 0] = g[iz, 1]
-        g[iz, -1] = g[iz, -2]
-
-    return(-g)

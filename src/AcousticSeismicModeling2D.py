@@ -153,14 +153,14 @@ class wavefield:
 
         if self.approximation in ["acousticCPML", "acousticVTICPML", "acousticTTICPML"]:
             # Initialize absorbing layers       
-            self.PsixFR      = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
-            self.PsixFL      = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)     
-            self.PsizFU      = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32) 
-            self.PsizFD      = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)       
-            self.ZetaxFR     = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
-            self.ZetaxFL     = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
-            self.ZetazFU     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
-            self.ZetazFD     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
+            self.PsixFR      = np.zeros([self.nz_abc, self.N_abc+8], dtype=np.float32)
+            self.PsixFL      = np.zeros([self.nz_abc, self.N_abc+8], dtype=np.float32)     
+            self.PsizFU      = np.zeros([self.N_abc+8, self.nx_abc], dtype=np.float32) 
+            self.PsizFD      = np.zeros([self.N_abc+8, self.nx_abc], dtype=np.float32)       
+            self.ZetaxFR     = np.zeros([self.nz_abc, self.N_abc+8], dtype=np.float32)
+            self.ZetaxFL     = np.zeros([self.nz_abc, self.N_abc+8], dtype=np.float32)
+            self.ZetazFU     = np.zeros([self.N_abc+8, self.nx_abc], dtype=np.float32)
+            self.ZetazFD     = np.zeros([self.N_abc+8, self.nx_abc], dtype=np.float32)
         
 
         print(f"info: Wavefields initialized: {self.nx}x{self.nz}x{self.nt}")
@@ -182,10 +182,10 @@ class wavefield:
 
             if self.approximation in ["acousticVTICPML", "acousticTTICPML"]:
                 # Initialize absorbing layers
-                self.PsizqFU     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
-                self.PsizqFD     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
-                self.ZetazqFU    = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
-                self.ZetazqFD    = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
+                self.PsizqFU     = np.zeros([self.N_abc+8, self.nx_abc], dtype=np.float32)
+                self.PsizqFD     = np.zeros([self.N_abc+8, self.nx_abc], dtype=np.float32)
+                self.ZetazqFU    = np.zeros([self.N_abc+8, self.nx_abc], dtype=np.float32)
+                self.ZetazqFD    = np.zeros([self.N_abc+8, self.nx_abc], dtype=np.float32)
 
             #import epsilon and delta model
             if (self.epsilonFile == None):
@@ -207,20 +207,20 @@ class wavefield:
 
             if self.approximation == "acousticTTICPML":
                 # Initialize absorbing layers
-                self.PsixqFR     = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
-                self.PsixqFL     = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
-                self.ZetaxqFR    = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)  
-                self.ZetaxqFL    = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32) 
+                self.PsixqFR     = np.zeros([self.nz_abc, self.N_abc+8], dtype=np.float32)
+                self.PsixqFL     = np.zeros([self.nz_abc, self.N_abc+8], dtype=np.float32)
+                self.ZetaxqFR    = np.zeros([self.nz_abc, self.N_abc+8], dtype=np.float32)  
+                self.ZetaxqFL    = np.zeros([self.nz_abc, self.N_abc+8], dtype=np.float32) 
 
-                self.ZetaxzFUR    = np.zeros([self.N_abc+4, self.N_abc+4], dtype=np.float32)
-                self.ZetaxzFUL    = np.zeros([self.N_abc+4, self.N_abc+4], dtype=np.float32)
-                self.ZetaxzFDL    = np.zeros([self.N_abc+4, self.N_abc+4], dtype=np.float32)
-                self.ZetaxzFDR    = np.zeros([self.N_abc+4, self.N_abc+4], dtype=np.float32)
+                self.ZetaxzFUR    = np.zeros([self.N_abc+8, self.N_abc+8], dtype=np.float32)
+                self.ZetaxzFUL    = np.zeros([self.N_abc+8, self.N_abc+8], dtype=np.float32)
+                self.ZetaxzFDL    = np.zeros([self.N_abc+8, self.N_abc+8], dtype=np.float32)
+                self.ZetaxzFDR    = np.zeros([self.N_abc+8, self.N_abc+8], dtype=np.float32)
 
-                self.ZetaxzqFUL   = np.zeros([self.N_abc+4, self.N_abc+4], dtype=np.float32)
-                self.ZetaxzqFUR   = np.zeros([self.N_abc+4, self.N_abc+4], dtype=np.float32)
-                self.ZetaxzqFDL   = np.zeros([self.N_abc+4, self.N_abc+4], dtype=np.float32)           
-                self.ZetaxzqFDR   = np.zeros([self.N_abc+4, self.N_abc+4], dtype=np.float32)
+                self.ZetaxzqFUL   = np.zeros([self.N_abc+8, self.N_abc+8], dtype=np.float32)
+                self.ZetaxzqFUR   = np.zeros([self.N_abc+8, self.N_abc+8], dtype=np.float32)
+                self.ZetaxzqFDL   = np.zeros([self.N_abc+8, self.N_abc+8], dtype=np.float32)           
+                self.ZetaxzqFDR   = np.zeros([self.N_abc+8, self.N_abc+8], dtype=np.float32)
 
             #import vs and theta models
             if (self.vsFile == None):
@@ -1086,4 +1086,3 @@ class wavefield:
         else:
             raise ValueError("ERROR: Unknown approximation. Choose 'acoustic', 'acousticVTI' or 'acousticTTI'.")
         print(f"info: Wave equation solved")
-
