@@ -3,16 +3,19 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import json
 import time
+import cupy as cp
 
 from utils import ricker
 from utils import AnalyticalModel
 from utils import updateWaveEquation
+from utils import updateWaveEquationGPU
 from utils import updateWaveEquationCPML
 from utils import updateWaveEquationVTI
 from utils import updateWaveEquationVTICPML
 from utils import updateWaveEquationTTI
 from utils import updateWaveEquationTTICPML
 from utils import AbsorbingBoundary
+from utils import AbsorbingBoundaryGPU
 from utils import updatePsi
 from utils import updateZeta
 from utils import updatePsiVTI
@@ -210,7 +213,12 @@ class wavefield:
                 self.PsixqFR     = np.zeros([self.nz_abc, self.N_abc+8], dtype=np.float32)
                 self.PsixqFL     = np.zeros([self.nz_abc, self.N_abc+8], dtype=np.float32)
                 self.ZetaxqFR    = np.zeros([self.nz_abc, self.N_abc+8], dtype=np.float32)  
-                self.ZetaxqFL    = np.zeros([self.nz_abc, self.N_abc+8], dtype=np.float32) 
+                self.ZetaxqFL    = np.zeros([self.nz_abc, self.N_abc+8], dtype=np.float32)
+
+                self.ZetaxzFU    = np.zeros([self.N_abc+8, self.nx_abc], dtype=np.float32)
+                self.ZetaxzFD    = np.zeros([self.N_abc+8, self.nx_abc], dtype=np.float32)
+                self.ZetaxzqFU   = np.zeros([self.N_abc+8, self.nx_abc], dtype=np.float32)
+                self.ZetaxzqFD   = np.zeros([self.N_abc+8, self.nx_abc], dtype=np.float32)
 
                 self.ZetaxzFUR    = np.zeros([self.N_abc+8, self.N_abc+8], dtype=np.float32)
                 self.ZetaxzFUL    = np.zeros([self.N_abc+8, self.N_abc+8], dtype=np.float32)
@@ -556,6 +564,7 @@ class wavefield:
                 A[i] = np.exp(-fb * fb)
                 
         return A 
+    
     def laplacian(self, f):
         dim1,dim2 = np.shape(f)
         g = np.zeros([dim1,dim2])
@@ -575,7 +584,150 @@ class wavefield:
             g[iz, -1] = g[iz, -2]
 
         return(-g)
+  
+    def solveAcousticWaveEquation(self):
+        start_time = time.time()
+        print(f"info: Solving acoustic wave equation")
+        # Expand velocity model and Create absorbing layers
+        self.vp_exp = self.ExpandModel(self.vp)
+        self.A = self.createCerjanVector()
+        
+        rx = np.int32(self.rec_x/self.dx) + self.N_abc
+        rz = np.int32(self.rec_z/self.dz) + self.N_abc
+
+        for shot in range(self.Nshot):
+            print(f"info: Shot {shot+1} of {self.Nshot}")
+            self.current.fill(0)
+            self.future.fill(0)
+            self.seismogram.fill(0)
+            self.snapshot.fill(0)
+
+            # convert acquisition geometry coordinates to grid points
+            sx = int(self.shot_x[shot]/self.dx) + self.N_abc
+            sz = int(self.shot_z[shot]/self.dz) + self.N_abc           
+
+            for k in range(self.nt):        
+                self.current[sz,sx] += self.source[k]
+                self.future = updateWaveEquation(self.future, self.current, self.vp_exp, self.nz_abc, self.nx_abc, self.dz, self.dx, self.dt)
+
+                # Apply absorbing boundary condition
+                self.future = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.future, self.A)
+                self.current = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.current, self.A)
+
+                # Register seismogram
+                self.seismogram[k, :] = self.current[rz, rx]
+
+                self.snapshot[k, :, :] = self.current
+
+                if (shot + 1) in self.shot_frame and k in self.frame:
+                    snapshotFile = f"{self.snapshotFolder}Acoustic_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin"
+                    self.snapshot[k,:,:].tofile(snapshotFile)
+                    print(f"info: Snapshot saved to {snapshotFile}")
+                
+                #swap
+                self.current, self.future = self.future, self.current
+            
+            self.seismogramFile = f"{self.seismogramFolder}Acousticseismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
+            self.seismogram.tofile(self.seismogramFile)
+            print(f"info: Seismogram saved to {self.seismogramFile}")
+            print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
+
+            # backward propagation
+            print(f"info: Starting backward migration for shot {shot+1}")
+            self.current.fill(0)
+            self.future.fill(0)
+            self.migrated_partial = np.zeros_like(self.migrated_image)
+
+            # Top muting
+            self.muted_seismogram = self.Mute(self.seismogram, shot)
+
+            # Last time step with significant source amplitude
+            self.last_t = self.LastTimeStepWithSignificantSourceAmplitude()    
+                    
+            # Begin backward propagation
+            for t in range(self.nt - 1, self.last_t, -1):
+                for r in range(len(rx)):
+                    self.current[rz[r], rx[r]] += self.muted_seismogram[t, r]
+                self.future = updateWaveEquation(self.future, self.current, self.vp_exp,self.nz_abc, self.nx_abc, self.dz, self.dx, self.dt)
+
+                self.future = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.future, self.A)
+                self.current = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.current, self.A)
+
+                self.migrated_partial += self.snapshot[t, self.N_abc:self.nz_abc - self.N_abc, self.N_abc:self.nx_abc - self.N_abc] * self.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc] 
+
+                self.current, self.future = self.future, self.current
+
+            self.migrated_image += self.migrated_partial
+            print(f"info: Shot {shot+1} backward done.")
+
+        # Apply Laplacian filter 
+        self.migrated_image = self.laplacian(self.migrated_image)
+        
+        self.migratedFile = f"{self.migratedimageFolder}migrated_image_acoustic.bin"
+        self.migrated_image.tofile(self.migratedFile)
+        print(f"info: Final migrated image saved to {self.migratedFile}")
     
+    def solveAcousticWaveEquationGPU(self):
+        start_time = time.time()
+        print(f"info: Solving acoustic wave equation")
+        # Expand velocity model and Create absorbing layers
+        self.vp_exp = self.ExpandModel(self.vp)
+        self.vp_exp = cp.asarray(self.vp_exp)
+        self.A = self.createCerjanVector()
+        self.A = cp.asarray(self.A)
+        self.future = cp.asarray(self.future)
+        self.current = cp.asarray(self.current)
+        self.seismogram = cp.asarray(self.seismogram)
+        self.snapshot = cp.asarray(self.snapshot)
+        self.source = cp.asarray(self.source)
+
+        threadsperblock = (16, 16)
+        blockspergrid_x = int(np.ceil(self.current.shape[1] / threadsperblock[0]))
+        blockspergrid_y = int(np.ceil(self.current.shape[0] / threadsperblock[1]))  
+        blockspergrid   = (blockspergrid_x, blockspergrid_y)
+       
+        rx = cp.int32(self.rec_x/self.dx) + self.N_abc
+        rz = cp.int32(self.rec_z/self.dz) + self.N_abc
+
+        for shot in range(self.Nshot):
+            print(f"info: Shot {shot+1} of {self.Nshot}")
+            self.current.fill(0)
+            self.future.fill(0)
+            self.seismogram.fill(0)
+            self.snapshot.fill(0)
+
+            # convert acquisition geometry coordinates to grid points
+            sx = int(self.shot_x[shot]/self.dx) + self.N_abc
+            sz = int(self.shot_z[shot]/self.dz) + self.N_abc           
+
+            for k in range(self.nt):        
+                self.current[sz,sx] += self.source[k]
+                updateWaveEquationGPU[blockspergrid,threadsperblock](self.future, self.current, self.vp_exp, self.nz_abc, self.nx_abc, self.dz, self.dx, self.dt)
+
+                # Apply absorbing boundary condition
+                AbsorbingBoundaryGPU[blockspergrid,threadsperblock](self.N_abc, self.nz_abc, self.nx_abc, self.future, self.A)
+                AbsorbingBoundaryGPU[blockspergrid,threadsperblock](self.N_abc, self.nz_abc, self.nx_abc, self.current, self.A)
+
+                # Register seismogram
+                self.seismogram[k, :] = self.current[rz, rx]
+
+                self.snapshot[k, :, :] = self.current
+
+                if (shot + 1) in self.shot_frame and k in self.frame:
+                    snapshotFile = f"{self.snapshotFolder}Acoustic_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin"
+                    snapshot_cpu = cp.asnumpy(self.snapshot[k, :, :])  
+                    snapshot_cpu.tofile(snapshotFile)
+                    print(f"info: Snapshot saved to {snapshotFile}")
+                
+                #swap
+                self.current, self.future = self.future, self.current
+            
+            self.seismogramFile = f"{self.seismogramFolder}Acousticseismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
+            self.seismogram_cpu = cp.asnumpy(self.seismogram)
+            self.seismogram_cpu.tofile(self.seismogramFile)
+            print(f"info: Seismogram saved to {self.seismogramFile}")
+            print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
+
     def solveAcousticWaveEquationCPML(self):
         start_time = time.time()
         print(f"info: Solving acoustic CPML wave equation")
@@ -625,7 +777,7 @@ class wavefield:
                 #swap
                 self.current, self.future = self.future, self.current
 
-            self.seismogramFile = f"{self.seismogramFolder}AcousticCPMLSeismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
+            self.seismogramFile = f"{self.seismogramFolder}AcousticCPMLseismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
             self.seismogram.tofile(self.seismogramFile)
             print(f"info: Seismogram saved to {self.seismogramFile}")
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
@@ -669,88 +821,6 @@ class wavefield:
         self.migrated_image = self.laplacian(self.migrated_image)
         
         self.migratedFile = f"{self.migratedimageFolder}migrated_image_acoustic_CPML.bin"
-        self.migrated_image.tofile(self.migratedFile)
-        print(f"info: Final migrated image saved to {self.migratedFile}")
-   
-    def solveAcousticWaveEquation(self):
-        start_time = time.time()
-        print(f"info: Solving acoustic wave equation")
-        # Expand velocity model and Create absorbing layers
-        self.vp_exp = self.ExpandModel(self.vp)
-        self.A = self.createCerjanVector()
-        
-        rx = np.int32(self.rec_x/self.dx) + self.N_abc
-        rz = np.int32(self.rec_z/self.dz) + self.N_abc
-
-        for shot in range(self.Nshot):
-            print(f"info: Shot {shot+1} of {self.Nshot}")
-            self.current.fill(0)
-            self.future.fill(0)
-            self.seismogram.fill(0)
-            self.snapshot.fill(0)
-
-            # convert acquisition geometry coordinates to grid points
-            sx = int(self.shot_x[shot]/self.dx) + self.N_abc
-            sz = int(self.shot_z[shot]/self.dz) + self.N_abc           
-
-            for k in range(self.nt):        
-                self.current[sz,sx] += self.source[k]
-                self.future = updateWaveEquation(self.future, self.current, self.vp_exp, self.nz_abc, self.nx_abc, self.dz, self.dx, self.dt)
-
-                # Apply absorbing boundary condition
-                self.future = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.future, self.A)
-                self.current = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.current, self.A)
-
-                # Register seismogram
-                self.seismogram[k, :] = self.current[rz, rx]
-
-                self.snapshot[k, :, :] = self.current
-
-                if (shot + 1) in self.shot_frame and k in self.frame:
-                    snapshotFile = f"{self.snapshotFolder}Acoustic_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin"
-                    self.snapshot[k,:,:].tofile(snapshotFile)
-                    print(f"info: Snapshot saved to {snapshotFile}")
-                
-                #swap
-                self.current, self.future = self.future, self.current
-
-            self.seismogramFile = f"{self.seismogramFolder}AcousticSeismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
-            self.seismogram.tofile(self.seismogramFile)
-            print(f"info: Seismogram saved to {self.seismogramFile}")
-            print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
-
-            # backward propagation
-            print(f"info: Starting backward migration for shot {shot+1}")
-            self.current.fill(0)
-            self.future.fill(0)
-            self.migrated_partial = np.zeros_like(self.migrated_image)
-
-            # Top muting
-            self.muted_seismogram = self.Mute(self.seismogram, shot)
-
-            # Last time step with significant source amplitude
-            self.last_t = self.LastTimeStepWithSignificantSourceAmplitude()    
-                    
-            # Begin backward propagation
-            for t in range(self.nt - 1, self.last_t, -1):
-                for r in range(len(rx)):
-                    self.current[rz[r], rx[r]] += self.muted_seismogram[t, r]
-                self.future = updateWaveEquation(self.future, self.current, self.vp_exp,self.nz_abc, self.nx_abc, self.dz, self.dx, self.dt)
-
-                self.future = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.future, self.A)
-                self.current = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.current, self.A)
-
-                self.migrated_partial += self.snapshot[t, self.N_abc:self.nz_abc - self.N_abc, self.N_abc:self.nx_abc - self.N_abc] * self.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc] 
-
-                self.current, self.future = self.future, self.current
-
-            self.migrated_image += self.migrated_partial
-            print(f"info: Shot {shot+1} backward done.")
-
-        # Apply Laplacian filter 
-        self.migrated_image = self.laplacian(self.migrated_image)
-        
-        self.migratedFile = f"{self.migratedimageFolder}migrated_image_acoustic.bin"
         self.migrated_image.tofile(self.migratedFile)
         print(f"info: Final migrated image saved to {self.migratedFile}")
         
@@ -1049,8 +1119,8 @@ class wavefield:
                 self.PsizqFU, self.PsizqFD = updatePsiVTI(self.PsizqFU, self.PsizqFD, self.nx_abc, self.nz_abc, self.az, self.bz, self.Qc, self.dz, self.N_abc) 
                 self.ZetazqFU, self.ZetazqFD = updateZetaVTI(self.PsizqFU, self.PsizqFD, self.ZetazqFU, self.ZetazqFD, self.nx_abc, self.nz_abc, self.az, self.bz, self.Qc, self.dz, self.N_abc)
                 self.PsixqFR, self.PsixqFL = updatePsiTTI(self.PsixqFR, self.PsixqFL, self.nx_abc, self.nz_abc, self.ax, self.bx, self.Qc, self.dx, self.N_abc)
-                self.ZetaxqFL, self.ZetaxqFR,self.ZetaxzFUL,self.ZetaxzFUR, self.ZetaxzFDL,self.ZetaxzFDR, self.ZetaxzqFUL,self.ZetaxzqFUR, self.ZetaxzqFDL,self.ZetaxzqFDR = updateZetaTTI(self.PsixqFR, self.PsixqFL, self.PsizFU, self.PsizFD, self.PsizqFU, self.PsizqFD, self.ZetaxqFL, self.ZetaxqFR, self.ZetaxzFUL,self.ZetaxzFUR, self.ZetaxzFDL, self.ZetaxzFDR, self.ZetaxzqFUL, self.ZetaxzqFUR, self.ZetaxzqFDL, self.ZetaxzqFDR, self.nx_abc, self.nz_abc, self.ax, self.bx, self.Qc, self.current, self.dx, self.dz, self.N_abc)
-                self.future,self.Qf = updateWaveEquationTTICPML(self.future, self.current, self.Qc, self.Qf, self.nx_abc, self.nz_abc, self.dt, self.dx, self.dz, self.vp_exp, self.vs_exp, self.epsilon_exp, self.delta_exp, self.theta_exp, self.PsixFR, self.PsixFL,self.PsizFU, self.PsizFD,self.PsixqFR, self.PsixqFL,self.PsizqFU, self.PsizqFD,self.ZetaxFR, self.ZetaxFL,self.ZetazFU, self.ZetazFD,self.ZetaxzFUL,self.ZetaxzFUR,self.ZetaxzFDL,self.ZetaxzFDR,self.ZetaxqFL, self.ZetaxqFR,self.ZetazqFU, self.ZetazqFD,self.ZetaxzqFUL,self.ZetaxzqFUR,self.ZetaxzqFDL,self.ZetaxzqFDR, self.N_abc)
+                self.ZetaxqFL, self.ZetaxqFR,self.ZetaxzFUL,self.ZetaxzFUR, self.ZetaxzFDL,self.ZetaxzFDR, self.ZetaxzqFUL,self.ZetaxzqFUR, self.ZetaxzqFDL,self.ZetaxzqFDR,self.ZetaxzFU, self.ZetaxzFD,self.ZetaxzqFU, self.ZetaxzqFD = updateZetaTTI(self.PsixqFR, self.PsixqFL, self.PsizFU, self.PsizFD, self.PsizqFU, self.PsizqFD, self.ZetaxqFL, self.ZetaxqFR, self.ZetaxzFUL,self.ZetaxzFUR, self.ZetaxzFDL, self.ZetaxzFDR, self.ZetaxzqFUL, self.ZetaxzqFUR, self.ZetaxzqFDL, self.ZetaxzqFDR,self.ZetaxzFU, self.ZetaxzFD,self.ZetaxzqFU, self.ZetaxzqFD, self.nx_abc, self.nz_abc, self.ax, self.bx, self.Qc, self.current, self.dx, self.dz, self.N_abc)
+                self.future,self.Qf = updateWaveEquationTTICPML(self.future, self.current, self.Qc, self.Qf, self.nx_abc, self.nz_abc, self.dt, self.dx, self.dz, self.vp_exp, self.vs_exp, self.epsilon_exp, self.delta_exp, self.theta_exp, self.PsixFR, self.PsixFL,self.PsizFU, self.PsizFD,self.PsixqFR, self.PsixqFL,self.PsizqFU, self.PsizqFD,self.ZetaxFR, self.ZetaxFL,self.ZetazFU, self.ZetazFD,self.ZetaxzFUL,self.ZetaxzFUR,self.ZetaxzFDL,self.ZetaxzFDR,self.ZetaxqFL, self.ZetaxqFR,self.ZetazqFU, self.ZetazqFD,self.ZetaxzqFUL,self.ZetaxzqFUR,self.ZetaxzqFDL,self.ZetaxzqFDR, self.ZetaxzFU, self.ZetaxzFD,self.ZetaxzqFU,self.ZetaxzqFD, self.N_abc)
             
                 # Register seismogram
                 self.seismogram[k, :] = self.current[rz, rx]
@@ -1073,6 +1143,8 @@ class wavefield:
     def SolveWaveEquation(self):
         if self.approximation == "acoustic":
             self.solveAcousticWaveEquation()
+        if self.approximation == "acousticGPU":
+            self.solveAcousticWaveEquationGPU()
         elif self.approximation == "acousticCPML":
             self.solveAcousticWaveEquationCPML()
         elif self.approximation == "acousticVTI":
