@@ -97,7 +97,7 @@ class Plotting:
         plt.show()
 
     def viewModel(self,keyword):
-        for filename in os.listdir(self.modelFolder):
+        for filename in sorted(os.listdir(self.modelFolder)):
             if keyword in filename and filename.endswith(".bin"):
                 path = os.path.join(self.modelFolder, filename)
                 model = np.fromfile(path, dtype=np.float32).reshape(self.nx,self.nz).T
@@ -130,7 +130,7 @@ class Plotting:
                 plt.show()
 
     def viewSnapshot(self, keyword):
-        for filename in os.listdir(self.snapshotFolder):
+        for filename in sorted(os.listdir(self.snapshotFolder)):
             if keyword in filename and filename.endswith(".bin"):
                 path = os.path.join(self.snapshotFolder, filename)
                 snapshot = np.fromfile(path, dtype=np.float32).reshape(self.nz_abc, self.nx_abc)
@@ -188,5 +188,4 @@ class Plotting:
         cbar.set_label("Amplitude")
 
         plt.tight_layout()
-        plt.savefig(f"{title}.png")
         plt.show()
