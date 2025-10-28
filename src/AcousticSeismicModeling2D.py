@@ -212,10 +212,10 @@ class wavefield:
                 # Initialize absorbing layers
                 self.PsixqFR     = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
                 self.PsixqFL     = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
-                self.PsiauxFL     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
-                self.PsiauxFR     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
-                self.PsiauxqFL     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
-                self.PsiauxqFR    = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
+                self.PsiauxFL     = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
+                self.PsiauxFR     = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
+                self.PsiauxqFL     = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
+                self.PsiauxqFR    = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
                 
 
                 self.ZetaxqFR   = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)  
