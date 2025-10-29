@@ -931,17 +931,17 @@ def updateWaveEquationTTICPML(Uf, Uc, Qc, Qf, nx_abc, nz_abc, dt, dx, dz, vpz, v
                     a2 * (PsixqFL[j, i+2] - PsixqFL[j, i-2]) +
                     a3 * (PsixqFL[j, i+3] - PsixqFL[j, i-3]) +
                     a4 * (PsixqFL[j, i+4] - PsixqFL[j, i-4])) / dx    
-            # psizx = (a1 * (PsiauxFL[j, i+1] - PsiauxFL[j, i-1]) +
-            #     a2 * (PsiauxFL[j, i+2] - PsiauxFL[j, i-2]) +
-            #     a3 * (PsiauxFL[j, i+3] - PsiauxFL[j, i-3]) +
-            #     a4 * (PsiauxFL[j, i+4] - PsiauxFL[j, i-4])) / dx
-            # psiqzx = (a1 * (PsiauxqFL[j, i+1] - PsiauxqFL[j, i-1]) +
-            #     a2 * (PsiauxqFL[j, i+2] - PsiauxqFL[j, i-2]) +
-            #     a3 * (PsiauxqFL[j, i+3] - PsiauxqFL[j, i-3]) +
-            #     a4 * (PsiauxqFL[j, i+4] - PsiauxqFL[j, i-4])) / dx
+            psizx = (a1 * (PsiauxFL[j, i+1] - PsiauxFL[j, i-1]) +
+                a2 * (PsiauxFL[j, i+2] - PsiauxFL[j, i-2]) +
+                a3 * (PsiauxFL[j, i+3] - PsiauxFL[j, i-3]) +
+                a4 * (PsiauxFL[j, i+4] - PsiauxFL[j, i-4])) / dx
+            psiqzx = (a1 * (PsiauxqFL[j, i+1] - PsiauxqFL[j, i-1]) +
+                a2 * (PsiauxqFL[j, i+2] - PsiauxqFL[j, i-2]) +
+                a3 * (PsiauxqFL[j, i+3] - PsiauxqFL[j, i-3]) +
+                a4 * (PsiauxqFL[j, i+4] - PsiauxqFL[j, i-4])) / dx
                       
-            Uf[j, i] = 2 * Uc[j, i] - Uf[j, i] + (dt**2) * (cpx * (pxx + psix + ZetaxFL[j, i]) + cpz * pzz + cpxz * (pxz ) + dpx * (qxx + psiqx + ZetaxqFL[j, i]) + dpz * qzz + dpxz * (qxz ))
-            Qf[j, i] = 2 * Qc[j, i] - Qf[j, i] + (dt**2) * (cqx * (pxx + psix + ZetaxFL[j, i]) + cqz * pzz + cqxz * (pxz) + dqx * (qxx + psiqx + ZetaxqFL[j, i]) + dqz * qzz  + dqxz * (qxz ))
+            Uf[j, i] = 2 * Uc[j, i] - Uf[j, i] + (dt**2) * (cpx * (pxx + psix + ZetaxFL[j, i]) + cpz * pzz + cpxz * (pxz + psizx + ZetaxzFL[j,i]) + dpx * (qxx + psiqx + ZetaxqFL[j, i]) + dpz * qzz + dpxz * (qxz + psiqzx + ZetaxzqFL[j,i]))
+            Qf[j, i] = 2 * Qc[j, i] - Qf[j, i] + (dt**2) * (cqx * (pxx + psix + ZetaxFL[j, i]) + cqz * pzz + cqxz * (pxz + psizx + ZetaxzFL[j,i]) + dqx * (qxx + psiqx + ZetaxqFL[j, i]) + dqz * qzz  + dqxz * (qxz + psiqzx + ZetaxzqFL[j,i]))
 
     # Região Direita
     for i in prange(nx_abc - N_abc, nx_abc - 4):
@@ -1021,17 +1021,17 @@ def updateWaveEquationTTICPML(Uf, Uc, Qc, Qf, nx_abc, nz_abc, dt, dx, dz, vpz, v
                     a2 * (PsixqFR[j, idx+2] - PsixqFR[j, idx-2]) +
                     a3 * (PsixqFR[j, idx+3] - PsixqFR[j, idx-3]) +
                     a4 * (PsixqFR[j, idx+4] - PsixqFR[j, idx-4])) / dx
-            # psizx = (a1 * (PsiauxFR[j, idx+1] - PsiauxFR[j, idx-1]) +
-            #     a2 * (PsiauxFR[j, idx+2] - PsiauxFR[j, idx-2]) +
-            #     a3 * (PsiauxFR[j, idx+3] - PsiauxFR[j, idx-3]) +
-            #     a4 * (PsiauxFR[j, idx+4] - PsiauxFR[j, idx-4])) / dx
-            # psiqzx = (a1 * (PsiauxqFR[j, idx+1] - PsiauxqFR[j, idx-1]) +
-            #     a2 * (PsiauxqFR[j, idx+2] - PsiauxqFR[j, idx-2]) +
-            #     a3 * (PsiauxqFR[j, idx+3] - PsiauxqFR[j, idx-3]) +
-            #     a4 * (PsiauxqFR[j, idx+4] - PsiauxqFR[j, idx-4])) / dx
+            psizx = (a1 * (PsiauxFR[j, idx+1] - PsiauxFR[j, idx-1]) +
+                a2 * (PsiauxFR[j, idx+2] - PsiauxFR[j, idx-2]) +
+                a3 * (PsiauxFR[j, idx+3] - PsiauxFR[j, idx-3]) +
+                a4 * (PsiauxFR[j, idx+4] - PsiauxFR[j, idx-4])) / dx
+            psiqzx = (a1 * (PsiauxqFR[j, idx+1] - PsiauxqFR[j, idx-1]) +
+                a2 * (PsiauxqFR[j, idx+2] - PsiauxqFR[j, idx-2]) +
+                a3 * (PsiauxqFR[j, idx+3] - PsiauxqFR[j, idx-3]) +
+                a4 * (PsiauxqFR[j, idx+4] - PsiauxqFR[j, idx-4])) / dx
 
-            Uf[j, i] = 2 * Uc[j, i] - Uf[j, i] + (dt**2) * (cpx * (pxx + psix + ZetaxFR[j, idx]) + cpz * pzz + cpxz * (pxz) + dpx * (qxx + psiqx + ZetaxqFR[j, idx]) + dpz * qzz + dpxz * (qxz))
-            Qf[j, i] = 2 * Qc[j, i] - Qf[j, i] + (dt**2) * (cqx * (pxx + psix + ZetaxFR[j, idx]) + cqz * pzz + cqxz * (pxz) + dqx * (qxx + psiqx + ZetaxqFR[j, idx]) + dqz * qzz  + dqxz * (qxz))
+            Uf[j, i] = 2 * Uc[j, i] - Uf[j, i] + (dt**2) * (cpx * (pxx + psix + ZetaxFR[j, idx]) + cpz * pzz + cpxz * (pxz + psizx + ZetaxzFR[j,idx]) + dpx * (qxx + psiqx + ZetaxqFR[j, idx]) + dpz * qzz + dpxz * (qxz + psiqzx + ZetaxzqFR[j,idx]))
+            Qf[j, i] = 2 * Qc[j, i] - Qf[j, i] + (dt**2) * (cqx * (pxx + psix + ZetaxFR[j, idx]) + cqz * pzz + cqxz * (pxz + psizx + ZetaxzFR[j,idx]) + dqx * (qxx + psiqx + ZetaxqFR[j, idx]) + dqz * qzz  + dqxz * (qxz + psiqzx + ZetaxzqFR[j,idx]))
 
     # Região Superior
     for j in prange(4, N_abc):
@@ -1632,19 +1632,19 @@ def updatePsiTTI(PsixqFR, PsixqFL,PsizFU,PsizFD,PsizqFU,PsizqFD,PsiauxFL,PsiauxF
     PsiauxFL[nz_abc - N_abc - 4:,:N_abc] = PsizFD[:,:N_abc]
     PsiauxqFL[nz_abc - N_abc - 4:,:N_abc] = PsizqFD[:,:N_abc]
     for i in prange(4, N_abc):
-        for j in range(N_abc, nz_abc - N_abc - 4):
-            pz = (a1*(Uc[j, i+1] - Uc[j, i-1]) +
+        for j in range(N_abc, nz_abc - N_abc):
+            px = (a1*(Uc[j, i+1] - Uc[j, i-1]) +
                 a2*(Uc[j, i+2] - Uc[j, i-2]) +
                 a3*(Uc[j, i+3] - Uc[j, i-3]) +
                 a4*(Uc[j, i+4] - Uc[j, i-4])) / dx
 
-            qz = (a1*(Qc[j, i+1] - Qc[j, i-1]) +
+            qx = (a1*(Qc[j, i+1] - Qc[j, i-1]) +
                 a2*(Qc[j, i+2] - Qc[j, i-2]) +
                 a3*(Qc[j, i+3] - Qc[j, i-3]) +
-                a4*(Qc[j, i+4] - Qc[j, i-4])) / dz
+                a4*(Qc[j, i+4] - Qc[j, i-4])) / dx
             
-            PsiauxFL[j, i]  = a_x[j, i]* PsiauxFL[j, i] + b_x[j, i]*pz
-            PsiauxqFL[j, i] = a_x[j, i]* PsiauxqFL[j, i] + b_x[j, i]*qz
+            PsiauxFL[j, i]  = a_x[j, i]* PsiauxFL[j, i] + b_x[j, i]*px
+            PsiauxqFL[j, i] = a_x[j, i]* PsiauxqFL[j, i] + b_x[j, i]*qx
 
     PsiauxFR[:N_abc + 4, :N_abc] = PsizFU[:N_abc + 4, nx_abc - N_abc :]
     PsiauxqFR[:N_abc + 4, :N_abc] = PsizqFU[:N_abc + 4, nx_abc - N_abc :]
@@ -1653,20 +1653,19 @@ def updatePsiTTI(PsixqFR, PsixqFL,PsizFU,PsizFD,PsizqFU,PsizqFD,PsiauxFL,PsiauxF
     
     for i in prange(nx_abc - N_abc, nx_abc - 4):
         idx = i - (nx_abc - N_abc)  
-
         for j in range(N_abc, nz_abc - N_abc):
-            pz = (a1*(Uc[j+1, i] - Uc[j-1, i]) +
-                  a2*(Uc[j+2, i] - Uc[j-2, i]) +
-                  a3*(Uc[j+3, i] - Uc[j-3, i]) +
-                  a4*(Uc[j+4, i] - Uc[j-4, i])) / dz
+            px = (a1*(Uc[j, i+1] - Uc[j, i-1]) +
+                a2*(Uc[j, i+2] - Uc[j, i-2]) +
+                a3*(Uc[j, i+3] - Uc[j, i-3]) +
+                a4*(Uc[j, i+4] - Uc[j, i-4])) / dx
 
-            qz = (a1*(Qc[j+1, i] - Qc[j-1, i]) +
-                  a2*(Qc[j+2, i] - Qc[j-2, i]) +
-                  a3*(Qc[j+3, i] - Qc[j-3, i]) +
-                  a4*(Qc[j+4, i] - Qc[j-4, i])) / dz
+            qx = (a1*(Qc[j, i+1] - Qc[j, i-1]) +
+                a2*(Qc[j, i+2] - Qc[j, i-2]) +
+                a3*(Qc[j, i+3] - Qc[j, i-3]) +
+                a4*(Qc[j, i+4] - Qc[j, i-4])) / dx
 
-            PsiauxFR[j, idx]  = a_x[j, i]*PsiauxFR[j, idx]  + b_x[j, i]*pz
-            PsiauxqFR[j, idx] = a_x[j, i]*PsiauxqFR[j, idx] + b_x[j, i]*qz
+            PsiauxFR[j, idx]  = a_x[j, i]*PsiauxFR[j, idx]  + b_x[j, i]*px
+            PsiauxqFR[j, idx] = a_x[j, i]*PsiauxqFR[j, idx] + b_x[j, i]*qx
 
     return PsixqFR, PsixqFL, PsiauxFL,PsiauxFR,PsiauxqFL,PsiauxqFR
 
@@ -1960,7 +1959,7 @@ def updateZetaTTI(PsixqFR, PsixqFL, PsizFU, PsizFD, PsizqFU, PsizqFD,PsiauxFL,Ps
                 a3 * (PsizqFD[jdx, i+3] - PsizqFD[jdx, i-3]) +
                 a4 * (PsizqFD[jdx, i+4] - PsizqFD[jdx, i-4])) / dx
 
-            ZetaxzqFRD[jdx, idx] = a_x[j, i] * ZetaxzqFRD[jdx, idx] + b_x[j, i]
+            ZetaxzqFRD[jdx, idx] = a_x[j, i] * ZetaxzqFRD[jdx, idx] + b_x[j, i] * (qxz + psiqzx)
     
     for i in prange(4, N_abc):
         for j in prange(4, nz_abc - 4):
