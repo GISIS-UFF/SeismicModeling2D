@@ -20,9 +20,9 @@ class Plotting:
         self.approximation = self.parameters["approximation"]
         
         # Discretization self.parameters
-        self.dx   = self.parameters["dx"]
-        self.dz   = self.parameters["dz"]
-        self.dt   = self.parameters["dt"]
+        self.dx   = np.float32(self.parameters["dx"])
+        self.dz   = np.float32(self.parameters["dz"])
+        self.dt   = np.float32(self.parameters["dt"])
         
         # Model size
         self.L    = self.parameters["L"]
@@ -30,15 +30,15 @@ class Plotting:
         self.T    = self.parameters["T"]
 
         # Number of point for absorbing boundary condition
-        self.N_abc = self.parameters["N_abc"]
+        self.N_abc = np.int32(self.parameters["N_abc"])
         
         # Number of points in each direction
         self.nx = int(self.L/self.dx)+1
         self.nz = int(self.D/self.dz)+1
         self.nt = int(self.T/self.dt)+1
 
-        self.nx_abc = self.nx + 2*self.N_abc
-        self.nz_abc = self.nz + 2*self.N_abc
+        self.nx_abc = np.int32(self.nx + 2*self.N_abc)
+        self.nz_abc = np.int32(self.nz + 2*self.N_abc)
 
         # Define arrays for space and time
         self.x = np.linspace(0, self.L, self.nx)
