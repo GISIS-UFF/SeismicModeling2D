@@ -1,5 +1,5 @@
 {
-    "approximation": "acousticTTIGPU",
+    "approximation": "acousticTTICPML",
     "dx": 10,
     "dz": 10,
     "dt": 0.0005,

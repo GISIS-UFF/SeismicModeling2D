@@ -1594,8 +1594,8 @@ def updateWaveEquationTTICPML(Uf, Uc, Qc, Qf, nx_abc, nz_abc, dt, dx, dz, vpz, v
                 a3 * (PsiauxqFL[j, i+3] - PsiauxqFL[j, i-3]) +
                 a4 * (PsiauxqFL[j, i+4] - PsiauxqFL[j, i-4])) / dx
                       
-            Uf[j, i] = 2 * Uc[j, i] - Uf[j, i] + (dt**2) * (cpx * (pxx + psix + ZetaxFL[j, i]) + cpz * pzz + cpxz * (pxz ) + dpx * (qxx + psiqx + ZetaxqFL[j, i]) + dpz * qzz + dpxz * (qxz ))
-            Qf[j, i] = 2 * Qc[j, i] - Qf[j, i] + (dt**2) * (cqx * (pxx + psix + ZetaxFL[j, i]) + cqz * pzz + cqxz * (pxz ) + dqx * (qxx + psiqx + ZetaxqFL[j, i]) + dqz * qzz  + dqxz * (qxz))
+            Uf[j, i] = 2 * Uc[j, i] - Uf[j, i] + (dt**2) * (cpx * (pxx + psix + ZetaxFL[j, i]) + cpz * pzz + cpxz * (pxz + psizx + ZetaxzFL[j,i]) + dpx * (qxx + psiqx + ZetaxqFL[j, i]) + dpz * qzz + dpxz * (qxz + psiqzx + ZetaxzqFL[j,i]))
+            Qf[j, i] = 2 * Qc[j, i] - Qf[j, i] + (dt**2) * (cqx * (pxx + psix + ZetaxFL[j, i]) + cqz * pzz + cqxz * (pxz + psizx + ZetaxzFL[j,i]) + dqx * (qxx + psiqx + ZetaxqFL[j, i]) + dqz * qzz  + dqxz * (qxz + psiqzx + ZetaxzqFL[j,i]))
 
     # Região Direita
     for i in prange(nx_abc - N_abc, nx_abc - 4):
@@ -1684,8 +1684,8 @@ def updateWaveEquationTTICPML(Uf, Uc, Qc, Qf, nx_abc, nz_abc, dt, dx, dz, vpz, v
                 a3 * (PsiauxqFR[j, idx+3] - PsiauxqFR[j, idx-3]) +
                 a4 * (PsiauxqFR[j, idx+4] - PsiauxqFR[j, idx-4])) / dx
 
-            Uf[j, i] = 2 * Uc[j, i] - Uf[j, i] + (dt**2) * (cpx * (pxx + psix + ZetaxFR[j, idx]) + cpz * pzz + cpxz * (pxz ) + dpx * (qxx + psiqx + ZetaxqFR[j, idx]) + dpz * qzz + dpxz * (qxz ))
-            Qf[j, i] = 2 * Qc[j, i] - Qf[j, i] + (dt**2) * (cqx * (pxx + psix + ZetaxFR[j, idx]) + cqz * pzz + cqxz * (pxz ) + dqx * (qxx + psiqx + ZetaxqFR[j, idx]) + dqz * qzz  + dqxz * (qxz ))
+            Uf[j, i] = 2 * Uc[j, i] - Uf[j, i] + (dt**2) * (cpx * (pxx + psix + ZetaxFR[j, idx]) + cpz * pzz + cpxz * (pxz + psizx + ZetaxzFR[j,idx]) + dpx * (qxx + psiqx + ZetaxqFR[j, idx]) + dpz * qzz + dpxz * (qxz + psiqzx + ZetaxzqFR[j,idx]))
+            Qf[j, i] = 2 * Qc[j, i] - Qf[j, i] + (dt**2) * (cqx * (pxx + psix + ZetaxFR[j, idx]) + cqz * pzz + cqxz * (pxz + psizx + ZetaxzFR[j,idx]) + dqx * (qxx + psiqx + ZetaxqFR[j, idx]) + dqz * qzz  + dqxz * (qxz + psiqzx + ZetaxzqFR[j,idx]))
 
     # Região Superior
     for j in prange(4, N_abc):
