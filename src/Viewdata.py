@@ -5,6 +5,7 @@ from utils import ricker
 import pandas as pd
 import json
 import os
+from utils import AnalyticalModel
 
 class Plotting:
     def __init__(self, parameters_path):
@@ -59,7 +60,18 @@ class Plotting:
         self.src_file = self.parameters["src_file"]
 
         # Snapshot flag 
+        self.frame      = self.parameters["frame"]
         self.shot_frame = self.parameters["shot_frame"] 
+
+        #Anisotropy parameters for Layered model
+        self.vpLayer1 = self.parameters["vpLayer1"]
+        self.vpLayer2 = self.parameters["vpLayer2"]
+        self.thetaLayer1 = self.parameters["thetaLayer1"]
+        self.thetaLayer2 = self.parameters["thetaLayer2"]
+        self.epsilonLayer1 = self.parameters["epsilonLayer1"]
+        self.epsilonLayer2 = self.parameters["epsilonLayer2"]
+        self.deltaLayer1   = self.parameters["deltaLayer1"]
+        self.deltaLayer2  = self.parameters["deltaLayer2"]
 
     def readAcquisitionGeometry(self):        
         # Read receiver and source coordinates from CSV files
@@ -100,7 +112,7 @@ class Plotting:
         for filename in sorted(os.listdir(self.modelFolder)):
             if keyword in filename and filename.endswith(".bin"):
                 path = os.path.join(self.modelFolder, filename)
-                model = np.fromfile(path, dtype=np.float32).reshape(self.nx,self.nz).T
+                model = np.fromfile(path, dtype=np.float32).reshape(self.nz,self.nx)
                 fig, ax = plt.subplots(figsize=(10, 5))
                 im = ax.imshow(model, aspect='equal', cmap='jet', extent=[0, self.L, self.D, 0])
                 ax.plot(self.rec_x, self.rec_z, 'bv', markersize=2, label='Receivers')
@@ -135,7 +147,12 @@ class Plotting:
                 path = os.path.join(self.snapshotFolder, filename)
                 snapshot = np.fromfile(path, dtype=np.float32).reshape(self.nz_abc, self.nx_abc)
                 fig, ax = plt.subplots(figsize=(10, 5))
-                im = ax.imshow(snapshot, aspect='equal', cmap='gray', extent=[0, self.L, self.D, 0])       
+                im = ax.imshow(snapshot, aspect='equal', cmap='gray', extent=[0, self.L, self.D, 0])    
+
+                # # Adiciona linha vertical vermelha no traço 
+                # trace = self.L / 2  
+                # ax.axvline(x=trace, color='red', linewidth=1, linestyle='--', alpha=0.8) 
+
                 # nice colorbar
                 cbar = self.adjustColorBar(fig,ax,im)
                 cbar.set_label("Amplitude")
@@ -163,29 +180,120 @@ class Plotting:
         plt.grid()
         plt.show()
 
-    def viewSeismogramComparison(self,filename1, filename2, title="Seismogram Difference"):
+    def viewSeismogramComparison(self,perc, offset, filename1, filename2,filename3, title="Seismogram Difference"):
         seismo1 = np.fromfile(filename1, dtype=np.float32).reshape(self.nt, self.Nrec)
         seismo2 = np.fromfile(filename2, dtype=np.float32).reshape(self.nt, self.Nrec)
+        seismo3 = np.fromfile(filename3, dtype=np.float32).reshape(self.nt, self.Nrec)
+
+        # Calcula offsets para este tiro
+        offsets = np.abs(self.rec_x - self.shot_x[0])
+        
+        # Encontra os receptores mais próximos das distâncias desejadas
+        rec_idx = np.argmin(np.abs(offsets - offset))
 
         plt.figure(figsize=(5, 5))
-        plt.plot(seismo1[:,self.Nrec//2], label = "sismograma 1")
-        plt.plot(seismo2[:,self.Nrec//2], label = "sismograma 2")
+        plt.plot(self.t,seismo1[:,rec_idx], label = "Acústico CPML")
+        plt.plot(self.t,seismo2[:,rec_idx], label = "VTI CPML")
+        plt.plot(self.t,seismo3[:,rec_idx], label = "TTI CPML")
         plt.legend()
-        plt.ylabel("Time (s)")
+        plt.ylabel("Amplitude")
+        plt.title(f"Offset: {offsets[rec_idx]}m")
 
-        diff = seismo1 - seismo2
+        diff12 = seismo1 - seismo2
+        diff13 = seismo1 - seismo3
+        diff23 = seismo2 - seismo3
 
-        perc = np.percentile(diff, 99)
-        fig, ax = plt.subplots(figsize=(5, 5))
-        im = ax.imshow(diff, aspect='auto', cmap='gray', vmin=-perc, vmax=perc, extent=[0, self.Nrec, self.T, 0])
+        # Plot 1: Diferença Acústico - VTI
+        fig1, ax1 = plt.subplots(figsize=(5, 5))
+        im12 = ax1.imshow(diff12, aspect='auto', cmap='gray', vmin=-perc, vmax=perc, 
+                        extent=[0, self.Nrec, self.T, 0])
+        ax1.set_title("Acústico - VTI")
+        ax1.set_xlabel("Distance (m)")
+        ax1.set_ylabel("Time (s)")
+        ax1.grid(True)
+        cbar1 = self.adjustColorBar(fig1, ax1, im12)
+        cbar1.set_label("Amplitude")
 
-        ax.set_title(f"{title}")
+        # Plot 2: Diferença Acústico - TTI
+        fig2, ax2 = plt.subplots(figsize=(5, 5))
+        im13 = ax2.imshow(diff13, aspect='auto', cmap='gray', vmin=-perc, vmax=perc, 
+                        extent=[0, self.Nrec, self.T, 0])
+        ax2.set_title("Acústico - TTI")
+        ax2.set_xlabel("Distance (m)")
+        ax2.set_ylabel("Time (s)")
+        ax2.grid(True)
+        cbar2 = self.adjustColorBar(fig2, ax2, im13)
+        cbar2.set_label("Amplitude")
+
+
+        # Plot 3: Diferença VTI - TTI
+        fig3, ax3 = plt.subplots(figsize=(5, 5))
+        im23 = ax3.imshow(diff23, aspect='auto', cmap='gray', vmin=-perc, vmax=perc, 
+                        extent=[0, self.Nrec, self.T, 0])
+        ax3.set_title("VTI - TTI")
+        ax3.set_xlabel("Distance (m)")
+        ax3.set_ylabel("Time (s)")
+        ax3.grid(True)
+        cbar3 = self.adjustColorBar(fig3, ax3, im23)
+        cbar3.set_label("Amplitude")
+
+        plt.show()
+
+    def viewSnapshotAnalyticalComparison(self,frame,filename):
+        snapshot = np.fromfile(filename, dtype=np.float32).reshape(self.nz_abc, self.nx_abc)
+        fig, ax = plt.subplots(figsize=(10, 5))
+        # Plot snapshot
+        im = ax.imshow(snapshot[self.N_abc:self.N_abc + self.nz, self.N_abc:self.N_abc + self.nx], aspect='equal', cmap='gray', extent=[0, self.L, self.D, 0])
+        ax.plot(self.rec_x, self.rec_z, 'bv', markersize=2, label='Receivers')
+        ax.plot(self.shot_x, self.shot_z, 'r*', markersize=5, label='Sources')
+        
+        # Compute the analytical wavefront
+        self.vp = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
+        self.vp[0:self.nz//2, :] = self.vpLayer1
+        self.vp[self.nz//2:self.nz, :] = self.vpLayer2
+        vel = self.vp[ int(self.shot_z[0]/self.dz), int(self.shot_x[0]/self.dx) ]
+        Rp = AnalyticalModel(vel, self.epsilonLayer1, self.deltaLayer1, self.dt, self.fcut, self.frame[frame])
+
+        # Source coordinates
+        x0 = self.shot_x[0]
+        z0 = self.shot_z[0]
+        
+        # coordenates of the analytical wavefront
+        theta = np.linspace(0, 2*np.pi, 500)
+        x_rp = x0 + Rp * np.sin(theta)
+        z_rp = z0 + Rp * np.cos(theta)
+
+        if self.approximation in ["acousticTTI", "acousticTTICPML"]:
+            angle = -60  
+            angle_rad = np.radians(angle)
+
+            x_shifted = x_rp - x0
+            z_shifted = z_rp - z0
+
+            x_rot = x_shifted * np.cos(angle_rad) - z_shifted * np.sin(angle_rad)
+            z_rot = x_shifted * np.sin(angle_rad) + z_shifted * np.cos(angle_rad)
+
+            x = x0 + x_rot
+            z = z0 + z_rot
+
+        else:
+            x = x_rp
+            z = z_rp
+
+        # Plot the analytical wavefront    
+        ax.plot(x, z, 'r', label='Analytical wavefront')
+        ax.legend()
+        ax.set_title(f"Snapshot at time step {self.frame[frame]} (shot {1})")
         ax.set_xlabel("Distance (m)")
-        ax.set_ylabel("Time (s)")
+        ax.set_ylabel("Depth (m)")
         ax.grid(True)
-
-        cbar = self.adjustColorBar(fig, ax, im)
-        cbar.set_label("Amplitude")
-
         plt.tight_layout()
+
+        if self.approximation in ["acoustic", "acousticCPML"]:
+            plt.savefig(f"{self.snapshotFolder}SnapshotAnalyticalComparison_acoustic_{frame}_shot{1}.png")
+        if self.approximation in ["acousticVTI", "acousticVTICPML"]:
+            plt.savefig(f"{self.snapshotFolder}SnapshotAnalyticalComparison_acousticVTI_{frame}_shot{1}.png")
+        if self.approximation in ["acousticTTI", "acousticTTICPML"]:
+            plt.savefig(f"{self.snapshotFolder}SnapshotAnalyticalComparison_acousticTTI_{frame}_shot{1}.png")
+
         plt.show()
