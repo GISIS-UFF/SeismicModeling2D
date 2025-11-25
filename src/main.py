@@ -1,6 +1,6 @@
 from AcousticSeismicModeling2D import wavefield
 
-wavefield = wavefield("../inputs/Teste.json")
+wavefield = wavefield("../inputs/Parameters.json")
 
 wavefield.createSourceWavelet()
 wavefield.initializeWavefields()

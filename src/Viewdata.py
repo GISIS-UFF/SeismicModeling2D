@@ -21,9 +21,9 @@ class Plotting:
         self.approximation = self.parameters["approximation"]
         
         # Discretization self.parameters
-        self.dx   = np.float32(self.parameters["dx"])
-        self.dz   = np.float32(self.parameters["dz"])
-        self.dt   = np.float32(self.parameters["dt"])
+        self.dx   = self.parameters["dx"]
+        self.dz   = self.parameters["dz"]
+        self.dt   = self.parameters["dt"]
         
         # Model size
         self.L    = self.parameters["L"]
@@ -38,8 +38,8 @@ class Plotting:
         self.nz = int(self.D/self.dz)+1
         self.nt = int(self.T/self.dt)+1
 
-        self.nx_abc = np.int32(self.nx + 2*self.N_abc)
-        self.nz_abc = np.int32(self.nz + 2*self.N_abc)
+        self.nx_abc = self.nx + 2*self.N_abc
+        self.nz_abc = self.nz + 2*self.N_abc
 
         # Define arrays for space and time
         self.x = np.linspace(0, self.L, self.nx)
@@ -142,12 +142,13 @@ class Plotting:
                 plt.show()
 
     def viewSnapshot(self, keyword):
+        perc = 1e-8
         for filename in sorted(os.listdir(self.snapshotFolder)):
             if keyword in filename and filename.endswith(".bin"):
                 path = os.path.join(self.snapshotFolder, filename)
                 snapshot = np.fromfile(path, dtype=np.float32).reshape(self.nz_abc, self.nx_abc)
                 fig, ax = plt.subplots(figsize=(10, 5))
-                im = ax.imshow(snapshot, aspect='equal', cmap='gray', extent=[0, self.L, self.D, 0])    
+                im = ax.imshow(snapshot, aspect='equal', cmap='gray', extent=[0, self.L, self.D, 0],vmin= - perc, vmax = perc)    
 
                 # # Adiciona linha vertical vermelha no traço 
                 # trace = self.L / 2  
@@ -180,10 +181,9 @@ class Plotting:
         plt.grid()
         plt.show()
 
-    def viewSeismogramComparison(self,perc, offset, filename1, filename2,filename3, title="Seismogram Difference"):
+    def viewSeismogramComparison(self,perc, offset, filename1, filename2, title="Seismogram Difference"):
         seismo1 = np.fromfile(filename1, dtype=np.float32).reshape(self.nt, self.Nrec)
         seismo2 = np.fromfile(filename2, dtype=np.float32).reshape(self.nt, self.Nrec)
-        seismo3 = np.fromfile(filename3, dtype=np.float32).reshape(self.nt, self.Nrec)
 
         # Calcula offsets para este tiro
         offsets = np.abs(self.rec_x - self.shot_x[0])
@@ -192,50 +192,22 @@ class Plotting:
         rec_idx = np.argmin(np.abs(offsets - offset))
 
         plt.figure(figsize=(5, 5))
-        plt.plot(self.t,seismo1[:,rec_idx], label = "Acústico CPML")
-        plt.plot(self.t,seismo2[:,rec_idx], label = "VTI CPML")
-        plt.plot(self.t,seismo3[:,rec_idx], label = "TTI CPML")
+        plt.plot(self.t,seismo1[:,rec_idx], label = "VTI")
+        plt.plot(self.t,seismo2[:,rec_idx], label = "VTI NEW")
         plt.legend()
         plt.ylabel("Amplitude")
         plt.title(f"Offset: {offsets[rec_idx]}m")
 
-        diff12 = seismo1 - seismo2
-        diff13 = seismo1 - seismo3
-        diff23 = seismo2 - seismo3
+        diff = seismo1 - seismo2
 
-        # Plot 1: Diferença Acústico - VTI
-        fig1, ax1 = plt.subplots(figsize=(5, 5))
-        im12 = ax1.imshow(diff12, aspect='auto', cmap='gray', vmin=-perc, vmax=perc, 
-                        extent=[0, self.Nrec, self.T, 0])
-        ax1.set_title("Acústico - VTI")
-        ax1.set_xlabel("Distance (m)")
-        ax1.set_ylabel("Time (s)")
-        ax1.grid(True)
-        cbar1 = self.adjustColorBar(fig1, ax1, im12)
-        cbar1.set_label("Amplitude")
-
-        # Plot 2: Diferença Acústico - TTI
-        fig2, ax2 = plt.subplots(figsize=(5, 5))
-        im13 = ax2.imshow(diff13, aspect='auto', cmap='gray', vmin=-perc, vmax=perc, 
-                        extent=[0, self.Nrec, self.T, 0])
-        ax2.set_title("Acústico - TTI")
-        ax2.set_xlabel("Distance (m)")
-        ax2.set_ylabel("Time (s)")
-        ax2.grid(True)
-        cbar2 = self.adjustColorBar(fig2, ax2, im13)
-        cbar2.set_label("Amplitude")
-
-
-        # Plot 3: Diferença VTI - TTI
-        fig3, ax3 = plt.subplots(figsize=(5, 5))
-        im23 = ax3.imshow(diff23, aspect='auto', cmap='gray', vmin=-perc, vmax=perc, 
-                        extent=[0, self.Nrec, self.T, 0])
-        ax3.set_title("VTI - TTI")
-        ax3.set_xlabel("Distance (m)")
-        ax3.set_ylabel("Time (s)")
-        ax3.grid(True)
-        cbar3 = self.adjustColorBar(fig3, ax3, im23)
-        cbar3.set_label("Amplitude")
+        fig, ax = plt.subplots(figsize=(5, 5))
+        im = ax.imshow(diff, aspect='auto', cmap='gray', vmin=-perc, vmax=perc, extent=[0, self.Nrec, self.T, 0])
+        ax.set_title(title)
+        ax.set_xlabel("Distance (m)")
+        ax.set_ylabel("Time (s)")
+        ax.grid(True)
+        cbar = self.adjustColorBar(fig, ax, im)
+        cbar.set_label("Amplitude")
 
         plt.show()
 
