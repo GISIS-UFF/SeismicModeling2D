@@ -6,16 +6,16 @@ import cupy as cp
 
 from utils import ricker
 from utils import AnalyticalModel
-from utils import updateWaveEquationGPU
-from utils import updateWaveEquationCPMLGPU
-from utils import updateWaveEquationVTIGPU
-from utils import updateWaveEquationVTICPMLGPU
-from utils import updateWaveEquationTTIGPU
-from utils import AbsorbingBoundaryGPU
-from utils import updatePsiGPU
-from utils import updateZetaGPU
-from utils import updatePsiVTIGPU
-from utils import updateZetaVTIGPU
+from utils.GPU import updateWaveEquationGPU
+from utils.GPU import updateWaveEquationCPMLGPU
+from utils.GPU import updateWaveEquationVTIGPU
+from utils.GPU import updateWaveEquationVTICPMLGPU
+from utils.GPU import updateWaveEquationTTIGPU
+from utils.GPU import AbsorbingBoundaryGPU
+from utils.GPU import updatePsiGPU
+from utils.GPU import updateZetaGPU
+from utils.GPU import updatePsiVTIGPU
+from utils.GPU import updateZetaVTIGPU
 
 class wavefield_GPU: 
 

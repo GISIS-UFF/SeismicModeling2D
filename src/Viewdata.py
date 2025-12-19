@@ -148,7 +148,7 @@ class Plotting:
                 path = os.path.join(self.snapshotFolder, filename)
                 snapshot = np.fromfile(path, dtype=np.float32).reshape(self.nz_abc, self.nx_abc)
                 fig, ax = plt.subplots(figsize=(10, 5))
-                im = ax.imshow(snapshot, aspect='equal', cmap='gray', extent=[0, self.L, self.D, 0],vmin= - perc, vmax = perc)    
+                im = ax.imshow(snapshot, aspect='equal', cmap='gray', extent=[0, self.L, self.D, 0],vmin= -perc, vmax = perc)    
 
                 # # Adiciona linha vertical vermelha no traço 
                 # trace = self.L / 2  
