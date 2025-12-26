@@ -1,0 +1,226 @@
+import numpy as np
+import pandas as pd
+import json
+from Modeling2D import wavefield
+from utils import ricker
+from utils import updateWaveEquation
+from utils import updateWaveEquationCPML
+from utils import updateWaveEquationVTI
+from utils import updateWaveEquationVTICPML
+from utils import updateWaveEquationTTI
+from utils import updateWaveEquationTTICPML
+from utils import AbsorbingBoundary
+from utils import updatePsi
+from utils import updateZeta
+
+from utils import updatePsiTTI
+from utils import updateZetaTTI
+
+class migration: 
+
+    def __init__(self, parameters_path, wavefield):
+        self.parameters_path = parameters_path
+        self.readParameters()
+        self.readAcquisitionGeometry()
+        self.wf = wavefield
+
+    def readParameters(self):
+        with open(self.parameters_path) as f:
+            self.parameters = json.load(f)
+
+        # Approximation type
+        self.approximation = self.parameters["approximation"]
+        
+        # Discretization self.parameters
+        self.dx   = self.parameters["dx"]
+        self.dz   = self.parameters["dz"]
+        self.dt   = self.parameters["dt"]
+        
+        # Model size
+        self.L    = self.parameters["L"]
+        self.D    = self.parameters["D"]
+        self.T    = self.parameters["T"]
+
+        # Number of point for absorbing boundary condition
+        self.N_abc = self.parameters["N_abc"]
+
+        # Number of points in each direction
+        self.nx = int(self.L/self.dx)+1
+        self.nz = int(self.D/self.dz)+1
+        self.nt = int(self.T/self.dt)+1
+
+        self.nx_abc = self.nx + 2*self.N_abc
+        self.nz_abc = self.nz + 2*self.N_abc
+
+        # Define arrays for space and time
+        self.x = np.linspace(0, self.L, self.nx)
+        self.z = np.linspace(0, self.D, self.nz)
+        self.t = np.linspace(0, self.T, self.nt)
+
+        # Max frequency
+        self.fcut = self.parameters["fcut"]
+
+        # Output folders
+        self.seismogramFolder = self.parameters["seismogramFolder"]
+        self.migratedimageFolder = self.parameters["migratedimageFolder"]
+        self.snapshotFolder = self.parameters["snapshotFolder"]
+        self.modelFolder = self.parameters["modelFolder"]
+
+        # Source and receiver files
+        self.rec_file = self.parameters["rec_file"]
+        self.src_file = self.parameters["src_file"]
+
+        # Velocity model file
+        self.vpFile = self.parameters["vpFile"]
+        self.vsFile = self.parameters["vsFile"]
+        self.thetaFile = self.parameters["thetaFile"]
+
+        # Snapshot flag
+        self.frame      = self.parameters["frame"] # time steps to save snapshots
+        self.shot_frame = self.parameters["shot_frame"] # shots to save snapshots
+
+        # Anisotropy parameters files
+        self.epsilonFile = self.parameters["epsilonFile"]  
+        self.deltaFile   = self.parameters["deltaFile"]  
+
+        #Anisotropy parameters for Layered model
+        self.vpLayer1 = self.parameters["vpLayer1"]
+        self.vpLayer2 = self.parameters["vpLayer2"]
+        self.thetaLayer1 = self.parameters["thetaLayer1"]
+        self.thetaLayer2 = self.parameters["thetaLayer2"]
+        self.epsilonLayer1 = self.parameters["epsilonLayer1"]
+        self.epsilonLayer2 = self.parameters["epsilonLayer2"]
+        self.deltaLayer1   = self.parameters["deltaLayer1"]
+        self.deltaLayer2  = self.parameters["deltaLayer2"]
+
+    def readAcquisitionGeometry(self):        
+        # Read receiver and source coordinates from CSV files
+        receiverTable = pd.read_csv(self.rec_file)
+        print(f"info: Imported: {self.rec_file}")     
+        sourceTable = pd.read_csv(self.src_file)
+        print(f"info: Imported: {self.src_file}")
+
+        # Read receiver and source coordinates
+        self.rec_x = receiverTable['coordx'].to_numpy()
+        self.rec_z = receiverTable['coordz'].to_numpy()
+        self.shot_x = sourceTable['coordx'].to_numpy()
+        self.shot_z = sourceTable['coordz'].to_numpy()
+
+        self.Nrec = len(self.rec_x)
+        self.Nshot = len(self.shot_x) 
+
+    def laplacian(self, f):
+        dim1,dim2 = np.shape(f)
+        g = np.zeros([dim1,dim2])
+        lap_z = 0
+        lap_x = 0
+        for ix in range(1, dim2 - 1):
+            for iz in range(1, dim1 - 1):
+                lap_z = f[iz+1, ix] + f[iz-1, ix] - 2 * f[iz, ix]
+                lap_x = f[iz, ix+1] + f[iz, ix-1] - 2 * f[iz, ix]
+                g[iz, ix] = lap_z/(self.dz*self.dz) + lap_x/(self.dx*self.dx)
+
+        for ix in range(dim2):
+            g[0, ix] = g[1, ix]
+            g[-1, ix] = g[-2, ix]
+        for iz in range(dim1):
+            g[iz, 0] = g[iz, 1]
+            g[iz, -1] = g[iz, -2]
+
+        return(-g)
+    
+    def solveBackwardAcousticWaveEquation(self):
+        print(f"info: Solving backward acoustic wave equation")
+        # Expand velocity model and Create absorbing layers
+        self.vp_exp = self.wf.ExpandModel(self.wf.vp)
+        self.A = self.wf.createCerjanVector()
+        
+        rx = np.int32(self.rec_x/self.dx) + self.N_abc
+        rz = np.int32(self.rec_z/self.dz) + self.N_abc
+
+        for shot in range(self.Nshot):
+            print(f"info: Starting backward migration for shot {shot+1}")
+            self.wf.current.fill(0)
+            self.wf.future.fill(0)
+            self.migrated_partial = np.zeros_like(self.wf.migrated_image)
+
+            # Top muting
+            self.muted_seismogram = self.wf.Mute(self.wf.seismogram, shot)
+
+            # Last time step with significant source amplitude
+            self.last_t = self.wf.LastTimeStepWithSignificantSourceAmplitude()    
+                    
+            # Begin backward propagation
+            for t in range(self.nt - 1, self.last_t, -1):
+                for r in range(len(rx)):
+                    self.wf.current[rz[r], rx[r]] += self.muted_seismogram[t, r]
+                self.wf.future = updateWaveEquation(self.wf.future, self.wf.current, self.vp_exp,self.nz_abc, self.nx_abc, self.dz, self.dx, self.dt)
+
+                self.wf.future = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.wf.future, self.A)
+                self.wf.current = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.wf.current, self.A)
+
+                self.migrated_partial += self.wf.snapshot[t, self.N_abc:self.nz_abc - self.N_abc, self.N_abc:self.nx_abc - self.N_abc] * self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc] 
+
+                self.wf.current, self.wf.future = self.wf.future, self.wf.current
+
+            self.wf.migrated_image += self.migrated_partial
+            print(f"info: Shot {shot+1} backward done.")
+        
+        # Apply Laplacian filter 
+        self.wf.migrated_image = self.laplacian(self.wf.migrated_image)
+        
+        self.migratedFile = f"{self.migratedimageFolder}migrated_image_acoustic_CPML.bin"
+        self.wf.migrated_image.tofile(self.migratedFile)
+        print(f"info: Final migrated image saved to {self.migratedFile}")
+
+
+    def solveBackwardAcousticWaveEquationCPML(self):
+        print(f"info: Solving backward acoustic CPML wave equation")
+        # Expand velocity model and Create absorbing layers
+        self.vp_exp = self.wf.ExpandModel(self.wf.vp)
+        self.d0, self.f_pico = self.wf.dampening_const()
+
+        rx = np.int32(self.rec_x/self.dx) + self.N_abc
+        rz = np.int32(self.rec_z/self.dz) + self.N_abc
+
+        for shot in range(self.Nshot):
+            print(f"info: Starting backward migration for shot {shot+1}")
+            self.wf.current.fill(0)
+            self.wf.future.fill(0)
+            self.wf.PsixFR.fill(0)
+            self.wf.PsixFL.fill(0)
+            self.wf.PsizFU.fill(0)  
+            self.wf.PsizFD.fill(0) 
+            self.wf.ZetaxFR.fill(0)
+            self.wf.ZetaxFL.fill(0)
+            self.wf.ZetazFU.fill(0)
+            self.wf.ZetazFD.fill(0)
+            self.migrated_partial = np.zeros_like(self.wf.migrated_image)
+
+            # Top muting
+            self.muted_seismogram = self.wf.Mute(self.wf.seismogram, shot)
+
+            # Last time step with significant source amplitude
+            self.wf.last_t = self.wf.LastTimeStepWithSignificantSourceAmplitude()    
+                    
+            # Begin backward propagation
+            for t in range(self.wf.nt - 1, self.wf.last_t, -1):
+                for r in range(len(rx)):
+                    self.wf.current[rz[r], rx[r]] += self.wf.muted_seismogram[t, r]
+
+                self.wf.PsixFR, self.wf.PsixFL, self.wf.PsizFU, self.wf.PsizFD = updatePsi(self.wf.PsixFR, self.wf.PsixFL,self.wf.PsizFU, self.wf.PsizFD, self.nx_abc, self.nz_abc, self.wf.current, self.dx, self.dz, self.N_abc, self.f_pico, self.d0, self.dt, self.vp_exp)
+                self.wf.ZetaxFR, self.wf.ZetaxFL, self.wf.ZetazFU, self.wf.ZetazFD = updateZeta(self.wf.PsixFR, self.wf.PsixFL, self.wf.ZetaxFR, self.wf.ZetaxFL,self.wf.PsizFU, self.wf.PsizFD, self.wf.ZetazFU, self.wf.ZetazFD, self.nx_abc, self.nz_abc, self.current, self.dx,self.dz, self.N_abc, self.f_pico, self.d0, self.dt, self.vp_exp)
+                self.wf.future = updateWaveEquationCPML(self.wf.future, self.wf.current, self.vp_exp, self.nx_abc, self.nz_abc, self.dz, self.dx, self.dt, self.wf.PsixFR, self.wf.PsixFL, self.wf.PsizFU, self.wf.PsizFD, self.wf.ZetaxFR, self.wf.ZetaxFL, self.wf.ZetazFU, self.wf.ZetazFD, self.N_abc)
+                self.migrated_partial += self.wf.snapshot[t, self.N_abc:self.nz_abc - self.N_abc, self.N_abc:self.nx_abc - self.N_abc] * self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc] 
+
+                self.wf.current, self.wf.future = self.wf.future, self.wf.current
+
+            self.wf.migrated_image += self.migrated_partial
+            print(f"info: Shot {shot+1} backward done.")
+
+        # Apply Laplacian filter 
+        self.wf.migrated_image = self.laplacian(self.wf.migrated_image)
+        
+        self.migratedFile = f"{self.migratedimageFolder}migrated_image_acoustic_CPML.bin"
+        self.wf.migrated_image.tofile(self.migratedFile)
+        print(f"info: Final migrated image saved to {self.migratedFile}")

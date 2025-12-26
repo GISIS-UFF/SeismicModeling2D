@@ -1,4 +1,4 @@
-from AcousticSeismicModeling2D import wavefield
+from Modeling2D import wavefield
 
 wavefield = wavefield("../inputs/Parameters.json")
 

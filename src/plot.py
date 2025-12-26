@@ -1,10 +1,10 @@
-from Viewdata import Plotting 
+from Viewdata import plotting 
 
-plt = Plotting("../inputs/Parameters.json")
+plt = plotting("../inputs/Parameters.json")
 
 # plt.viewModel("marmousi_vp_383x141.bin")
-plt.viewSnapshot("TTI_CPML_shot_1_Nx301_Nz301_Nt4001_frame_")
-plt.viewSeismogram("../outputs/seismograms/TTICPMLseismogram_shot_1_Nt4001_Nrec501.bin", perc=95)
+plt.viewSnapshot("Acoustic_CPML_shot_1_Nx301_Nz301_Nt4001_frame_")
+plt.viewSeismogram("../outputs/seismograms/AcousticCPMLseismogram_shot_1_Nt4001_Nrec501.bin", perc=95)
 # plt.viewSeismogramComparison(95,0,"../outputs/seismograms/VTIseismogram_shot_1_Nt20001_Nrec501.bin", "../outputs/seismograms/VTINewseismogram_shot_1_Nt20001_Nrec501.bin")
 # plt.viewMigratedImage("../outputs/migrated_image/,perc=99)
 # plt.viewSnapshotAnalyticalComparison(1,"../outputs/snapshots/TTI_CPML_shot_1_Nx501_Nz201_Nt6000_frame_1000.bin")

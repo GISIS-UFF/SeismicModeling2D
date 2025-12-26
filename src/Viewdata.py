@@ -7,7 +7,7 @@ import json
 import os
 from utils import AnalyticalModel
 
-class Plotting:
+class plotting:
     def __init__(self, parameters_path):
         self.parameters_path = parameters_path
         self.readParameters()

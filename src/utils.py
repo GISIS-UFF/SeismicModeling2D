@@ -11,6 +11,7 @@ def ricker(f0, t,dt,dx,dz):
 
 @njit(inline = "always")
 def horizontal_dampening_profiles(N_abc,nx_abc, dx, vp, f_pico, d0, dt, i, j):
+    # retirar o ax e bx inicial
     ax = 1
     bx = 0
     d = 0.
