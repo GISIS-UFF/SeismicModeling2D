@@ -30,6 +30,7 @@ class migration:
 
         # Approximation type
         self.approximation = self.parameters["approximation"]
+        self.migration = self.parameters["migration"]
         
         # Discretization self.parameters
         self.dx   = self.parameters["dx"]
@@ -65,6 +66,7 @@ class migration:
         self.migratedimageFolder = self.parameters["migratedimageFolder"]
         self.snapshotFolder = self.parameters["snapshotFolder"]
         self.modelFolder = self.parameters["modelFolder"]
+        self.checkpointFolder = self.parameters["checkpointFolder"]
 
         # Source and receiver files
         self.rec_file = self.parameters["rec_file"]
@@ -76,8 +78,9 @@ class migration:
         self.thetaFile = self.parameters["thetaFile"]
 
         # Snapshot flag
-        self.frame      = self.parameters["frame"] # time steps to save snapshots
-        self.shot_frame = self.parameters["shot_frame"] # shots to save snapshots
+        self.snap = self.parameters["snap"]
+        self.step = self.parameters["step"]
+        self.last_save = self.parameters["last_save"]
 
         # Anisotropy parameters files
         self.epsilonFile = self.parameters["epsilonFile"]  
@@ -108,7 +111,24 @@ class migration:
 
         self.Nrec = len(self.rec_x)
         self.Nshot = len(self.shot_x) 
-
+        
+    def Mute(self, seismogram, shot): 
+        muted = seismogram.copy() 
+        v0 = self.vp[0, :]
+        rec_idx = (self.rec_x / self.dx).astype(int)
+        v0_rec = v0[rec_idx]
+        distz = self.rec_z - self.shot_z[shot]   
+        distx = self.rec_x - self.shot_x[shot]   
+        dist = np.sqrt(distx**2 + distz**2)
+        t_lag = 2 * np.sqrt(np.pi) / self.fcut
+        traveltimes = dist / v0_rec + 3 * t_lag 
+        
+        for r in range(self.Nrec): 
+            mute_samples = int(traveltimes[r] / self.dt)
+            muted[:mute_samples, r] = 0 
+                
+        return muted
+        
     def laplacian(self, f):
         dim1,dim2 = np.shape(f)
         g = np.zeros([dim1,dim2])
@@ -129,6 +149,24 @@ class migration:
 
         return(-g)
     
+    def load_checkpoint(self, checkpointFile):
+        count = self.nx_abc * self.nz_abc
+
+        with open(checkpointFile, "rb") as file:
+            self.current = np.fromfile(file, np.float32, count).reshape(self.nz_abc, self.nx_abc)
+            self.future  = np.fromfile(file, np.float32, count).reshape(self.nz_abc, self.nx_abc)
+
+            if "CPML" in self.approximation:
+                self.PsixFR  = np.fromfile(file, np.float32, count).reshape(self.nz_abc, self.nx_abc)
+                self.PsixFL  = np.fromfile(file, np.float32, count).reshape(self.nz_abc, self.nx_abc)
+                self.PsizFU  = np.fromfile(file, np.float32, count).reshape(self.nz_abc, self.nx_abc)
+                self.PsizFD  = np.fromfile(file, np.float32, count).reshape(self.nz_abc, self.nx_abc)
+
+                self.ZetaxFR = np.fromfile(file, np.float32, count).reshape(self.nz_abc, self.nx_abc)
+                self.ZetaxFL = np.fromfile(file, np.float32, count).reshape(self.nz_abc, self.nx_abc)
+                self.ZetazFU = np.fromfile(file, np.float32, count).reshape(self.nz_abc, self.nx_abc)
+                self.ZetazFD = np.fromfile(file, np.float32, count).reshape(self.nz_abc, self.nx_abc)
+    
     def solveBackwardAcousticWaveEquation(self):
         print(f"info: Solving backward acoustic wave equation")
         # Expand velocity model and Create absorbing layers
@@ -145,7 +183,7 @@ class migration:
             self.migrated_partial = np.zeros_like(self.wf.migrated_image)
 
             # Top muting
-            self.muted_seismogram = self.wf.Mute(self.wf.seismogram, shot)
+            self.muted_seismogram = self.Mute(self.wf.seismogram, shot)
 
             # Last time step with significant source amplitude
             self.last_t = self.wf.LastTimeStepWithSignificantSourceAmplitude()    
@@ -198,7 +236,7 @@ class migration:
             self.migrated_partial = np.zeros_like(self.wf.migrated_image)
 
             # Top muting
-            self.muted_seismogram = self.wf.Mute(self.wf.seismogram, shot)
+            self.muted_seismogram = self.Mute(self.wf.seismogram, shot)
 
             # Last time step with significant source amplitude
             self.wf.last_t = self.wf.LastTimeStepWithSignificantSourceAmplitude()    

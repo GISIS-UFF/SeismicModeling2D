@@ -1,5 +1,6 @@
 {
-    "approximation": "acousticTTICPML",
+    "approximation": "acoustic",
+    "migration": "RTM",
     "dx": 10,
     "dz": 10,
     "dt": 0.001,
@@ -24,9 +25,11 @@
     "deltaLayer1": 0.1,
     "deltaLayer2": 0.1,
     "snap": true,
-    "step": 100,
+    "step": 1000,
+    "last_save": 3000,
     "snapshotFolder": "../outputs/snapshots/",
     "seismogramFolder": "../outputs/seismograms/",
+    "checkpointFolder": "../outputs/checkpoints/",
     "migratedimageFolder": "../outputs/migrated_image/",
     "modelFolder": "../inputs/"
 }

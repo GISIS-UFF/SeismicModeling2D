@@ -31,6 +31,7 @@ class wavefield:
 
         # Approximation type
         self.approximation = self.parameters["approximation"]
+        self.migration = self.parameters["migration"]
         
         # Discretization self.parameters
         self.dx   = self.parameters["dx"]
@@ -66,6 +67,7 @@ class wavefield:
         self.migratedimageFolder = self.parameters["migratedimageFolder"]
         self.snapshotFolder = self.parameters["snapshotFolder"]
         self.modelFolder = self.parameters["modelFolder"]
+        self.checkpointFolder = self.parameters["checkpointFolder"]
 
         # Source and receiver files
         self.rec_file = self.parameters["rec_file"]
@@ -79,6 +81,7 @@ class wavefield:
         # Snapshot flag
         self.snap = self.parameters["snap"]
         self.step = self.parameters["step"]
+        self.last_save = self.parameters["last_save"]
 
         # Anisotropy parameters files
         self.epsilonFile = self.parameters["epsilonFile"]  
@@ -146,7 +149,6 @@ class wavefield:
         self.current    = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
         self.future     = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
         self.seismogram = np.zeros([self.nt,self.Nrec],dtype=np.float32)
-        self.snapshot    = np.zeros([len(self.frame),self.nz_abc,self.nx_abc],dtype=np.float32)
         self.migrated_image = np.zeros((self.nz, self.nx), dtype=np.float32)
 
         if self.approximation in ["acousticCPML", "acousticVTICPML", "acousticTTICPML"]:
@@ -326,7 +328,6 @@ class wavefield:
         self.epsilon.T.tofile(self.vpFile.replace(".bin","_epsilon.bin"))	
         print(f"info: Epsilon model saved to {self.vpFile.replace('.bin','_epsilon.bin')}")
 
-
         # create delta model delta = 0.125 rho - 0.1 - Petrov et al. (2021)
         self.delta = np.zeros([self.nz,self.nx],dtype=np.float32)
         self.delta = 0.125 * self.rho/1000 - 0.1 # rho in g/cm3
@@ -358,23 +359,6 @@ class wavefield:
         d0 = - (M + 1)* np.log(Rcoef) 
 
         return d0, f_pico
-
-    def Mute(self, seismogram, shot): 
-        muted = seismogram.copy() 
-        v0 = self.vp[0, :]
-        rec_idx = (self.rec_x / self.dx).astype(int)
-        v0_rec = v0[rec_idx]
-        distz = self.rec_z - self.shot_z[shot]   
-        distx = self.rec_x - self.shot_x[shot]   
-        dist = np.sqrt(distx**2 + distz**2)
-        t_lag = 2 * np.sqrt(np.pi) / self.fcut
-        traveltimes = dist / v0_rec + 3 * t_lag 
-        
-        for r in range(self.Nrec): 
-            mute_samples = int(traveltimes[r] / self.dt)
-            muted[:mute_samples, r] = 0 
-                
-        return muted
     
     def LastTimeStepWithSignificantSourceAmplitude(self):
         source_abs = np.abs(self.source)
@@ -433,7 +417,66 @@ class wavefield:
                 A[i] = np.exp(-fb * fb)
                 
         return A 
-  
+    
+    def save_snapshot(self,shot, k):        
+        if not self.snap:
+            return
+        if k > self.last_save:
+            return
+        if k % self.step != 0:
+            return
+
+        snapshot = self.current.astype(np.float32, copy=False)
+
+        if self.approximation in ["acoustic", "acousticCPML"]:
+            tag = "Acoustic"
+        elif self.approximation in ["acousticVTI", "acousticVTICPML"]:
+            tag = "VTI"
+        elif self.approximation in ["acousticTTI", "acousticTTICPML"]:
+            tag = "TTI"
+        else:
+            raise ValueError(f"Unknown approximation: {self.approximation}")
+
+        snapshotFile = (f"{self.snapshotFolder}{tag}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin")
+        snapshot.tofile(snapshotFile)
+        print(f"info: Snapshot saved to {snapshotFile}")
+    
+    def save_checkpoint(self, shot, k):
+        if self.migration != "RTM":
+            return
+        if k > self.last_save:
+            return
+        if k % self.step != 0:
+            return
+
+ 
+        tag_map = {
+            "acoustic": "Acoustic",
+            "acousticCPML": "AcousticCPML",
+            "acousticVTI": "VTI",
+            "acousticVTICPML": "VTICPML",
+            "acousticTTI": "TTI",
+            # "acousticTTICPML": "TTICPML",  # quando implementar 
+            }
+
+        if self.approximation not in tag_map:
+            if self.approximation == "acousticTTICPML":
+                raise ValueError("Checkpoint saving for TTI CPML not implemented yet.")
+            raise ValueError(f"Unknown approximation: {self.approximation}")
+
+        tag = tag_map[self.approximation]
+        checkpointFile = (f"{self.checkpointFolder}{tag}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin")
+
+        save = [self.current, self.future]
+        if "CPML" in self.approximation:
+            save += [self.PsixFR, self.PsixFL, self.PsizFU, self.PsizFD, self.ZetaxFR, self.ZetaxFL, self.ZetazFU, self.ZetazFD]
+
+        with open(checkpointFile, "wb") as file:
+            for arr in save:
+                arr.astype(np.float32, copy=False).tofile(file)
+
+        print(f"info: Checkpoint saved to {checkpointFile}")
+
     def solveAcousticWaveEquation(self):
         start_time = time.time()
         print(f"info: Solving acoustic wave equation")
@@ -449,7 +492,6 @@ class wavefield:
             self.current.fill(0)
             self.future.fill(0)
             self.seismogram.fill(0)
-            self.snapshot.fill(0)
 
             # convert acquisition geometry coordinates to grid points
             sx = int(self.shot_x[shot]/self.dx) + self.N_abc
@@ -466,17 +508,13 @@ class wavefield:
                 # Register seismogram
                 self.seismogram[k, :] = self.current[rz, rx]
 
-                if self.snap == True:
-                    frame_idx = self.frame.index(k)
-                    self.snapshot[frame_idx, :, :] = self.current
-                    snapshotFile = f"{self.snapshotFolder}Acoustic_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin"
-                    self.snapshot[frame_idx,:,:].tofile(snapshotFile)
-                    print(f"info: Snapshot saved to {snapshotFile}")
-                
+                self.save_snapshot(shot, k)
+                self.save_checkpoint(shot, k)
+    
                 #swap
                 self.current, self.future = self.future, self.current
             
-            self.seismogramFile = f"{self.seismogramFolder}Acousticseismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
+            self.seismogramFile = f"{self.seismogramFolder}Acoustic_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
             self.seismogram.tofile(self.seismogramFile)
             print(f"info: Seismogram saved to {self.seismogramFile}")
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
@@ -496,7 +534,6 @@ class wavefield:
             self.current.fill(0)
             self.future.fill(0)
             self.seismogram.fill(0)
-            self.snapshot.fill(0)
             self.PsixFR.fill(0)
             self.PsixFL.fill(0)
             self.PsizFU.fill(0)  
@@ -518,18 +555,13 @@ class wavefield:
                 
                 # Register seismogram
                 self.seismogram[k, :] = self.current[rz, rx]
-                
-                if (shot + 1) in self.shot_frame and k in self.frame:
-                    frame_idx = self.frame.index(k)
-                    self.snapshot[frame_idx, :, :] = self.current
-                    snapshotFile = f"{self.snapshotFolder}Acoustic_CPML_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin"
-                    self.snapshot[frame_idx,:,:].tofile(snapshotFile)
-                    print(f"info: Snapshot saved to {snapshotFile}")     
-
+                self.save_snapshot(shot, k)
+                self.save_checkpoint(shot, k)
+                    
                 #swap
                 self.current, self.future = self.future, self.current
 
-            self.seismogramFile = f"{self.seismogramFolder}AcousticCPMLseismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
+            self.seismogramFile = f"{self.seismogramFolder}Acoustic_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
             self.seismogram.tofile(self.seismogramFile)
             print(f"info: Seismogram saved to {self.seismogramFile}")
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
@@ -551,7 +583,6 @@ class wavefield:
             self.current.fill(0)
             self.future.fill(0)
             self.seismogram.fill(0)
-            self.snapshot.fill(0)
 
             # convert acquisition geometry coordinates to grid points
             sx = int(self.shot_x[shot]/self.dx) + self.N_abc
@@ -569,17 +600,13 @@ class wavefield:
                 # Register seismogram
                 self.seismogram[k, :] = self.current[rz, rx]
 
-                if (shot + 1) in self.shot_frame and k in self.frame:
-                    frame_idx = self.frame.index(k)
-                    self.snapshot[frame_idx, :, :] = self.current
-                    snapshotFile = f"{self.snapshotFolder}VTI_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin"
-                    self.snapshot[frame_idx,:,:].tofile(snapshotFile)
-                    print(f"info: Snapshot saved to {snapshotFile}")
+                self.save_snapshot(shot, k)
+                self.save_checkpoint(shot, k)
                     
                 #swap
                 self.current, self.future = self.future, self.current
 
-            self.seismogramFile = f"{self.seismogramFolder}VTIseismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
+            self.seismogramFile = f"{self.seismogramFolder}VTI_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
             self.seismogram.tofile(self.seismogramFile)
             print(f"info: Seismogram saved to {self.seismogramFile}")
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
@@ -601,7 +628,6 @@ class wavefield:
             self.current.fill(0)
             self.future.fill(0)
             self.seismogram.fill(0)
-            self.snapshot.fill(0)
             self.PsixFR.fill(0)
             self.PsixFL.fill(0)
             self.PsizFU.fill(0)
@@ -623,17 +649,13 @@ class wavefield:
                 # Register seismogram
                 self.seismogram[k, :] = self.current[rz, rx]
 
-                if (shot + 1) in self.shot_frame and k in self.frame:
-                    frame_idx = self.frame.index(k)
-                    self.snapshot[frame_idx, :, :] = self.current
-                    snapshotFile = f"{self.snapshotFolder}VTI_CPML_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin"
-                    self.snapshot[frame_idx,:,:].tofile(snapshotFile)
-                    print(f"info: Snapshot saved to {snapshotFile}")
+                self.save_snapshot(shot, k)
+                self.save_checkpoint(shot, k)
 
                 #swap
                 self.current, self.future = self.future, self.current
 
-            self.seismogramFile = f"{self.seismogramFolder}VTICPMLseismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
+            self.seismogramFile = f"{self.seismogramFolder}VTI_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
             self.seismogram.tofile(self.seismogramFile)
             print(f"info: Seismogram saved to {self.seismogramFile}")
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
@@ -656,7 +678,6 @@ class wavefield:
             self.current.fill(0)
             self.future.fill(0)
             self.seismogram.fill(0)
-            self.snapshot.fill(0)
 
             # convert acquisition geometry coordinates to grid points
             sx = int(self.shot_x[shot]/self.dx) + self.N_abc
@@ -673,18 +694,13 @@ class wavefield:
             
                 # Register seismogram
                 self.seismogram[k, :] = self.current[rz, rx]
-
-                if (shot + 1) in self.shot_frame and k in self.frame:
-                    frame_idx = self.frame.index(k)
-                    self.snapshot[frame_idx, :, :] = self.current
-                    snapshotFile = f"{self.snapshotFolder}TTI_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin"
-                    self.snapshot[frame_idx,:,:].tofile(snapshotFile)
-                    print(f"info: Snapshot saved to {snapshotFile}")
+                self.save_snapshot(shot, k)
+                self.save_checkpoint(shot, k)
                 
                 #swap
                 self.current, self.future = self.future, self.current
 
-            self.seismogramFile = f"{self.seismogramFolder}TTIseismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
+            self.seismogramFile = f"{self.seismogramFolder}TTI_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
             self.seismogram.tofile(self.seismogramFile)
             print(f"info: Seismogram saved to {self.seismogramFile}")
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
@@ -708,7 +724,6 @@ class wavefield:
             self.current.fill(0)
             self.future.fill(0)
             self.seismogram.fill(0)
-            self.snapshot.fill(0)
             self.PsixF.fill(0)
             self.PsizF.fill(0)
             self.ZetaxF.fill(0)
@@ -741,18 +756,13 @@ class wavefield:
             
                 # Register seismogram
                 self.seismogram[k, :] = self.current[rz, rx]
-
-                if (shot + 1) in self.shot_frame and k in self.frame:
-                    frame_idx = self.frame.index(k)
-                    self.snapshot[frame_idx, :, :] = self.current
-                    snapshotFile = f"{self.snapshotFolder}TTI_CPML_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin"
-                    self.snapshot[frame_idx,:,:].tofile(snapshotFile)
-                    print(f"info: Snapshot saved to {snapshotFile}")
+                self.save_snapshot(shot, k)
+                self.save_checkpoint(shot, k)
                 
                 #swap
                 self.current, self.future = self.future, self.current
 
-            self.seismogramFile = f"{self.seismogramFolder}TTICPMLseismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
+            self.seismogramFile = f"{self.seismogramFolder}TTI_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
             self.seismogram.tofile(self.seismogramFile)
             print(f"info: Seismogram saved to {self.seismogramFile}")
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
@@ -805,18 +815,13 @@ class wavefield:
             
     #             # Register seismogram
     #             self.seismogram[k, :] = self.current[rz, rx]
-
-    #             if (shot + 1) in self.shot_frame and k in self.frame:
-    #                 frame_idx = self.frame.index(k)
-    #                 self.snapshot[frame_idx, :, :] = self.current
-    #                 snapshotFile = f"{self.snapshotFolder}TTI_CPML_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin"
-    #                 self.snapshot[frame_idx,:,:].tofile(snapshotFile)
-    #                 print(f"info: Snapshot saved to {snapshotFile}")
+    #             self.save_snapshot(shot, k)
+    #             self.save_checkpoint(shot, k)
                 
     #             #swap
     #             self.current, self.future = self.future, self.current
 
-    #         self.seismogramFile = f"{self.seismogramFolder}TTICPMLseismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
+    #         self.seismogramFile = f"{self.seismogramFolder}TTI_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
     #         self.seismogram.tofile(self.seismogramFile)
     #         print(f"info: Seismogram saved to {self.seismogramFile}")
     #         print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
@@ -874,18 +879,13 @@ class wavefield:
             
     #             # Register seismogram
     #             self.seismogram[k, :] = self.current[rz, rx]
-
-    #             if (shot + 1) in self.shot_frame and k in self.frame:
-    #                 frame_idx = self.frame.index(k)
-    #                 self.snapshot[frame_idx, :, :] = self.current
-    #                 snapshotFile = f"{self.snapshotFolder}TTI_CPML_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin"
-    #                 self.snapshot[frame_idx,:,:].tofile(snapshotFile)
-    #                 print(f"info: Snapshot saved to {snapshotFile}")
+    #             self.save_snapshot(shot, k)
+    #             self.save_checkpoint(shot, k)
                 
     #             #swap
     #             self.current, self.future, self.Qc, self.Qf = self.future, self.current, self.Qf, self.Qc
 
-    #         self.seismogramFile = f"{self.seismogramFolder}TTICPMLseismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
+    #         self.seismogramFile = f"{self.seismogramFolder}TTI_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
     #         self.seismogram.tofile(self.seismogramFile)
     #         print(f"info: Seismogram saved to {self.seismogramFile}")
     #         print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
