@@ -111,10 +111,16 @@ class migration:
 
         self.Nrec = len(self.rec_x)
         self.Nshot = len(self.shot_x) 
-        
+    
+    
+    def loadSeismogram(self, shot):
+        seismogramFile = f"{self.seismogramFolder}{self.approximation}_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
+        seismogram = np.fromfile(seismogramFile, dtype=np.float32).reshape(self.nt,self.Nrec) 
+        return seismogram
+
     def Mute(self, seismogram, shot): 
         muted = seismogram.copy() 
-        v0 = self.vp[0, :]
+        v0 = self.wf.vp[0, :]
         rec_idx = (self.rec_x / self.dx).astype(int)
         v0_rec = v0[rec_idx]
         distz = self.rec_z - self.shot_z[shot]   
@@ -167,6 +173,13 @@ class migration:
                 self.ZetazFU = np.fromfile(file, np.float32, count).reshape(self.nz_abc, self.nx_abc)
                 self.ZetazFD = np.fromfile(file, np.float32, count).reshape(self.nz_abc, self.nx_abc)
     
+    def build_windows(self):
+        windows = []
+        for t0 in range(0, self.nt, self.step):
+            t1 = min(t0 + self.step - 1, self.nt - 1)
+            windows.append((t0, t1))
+        return windows[::-1]
+
     def solveBackwardAcousticWaveEquation(self):
         print(f"info: Solving backward acoustic wave equation")
         # Expand velocity model and Create absorbing layers
@@ -176,30 +189,54 @@ class migration:
         rx = np.int32(self.rec_x/self.dx) + self.N_abc
         rz = np.int32(self.rec_z/self.dz) + self.N_abc
 
+        windows = self.build_windows()
+        
         for shot in range(self.Nshot):
-            print(f"info: Starting backward migration for shot {shot+1}")
+            print(f"info: Shot {shot+1} of {self.Nshot}")
             self.wf.current.fill(0)
             self.wf.future.fill(0)
-            self.migrated_partial = np.zeros_like(self.wf.migrated_image)
+            self.wf.currentbck.fill(0)
+            self.wf.futurebck.fill(0)
+
+            # convert acquisition geometry coordinates to grid points
+            sx = int(self.shot_x[shot]/self.dx) + self.N_abc
+            sz = int(self.shot_z[shot]/self.dz) + self.N_abc  
 
             # Top muting
-            self.muted_seismogram = self.Mute(self.wf.seismogram, shot)
+            seismogram = self.loadSeismogram(shot)
+            self.muted_seismogram = self.Mute(seismogram, shot)
 
-            # Last time step with significant source amplitude
-            self.last_t = self.wf.LastTimeStepWithSignificantSourceAmplitude()    
+            self.migrated_partial = np.zeros_like(self.wf.migrated_image)          
+
+            for (t0, t1) in windows:
+
+                checkpointFile = (f"{self.checkpointFolder}{self.approximation}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{t0}.bin")
+                self.load_checkpoint(checkpointFile)
+
+                for k in range(t0, t1 + 1):        
+                    self.wf.current[sz,sx] += self.wf.source[k]
+                    self.wf.future = updateWaveEquation(self.wf.future, self.wf.current, self.vp_exp, self.nz_abc, self.nx_abc, self.dz, self.dx, self.dt)
+
+                    # Apply absorbing boundary condition
+                    self.wf.future = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.wf.future, self.A)
+                    self.wf.current = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.wf.current, self.A)
+
+                    self.wf.savefield[k-t0, :, :] = self.wf.current[self.N_abc:self.nz_abc - self.N_abc, self.N_abc:self.nx_abc - self.N_abc]
+        
+                    #swap
+                    self.wf.current, self.wf.future = self.wf.future, self.wf.current  
+
+                # Begin backward propagation
+                for t in range(t1, t0 - 1, -1):
+                    self.wf.currentbck[rz, rx] += self.muted_seismogram[t, :]
                     
-            # Begin backward propagation
-            for t in range(self.nt - 1, self.last_t, -1):
-                for r in range(len(rx)):
-                    self.wf.current[rz[r], rx[r]] += self.muted_seismogram[t, r]
-                self.wf.future = updateWaveEquation(self.wf.future, self.wf.current, self.vp_exp,self.nz_abc, self.nx_abc, self.dz, self.dx, self.dt)
+                    self.wf.futurebck = updateWaveEquation(self.wf.futurebck, self.wf.currentbck, self.vp_exp,self.nz_abc, self.nx_abc, self.dz, self.dx, self.dt)
 
-                self.wf.future = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.wf.future, self.A)
-                self.wf.current = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.wf.current, self.A)
+                    self.wf.futurebck = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.wf.futurebck, self.A)
+                    self.wf.currentbck = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.wf.currentbck, self.A)
+                    self.migrated_partial += self.wf.savefield[t-t0, :, :] * self.wf.currentbck[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc] 
 
-                self.migrated_partial += self.wf.snapshot[t, self.N_abc:self.nz_abc - self.N_abc, self.N_abc:self.nx_abc - self.N_abc] * self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc] 
-
-                self.wf.current, self.wf.future = self.wf.future, self.wf.current
+                    self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
 
             self.wf.migrated_image += self.migrated_partial
             print(f"info: Shot {shot+1} backward done.")
@@ -207,8 +244,8 @@ class migration:
         # Apply Laplacian filter 
         self.wf.migrated_image = self.laplacian(self.wf.migrated_image)
         
-        self.migratedFile = f"{self.migratedimageFolder}migrated_image_acoustic_CPML.bin"
-        self.wf.migrated_image.tofile(self.migratedFile)
+        self.migratedFile = f"{self.migratedimageFolder}migrated_image_{self.approximation}_Nx{self.nx}_Nz{self.nz}.bin"
+        self.wf.migrated_image.astype(np.float32).tofile(self.migratedFile)
         print(f"info: Final migrated image saved to {self.migratedFile}")
 
 

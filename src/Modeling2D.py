@@ -151,6 +151,11 @@ class wavefield:
         self.seismogram = np.zeros([self.nt,self.Nrec],dtype=np.float32)
         self.migrated_image = np.zeros((self.nz, self.nx), dtype=np.float32)
 
+        if self.migration == "RTM":
+            self.currentbck  = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
+            self.futurebck   = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
+            self.savefield   = np.zeros([self.step, self.nz, self.nx], dtype=np.float32)
+
         if self.approximation in ["acousticCPML", "acousticVTICPML", "acousticTTICPML"]:
             # Initialize absorbing layers       
             self.PsixFR      = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
@@ -269,7 +274,7 @@ class wavefield:
         self.vp[self.nz//2:self.nz, :] = v2
 
         self.modelFile = f"{self.modelFolder}layeredvp_Nz{self.nz}_Nx{self.nx}.bin"
-        self.vp.tofile(self.modelFile)
+        self.vp.T.tofile(self.modelFile)
         print(f"info: Vp saved to {self.modelFile}")
 
     def createLayeredVsModel(self):
@@ -279,7 +284,7 @@ class wavefield:
         self.vs[self.nz//2:self.nz, :] = vs2
 
         self.modelFile = f"{self.modelFolder}layeredvs_Nz{self.nz}_Nx{self.nx}.bin"
-        self.vs.tofile(self.modelFile)
+        self.vs.T.tofile(self.modelFile)
         print(f"info: Vs saved to {self.modelFile}")
 
     def createLayeredThetaModel(self, t1, t2):
@@ -287,7 +292,7 @@ class wavefield:
         self.theta[self.nz//2:self.nz, :] = t2
 
         self.modelFile = f"{self.modelFolder}layeredtheta_Nz{self.nz}_Nx{self.nx}.bin"
-        self.theta.tofile(self.modelFile)
+        self.theta.T.tofile(self.modelFile)
         print(f"info: Theta saved to {self.modelFile}")
 
     def createLayeredEpsilonModel(self,e1, e2):
@@ -295,7 +300,7 @@ class wavefield:
         self.epsilon[self.nz//2:self.nz, :] = e2
 
         self.modelFile = f"{self.modelFolder}layeredepsilon_Nz{self.nz}_Nx{self.nx}.bin"
-        self.epsilon.tofile(self.modelFile)
+        self.epsilon.T.tofile(self.modelFile)
         print(f"info: Epsilon saved to {self.modelFile}")
 
     def createLayeredDeltaModel(self, d1, d2):
@@ -303,7 +308,7 @@ class wavefield:
         self.delta[self.nz//2:self.nz, :] = d2
 
         self.modelFile = f"{self.modelFolder}layereddelta_Nz{self.nz}_Nx{self.nx}.bin"
-        self.delta.tofile(self.modelFile)
+        self.delta.T.tofile(self.modelFile)
         print(f"info: Delta saved to {self.modelFile}")
 
     def createModelFromVp(self):
@@ -428,16 +433,7 @@ class wavefield:
 
         snapshot = self.current.astype(np.float32, copy=False)
 
-        if self.approximation in ["acoustic", "acousticCPML"]:
-            tag = "Acoustic"
-        elif self.approximation in ["acousticVTI", "acousticVTICPML"]:
-            tag = "VTI"
-        elif self.approximation in ["acousticTTI", "acousticTTICPML"]:
-            tag = "TTI"
-        else:
-            raise ValueError(f"Unknown approximation: {self.approximation}")
-
-        snapshotFile = (f"{self.snapshotFolder}{tag}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin")
+        snapshotFile = (f"{self.snapshotFolder}{self.approximation}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin")
         snapshot.tofile(snapshotFile)
         print(f"info: Snapshot saved to {snapshotFile}")
     
@@ -449,23 +445,10 @@ class wavefield:
         if k % self.step != 0:
             return
 
- 
-        tag_map = {
-            "acoustic": "Acoustic",
-            "acousticCPML": "AcousticCPML",
-            "acousticVTI": "VTI",
-            "acousticVTICPML": "VTICPML",
-            "acousticTTI": "TTI",
-            # "acousticTTICPML": "TTICPML",  # quando implementar 
-            }
-
-        if self.approximation not in tag_map:
-            if self.approximation == "acousticTTICPML":
-                raise ValueError("Checkpoint saving for TTI CPML not implemented yet.")
-            raise ValueError(f"Unknown approximation: {self.approximation}")
-
-        tag = tag_map[self.approximation]
-        checkpointFile = (f"{self.checkpointFolder}{tag}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin")
+        if self.approximation == "acousticTTICPML":
+            raise ValueError("Checkpoint saving for TTI CPML not implemented yet.")
+        
+        checkpointFile = (f"{self.checkpointFolder}{self.approximation}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin")
 
         save = [self.current, self.future]
         if "CPML" in self.approximation:
@@ -514,7 +497,7 @@ class wavefield:
                 #swap
                 self.current, self.future = self.future, self.current
             
-            self.seismogramFile = f"{self.seismogramFolder}Acoustic_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
+            self.seismogramFile = f"{self.seismogramFolder}acoustic_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
             self.seismogram.tofile(self.seismogramFile)
             print(f"info: Seismogram saved to {self.seismogramFile}")
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
@@ -561,7 +544,7 @@ class wavefield:
                 #swap
                 self.current, self.future = self.future, self.current
 
-            self.seismogramFile = f"{self.seismogramFolder}Acoustic_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
+            self.seismogramFile = f"{self.seismogramFolder}acoustic_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
             self.seismogram.tofile(self.seismogramFile)
             print(f"info: Seismogram saved to {self.seismogramFile}")
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
@@ -895,13 +878,13 @@ class wavefield:
             self.solveAcousticWaveEquation()
         elif self.approximation == "acousticCPML":
             self.solveAcousticWaveEquationCPML()
-        elif self.approximation == "acousticVTI":
+        elif self.approximation == "VTI":
             self.solveAcousticVTIWaveEquation()
-        elif self.approximation == "acousticVTICPML":
+        elif self.approximation == "VTICPML":
             self.solveAcousticVTIWaveEquationCPML()
-        elif self.approximation == "acousticTTI":
+        elif self.approximation == "TTI":
             self.solveAcousticTTIWaveEquation()
-        elif self.approximation == "acousticTTICPML":
+        elif self.approximation == "TTICPML":
             self.solveAcousticTTIWaveEquationCPML()
         else:
             raise ValueError("ERROR: Unknown approximation. Choose 'acoustic', 'acousticVTI' or 'acousticTTI'.")
