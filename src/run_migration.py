@@ -8,4 +8,4 @@ wf.checkDispersionAndStability()
 wf.SolveWaveEquation()   
 
 mig = migration("../inputs/Parameters.json",wf)
-mig.solveBackwardAcousticWaveEquation()       
+mig.SolveBackwardWaveEquation()       

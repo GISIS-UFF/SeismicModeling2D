@@ -32,6 +32,7 @@ class wavefield:
         # Approximation type
         self.approximation = self.parameters["approximation"]
         self.migration = self.parameters["migration"]
+        self.ABC = self.parameters["ABC"]
         
         # Discretization self.parameters
         self.dx   = self.parameters["dx"]
@@ -151,12 +152,7 @@ class wavefield:
         self.seismogram = np.zeros([self.nt,self.Nrec],dtype=np.float32)
         self.migrated_image = np.zeros((self.nz, self.nx), dtype=np.float32)
 
-        if self.migration == "RTM":
-            self.currentbck  = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
-            self.futurebck   = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
-            self.savefield   = np.zeros([self.step, self.nz, self.nx], dtype=np.float32)
-
-        if self.approximation in ["acousticCPML", "acousticVTICPML", "acousticTTICPML"]:
+        if self.ABC == "CPML":
             # Initialize absorbing layers       
             self.PsixFR      = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
             self.PsixFL      = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)     
@@ -166,6 +162,20 @@ class wavefield:
             self.ZetaxFL     = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
             self.ZetazFU     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
             self.ZetazFD     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
+
+        if self.migration == "RTM":
+            self.currentbck  = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
+            self.futurebck   = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
+            self.savefield   = np.zeros([self.step, self.nz, self.nx], dtype=np.float32)
+            if self.ABC == "CPML":
+                self.PsixFRbck      = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
+                self.PsixFLbck      = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)     
+                self.PsizFUbck      = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32) 
+                self.PsizFDbck      = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)       
+                self.ZetaxFRbck     = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
+                self.ZetaxFLbck     = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
+                self.ZetazFUbck     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
+                self.ZetazFDbck     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
         
 
         print(f"info: Wavefields initialized: {self.nx}x{self.nz}x{self.nt}")
@@ -177,7 +187,7 @@ class wavefield:
         else:
             self.vp = self.ImportModel(self.vpFile)
         
-        if self.approximation in ["acousticVTI", "acousticTTI", "acousticVTICPML", "acousticTTICPML"]:
+        if self.approximation in ["VTI", "TTI"]:
             # Initialize velocity model and wavefields
             self.Qc = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
             self.Qf = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
@@ -185,7 +195,7 @@ class wavefield:
             self.epsilon = np.zeros([self.nz,self.nx],dtype=np.float32)
             self.delta = np.zeros([self.nz,self.nx],dtype=np.float32)
 
-            if self.approximation in ["acousticVTICPML", "acousticTTICPML"]:
+            if self.approximation  == "TTI" and self.ABC == "CPML":
                 # Initialize absorbing layers
                 self.PsizqFU     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
                 self.PsizqFD     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
@@ -205,12 +215,12 @@ class wavefield:
             else:
                 self.delta = self.ImportModel(self.deltaFile)
                 
-        if self.approximation in ["acousticTTI","acousticTTIGPU", "acousticTTICPML"]:
+        if self.approximation == "TTI":
             # Initialize vs and theta model
             self.vs = np.zeros([self.nz,self.nx], dtype=np.float32)
             self.theta = np.zeros([self.nz,self.nx],dtype=np.float32)
 
-            if self.approximation == "acousticTTICPML":
+            if self.approximation == "TTI" and self.ABC == "CPML":
                 # Initialize absorbing layers
                 # self.PsixqFR     = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
                 # self.PsixqFL     = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
@@ -312,8 +322,8 @@ class wavefield:
         print(f"info: Delta saved to {self.modelFile}")
 
     def createModelFromVp(self):
-        if not self.approximation in ["acousticVTI", "acousticTTI", "acousticVTICPML", "acousticTTICPML"]:
-            raise ValueError("ERROR: Change approximation parameter to 'acousticVTI'or 'acousticTTI'.")
+        if not self.approximation in ["VTI", "TTI"]:
+            raise ValueError("ERROR: Change approximation parameter to 'VTI'or 'TTI'.")
         
         if self.vpFile == None:
             raise ValueError("ERROR: Import or create a velocity model first.")
@@ -375,7 +385,7 @@ class wavefield:
         return last_t
 
     def checkDispersionAndStability(self):
-        if self.approximation in ["acoustic", "acousticCPML"]:
+        if self.approximation == "acoustic":
             vp_min = np.min(self.vp)
             vp_max = np.max(self.vp)
             lambda_min = vp_min / self.fcut
@@ -394,7 +404,7 @@ class wavefield:
             else:
                 print("WARNING: Dispersion or stability conditions not satisfied.")
         
-        elif self.approximation in ["acousticVTI", "acousticTTI", "acousticVTICPML", "acousticTTICPML"]:
+        elif self.approximation in ["VTI", "TTI"]:
             vp_min = np.min(self.vp)
             vpx = self.vp*np.sqrt(1+2*self.epsilon)
             vpx_max = np.max(vpx)
@@ -433,9 +443,15 @@ class wavefield:
 
         snapshot = self.current.astype(np.float32, copy=False)
 
-        snapshotFile = (f"{self.snapshotFolder}{self.approximation}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin")
+        snapshotFile = (f"{self.snapshotFolder}{self.approximation}{self.ABC}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin")
         snapshot.tofile(snapshotFile)
         print(f"info: Snapshot saved to {snapshotFile}")
+    
+    def save_seismogram(self,shot):        
+
+        self.seismogramFile = f"{self.seismogramFolder}{self.approximation}{self.ABC}_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
+        self.seismogram.tofile(self.seismogramFile)
+        print(f"info: Seismogram saved to {self.seismogramFile}")
     
     def save_checkpoint(self, shot, k):
         if self.migration != "RTM":
@@ -445,13 +461,13 @@ class wavefield:
         if k % self.step != 0:
             return
 
-        if self.approximation == "acousticTTICPML":
+        if self.approximation == "TTI" and self.ABC == "CPML":
             raise ValueError("Checkpoint saving for TTI CPML not implemented yet.")
         
-        checkpointFile = (f"{self.checkpointFolder}{self.approximation}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin")
+        checkpointFile = (f"{self.checkpointFolder}{self.approximation}{self.ABC}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin")
 
         save = [self.current, self.future]
-        if "CPML" in self.approximation:
+        if self.ABC == "CPML":
             save += [self.PsixFR, self.PsixFL, self.PsizFU, self.PsizFD, self.ZetaxFR, self.ZetaxFL, self.ZetazFU, self.ZetazFD]
 
         with open(checkpointFile, "wb") as file:
@@ -497,9 +513,7 @@ class wavefield:
                 #swap
                 self.current, self.future = self.future, self.current
             
-            self.seismogramFile = f"{self.seismogramFolder}acoustic_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
-            self.seismogram.tofile(self.seismogramFile)
-            print(f"info: Seismogram saved to {self.seismogramFile}")
+            self.save_seismogram(shot)
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
 
     def solveAcousticWaveEquationCPML(self):
@@ -544,9 +558,7 @@ class wavefield:
                 #swap
                 self.current, self.future = self.future, self.current
 
-            self.seismogramFile = f"{self.seismogramFolder}acoustic_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
-            self.seismogram.tofile(self.seismogramFile)
-            print(f"info: Seismogram saved to {self.seismogramFile}")
+            self.save_seismogram(shot)
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
 
     def solveAcousticVTIWaveEquation(self):
@@ -589,9 +601,7 @@ class wavefield:
                 #swap
                 self.current, self.future = self.future, self.current
 
-            self.seismogramFile = f"{self.seismogramFolder}VTI_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
-            self.seismogram.tofile(self.seismogramFile)
-            print(f"info: Seismogram saved to {self.seismogramFile}")
+            self.save_seismogram(shot)
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
         
     def solveAcousticVTIWaveEquationCPML(self):
@@ -638,9 +648,7 @@ class wavefield:
                 #swap
                 self.current, self.future = self.future, self.current
 
-            self.seismogramFile = f"{self.seismogramFolder}VTI_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
-            self.seismogram.tofile(self.seismogramFile)
-            print(f"info: Seismogram saved to {self.seismogramFile}")
+            self.save_seismogram(shot)
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
 
     def solveAcousticTTIWaveEquation(self):
@@ -683,9 +691,7 @@ class wavefield:
                 #swap
                 self.current, self.future = self.future, self.current
 
-            self.seismogramFile = f"{self.seismogramFolder}TTI_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
-            self.seismogram.tofile(self.seismogramFile)
-            print(f"info: Seismogram saved to {self.seismogramFile}")
+            self.save_seismogram(shot)
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
 
     def solveAcousticTTIWaveEquationCPML(self):
@@ -745,9 +751,7 @@ class wavefield:
                 #swap
                 self.current, self.future = self.future, self.current
 
-            self.seismogramFile = f"{self.seismogramFolder}TTI_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
-            self.seismogram.tofile(self.seismogramFile)
-            print(f"info: Seismogram saved to {self.seismogramFile}")
+            self.save_seismogram(shot)
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
 
     # def solveAcousticTTIWaveEquationCPML(self):
@@ -804,9 +808,7 @@ class wavefield:
     #             #swap
     #             self.current, self.future = self.future, self.current
 
-    #         self.seismogramFile = f"{self.seismogramFolder}TTI_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
-    #         self.seismogram.tofile(self.seismogramFile)
-    #         print(f"info: Seismogram saved to {self.seismogramFile}")
+            # self.save_seismogram(shot)
     #         print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
 
     # def solveAcousticTTIWaveEquationCPML(self):
@@ -868,24 +870,22 @@ class wavefield:
     #             #swap
     #             self.current, self.future, self.Qc, self.Qf = self.future, self.current, self.Qf, self.Qc
 
-    #         self.seismogramFile = f"{self.seismogramFolder}TTI_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
-    #         self.seismogram.tofile(self.seismogramFile)
-    #         print(f"info: Seismogram saved to {self.seismogramFile}")
+            # self.save_seismogram(shot)
     #         print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
 
     def SolveWaveEquation(self):
-        if self.approximation == "acoustic":
+        if self.approximation == "acoustic" and self.ABC == "cerjan":
             self.solveAcousticWaveEquation()
-        elif self.approximation == "acousticCPML":
+        elif self.approximation == "acoustic" and self.ABC == "CPML":
             self.solveAcousticWaveEquationCPML()
-        elif self.approximation == "VTI":
+        elif self.approximation == "VTI" and self.ABC == "cerjan":
             self.solveAcousticVTIWaveEquation()
-        elif self.approximation == "VTICPML":
+        elif self.approximation == "VTI" and self.ABC == "CPML":
             self.solveAcousticVTIWaveEquationCPML()
-        elif self.approximation == "TTI":
+        elif self.approximation == "TTI" and self.ABC == "cerjan":
             self.solveAcousticTTIWaveEquation()
-        elif self.approximation == "TTICPML":
+        elif self.approximation == "TTI" and self.ABC == "CPML":
             self.solveAcousticTTIWaveEquationCPML()
         else:
-            raise ValueError("ERROR: Unknown approximation. Choose 'acoustic', 'acousticVTI' or 'acousticTTI'.")
+            raise ValueError("ERROR: Unknown approximation. Choose 'acoustic', 'VTI' or 'TTI'. Otherwise, unknown Absorbing Boundary Condition. Choose 'cerjan' or 'CPML'.")
         print(f"info: Wave equation solved")
