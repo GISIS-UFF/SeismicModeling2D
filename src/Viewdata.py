@@ -1,3 +1,4 @@
+import keyword
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -5,9 +6,10 @@ from utils import ricker
 import pandas as pd
 import json
 import os
+from matplotlib.animation import FuncAnimation
 from utils import AnalyticalModel
 
-class Plotting:
+class plotting:
     def __init__(self, parameters_path):
         self.parameters_path = parameters_path
         self.readParameters()
@@ -17,8 +19,9 @@ class Plotting:
         with open(self.parameters_path) as f:
             self.parameters = json.load(f)
         
-         # Approximation type
+        # Approximation type
         self.approximation = self.parameters["approximation"]
+        self.migration = self.parameters["migration"]
         
         # Discretization self.parameters
         self.dx   = self.parameters["dx"]
@@ -31,8 +34,8 @@ class Plotting:
         self.T    = self.parameters["T"]
 
         # Number of point for absorbing boundary condition
-        self.N_abc = np.int32(self.parameters["N_abc"])
-        
+        self.N_abc = self.parameters["N_abc"]
+
         # Number of points in each direction
         self.nx = int(self.L/self.dx)+1
         self.nz = int(self.D/self.dz)+1
@@ -54,14 +57,25 @@ class Plotting:
         self.migratedimageFolder = self.parameters["migratedimageFolder"]
         self.snapshotFolder = self.parameters["snapshotFolder"]
         self.modelFolder = self.parameters["modelFolder"]
+        self.checkpointFolder = self.parameters["checkpointFolder"]
 
         # Source and receiver files
         self.rec_file = self.parameters["rec_file"]
         self.src_file = self.parameters["src_file"]
 
-        # Snapshot flag 
-        self.frame      = self.parameters["frame"]
-        self.shot_frame = self.parameters["shot_frame"] 
+        # Velocity model file
+        self.vpFile = self.parameters["vpFile"]
+        self.vsFile = self.parameters["vsFile"]
+        self.thetaFile = self.parameters["thetaFile"]
+
+        # Snapshot flag
+        self.snap = self.parameters["snap"]
+        self.step = self.parameters["step"]
+        self.last_save = self.parameters["last_save"]
+
+        # Anisotropy parameters files
+        self.epsilonFile = self.parameters["epsilonFile"]  
+        self.deltaFile   = self.parameters["deltaFile"]  
 
         #Anisotropy parameters for Layered model
         self.vpLayer1 = self.parameters["vpLayer1"]
@@ -112,7 +126,7 @@ class Plotting:
         for filename in sorted(os.listdir(self.modelFolder)):
             if keyword in filename and filename.endswith(".bin"):
                 path = os.path.join(self.modelFolder, filename)
-                model = np.fromfile(path, dtype=np.float32).reshape(self.nz,self.nx)
+                model = np.fromfile(path, dtype=np.float32).reshape(self.nx,self.nz).T
                 fig, ax = plt.subplots(figsize=(10, 5))
                 im = ax.imshow(model, aspect='equal', cmap='jet', extent=[0, self.L, self.D, 0])
                 ax.plot(self.rec_x, self.rec_z, 'bv', markersize=2, label='Receivers')
@@ -141,25 +155,89 @@ class Plotting:
                 plt.tight_layout()
                 plt.show()
 
-    def viewSnapshot(self, keyword):
+    def get_shot_frame(self,filename):
+        name = filename.replace(".bin", "")
+        parts = name.split("_")
+
+        shot = None
+        frame = None
+
+        for i, p in enumerate(parts):
+            if p == "shot":
+                shot = int(parts[i + 1])
+            elif p == "frame":
+                frame = int(parts[i + 1])
+
+        return shot, frame
+
+    def viewSnapshot(self, keyword_snap, path_model):
         perc = 1e-8
-        for filename in sorted(os.listdir(self.snapshotFolder)):
-            if keyword in filename and filename.endswith(".bin"):
-                path = os.path.join(self.snapshotFolder, filename)
-                snapshot = np.fromfile(path, dtype=np.float32).reshape(self.nz_abc, self.nx_abc)
-                fig, ax = plt.subplots(figsize=(10, 5))
-                im = ax.imshow(snapshot, aspect='equal', cmap='gray', extent=[0, self.L, self.D, 0],vmin= - perc, vmax = perc)    
 
-                # # Adiciona linha vertical vermelha no traço 
-                # trace = self.L / 2  
-                # ax.axvline(x=trace, color='red', linewidth=1, linestyle='--', alpha=0.8) 
+        model = np.fromfile(path_model, dtype=np.float32).reshape(self.nx, self.nz).T
 
-                # nice colorbar
-                cbar = self.adjustColorBar(fig,ax,im)
-                cbar.set_label("Amplitude")
-                ax.set_xlabel("Distance (m)")
-                ax.set_ylabel("Depth (m)")
-                plt.show()
+        files = []
+        for file in os.listdir(self.snapshotFolder):
+            if file.endswith(".bin") and keyword_snap in file:
+                shot, frame = self.get_shot_frame(file)
+                if shot is not None and frame is not None:
+                    files.append((shot, frame, file))
+
+        # ordena por shot e depois por frame
+        files.sort(key=lambda x: (x[0], x[1]))
+
+        for shot, frame, filename in files:
+            path_snap = os.path.join(self.snapshotFolder, filename)
+
+            snapshot = np.fromfile(path_snap, dtype=np.float32).reshape(self.nz_abc, self.nx_abc)
+
+            fig, ax = plt.subplots(figsize=(10, 5))
+            ax.imshow(model,cmap="jet",aspect="equal",extent=[0, self.L, self.D, 0])
+
+            im = ax.imshow(snapshot,cmap="gray",aspect="equal",extent=[0, self.L, self.D, 0],vmin=-perc,vmax=perc,alpha=0.4)
+            ax.plot(self.rec_x, self.rec_z, 'bv', markersize=2, label='Receivers')
+            ax.plot(self.shot_x, self.shot_z, 'r*', markersize=5, label='Sources')
+            ax.set_title(f"Shot {shot} | Frame {frame}")
+            ax.set_xlabel("Distance (m)")
+            ax.set_ylabel("Depth (m)")
+
+            cbar = self.adjustColorBar(fig, ax, im)
+            cbar.set_label("Amplitude")
+
+            plt.tight_layout()
+            plt.show()
+
+    def movieSnapshot(self, keyword_snap, path_model, interval=200):
+        perc = 1e-8
+
+        snap_files = []
+        for filename in os.listdir(self.snapshotFolder):
+            if filename.endswith(".bin") and keyword_snap in filename:
+                shot, frame = self.get_shot_frame(filename)
+                snap_files.append((shot, frame, filename))
+
+        snap_files.sort(key=lambda x: (x[0], x[1]))
+
+        model = np.fromfile(path_model, dtype=np.float32).reshape(self.nx, self.nz).T
+
+        fig, ax = plt.subplots(figsize=(10, 5))
+        ax.imshow(model, cmap="jet", aspect="equal", extent=[0, self.L, self.D, 0])
+
+        first_file = snap_files[0][2]
+        snap0 = np.fromfile(os.path.join(self.snapshotFolder, first_file),dtype=np.float32).reshape(self.nz_abc, self.nx_abc)
+
+        im = ax.imshow(snap0,cmap="gray",aspect="equal",extent=[0, self.L, self.D, 0],vmin=-perc,vmax=perc,alpha=0.4)
+        ax.set_xlabel("Distance (m)")
+        ax.set_ylabel("Depth (m)")
+
+        def update(i):
+            filename = snap_files[i][2]
+            snapshot = np.fromfile(os.path.join(self.snapshotFolder, filename),dtype=np.float32).reshape(self.nz_abc, self.nx_abc)
+            im.set_data(snapshot)
+            return [im]
+
+        ani = FuncAnimation(fig,update,frames=len(snap_files),interval=interval,blit=True)
+
+        plt.show()
 
     def viewMigratedImage(self,filename,perc=99):
         migrated_image = np.fromfile(filename, dtype=np.float32).reshape(self.nz, self.nx)
