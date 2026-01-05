@@ -22,6 +22,7 @@ class plotting:
         # Approximation type
         self.approximation = self.parameters["approximation"]
         self.migration = self.parameters["migration"]
+        self.ABC = self.parameters["ABC"]
         
         # Discretization self.parameters
         self.dx   = self.parameters["dx"]
