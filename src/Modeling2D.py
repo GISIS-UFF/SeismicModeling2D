@@ -168,10 +168,20 @@ class wavefield:
             if self.migration == "checkpoint":
                 self.save_field   = np.zeros([self.step,self.nz,self.nx],dtype=np.float32)
             if self.migration == "boundaries":
-                self.top = np.zeros([self.nt,self.N_abc,self.nx_abc],dtype = np.float32)
-                self.bot = np.zeros([self.nt,self.N_abc,self.nx_abc],dtype = np.float32)
-                self.left = np.zeros([self.nt,self.nz_abc,self.N_abc],dtype = np.float32)
-                self.right = np.zeros([self.nt,self.nz_abc,self.N_abc],dtype = np.float32)
+                self.N_saving = self.N_abc//4
+                self.top = np.zeros([self.nt,self.N_saving,self.nx_abc],dtype = np.float32)
+                self.bot = np.zeros([self.nt,self.N_saving,self.nx_abc],dtype = np.float32)
+                self.left = np.zeros([self.nt,self.nz_abc,self.N_saving],dtype = np.float32)
+                self.right = np.zeros([self.nt,self.nz_abc,self.N_saving],dtype = np.float32)
+                if self.ABC == "CPML":
+                    self.PsixFR_bnd      = np.zeros([self.nt,self.nz_abc, self.N_saving+4], dtype=np.float32)
+                    self.PsixFL_bnd      = np.zeros([self.nt,self.nz_abc, self.N_saving+4], dtype=np.float32)     
+                    self.PsizFU_bnd      = np.zeros([self.nt,self.N_saving+4, self.nx_abc], dtype=np.float32) 
+                    self.PsizFD_bnd      = np.zeros([self.nt,self.N_saving+4, self.nx_abc], dtype=np.float32)       
+                    self.ZetaxFR_bnd     = np.zeros([self.nt,self.nz_abc, self.N_saving+4], dtype=np.float32)
+                    self.ZetaxFL_bnd     = np.zeros([self.nt,self.nz_abc, self.N_saving+4], dtype=np.float32)
+                    self.ZetazFU_bnd     = np.zeros([self.nt,self.N_saving+4, self.nx_abc], dtype=np.float32)
+                    self.ZetazFD_bnd     = np.zeros([self.nt,self.N_saving+4, self.nx_abc], dtype=np.float32)
             if self.ABC == "CPML":
                 self.PsixFRbck      = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
                 self.PsixFLbck      = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)     
@@ -590,13 +600,10 @@ class wavefield:
 
             for k in range(self.nt):
                 self.current[sz,sx] += self.source[k]
-
                 self.future= updateWaveEquationVTI(self.future, self.current, self.nx_abc, self.nz_abc, self.dt, self.dx, self.dz, self.vp_exp, self.epsilon_exp, self.delta_exp)
-            
                 # Apply absorbing boundary condition
                 self.future = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.future, self.A)
                 self.current = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.current, self.A)
-         
                 #swap
                 self.current, self.future = self.future, self.current
 
@@ -644,7 +651,6 @@ class wavefield:
                 self.PsixFR, self.PsixFL, self.PsizFU, self.PsizFD = updatePsi(self.PsixFR, self.PsixFL,self.PsizFU, self.PsizFD, self.nx_abc, self.nz_abc, self.current, self.dx, self.dz, self.N_abc, self.f_pico, self.d0, self.dt, self.vp_exp)
                 self.ZetaxFR, self.ZetaxFL, self.ZetazFU, self.ZetazFD = updateZeta(self.PsixFR, self.PsixFL, self.ZetaxFR, self.ZetaxFL,self.PsizFU, self.PsizFD, self.ZetazFU, self.ZetazFD, self.nx_abc, self.nz_abc, self.current, self.dx,self.dz, self.N_abc, self.f_pico, self.d0, self.dt, self.vp_exp)
                 self.future = updateWaveEquationVTICPML(self.future, self.current, self.dt, self.dx, self.dz, self.vp_exp, self.epsilon_exp, self.delta_exp,self.nx_abc, self.nz_abc, self.PsixFR, self.PsixFL, self.PsizFU, self.PsizFD, self.ZetaxFR, self.ZetaxFL, self.ZetazFU, self.ZetazFD, self.N_abc)
-
                 #swap
                 self.current, self.future = self.future, self.current
 
@@ -682,13 +688,10 @@ class wavefield:
 
             for k in range(self.nt):
                 self.current[sz,sx] += self.source[k]
-
                 self.future= updateWaveEquationTTI(self.future, self.current, self.nx_abc, self.nz_abc, self.dt, self.dx, self.dz, self.vp_exp, self.epsilon_exp, self.delta_exp, self.theta_exp)
-            
                 # Apply absorbing boundary condition
                 self.future = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.future, self.A)
                 self.current = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.current, self.A)
-            
                 #swap
                 self.current, self.future = self.future, self.current
 
