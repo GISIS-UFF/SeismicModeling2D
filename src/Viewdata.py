@@ -172,7 +172,7 @@ class plotting:
         return shot, frame
 
     def viewSnapshot(self, keyword_snap, path_model):
-        perc = 1e-8
+        perc = 1
 
         model = np.fromfile(path_model, dtype=np.float32).reshape(self.nx, self.nz).T
 
@@ -189,7 +189,7 @@ class plotting:
         for shot, frame, filename in files:
             path_snap = os.path.join(self.snapshotFolder, filename)
 
-            snapshot = np.fromfile(path_snap, dtype=np.float32).reshape(self.nz_abc, self.nx_abc)
+            snapshot = np.fromfile(path_snap, dtype=np.float32).reshape(self.nz, self.nx)
 
             fig, ax = plt.subplots(figsize=(10, 5))
             ax.imshow(model,cmap="jet",aspect="equal",extent=[0, self.L, self.D, 0])
@@ -208,7 +208,7 @@ class plotting:
             plt.show()
 
     def movieSnapshot(self, keyword_snap, path_model, interval=200):
-        perc = 1e-8
+        perc = 1e-1
 
         snap_files = []
         for filename in os.listdir(self.snapshotFolder):
@@ -224,7 +224,7 @@ class plotting:
         ax.imshow(model, cmap="jet", aspect="equal", extent=[0, self.L, self.D, 0])
 
         first_file = snap_files[0][2]
-        snap0 = np.fromfile(os.path.join(self.snapshotFolder, first_file),dtype=np.float32).reshape(self.nz_abc, self.nx_abc)
+        snap0 = np.fromfile(os.path.join(self.snapshotFolder, first_file),dtype=np.float32).reshape(self.nz, self.nx)
 
         im = ax.imshow(snap0,cmap="gray",aspect="equal",extent=[0, self.L, self.D, 0],vmin=-perc,vmax=perc,alpha=0.4)
         ax.set_xlabel("Distance (m)")
@@ -232,7 +232,7 @@ class plotting:
 
         def update(i):
             filename = snap_files[i][2]
-            snapshot = np.fromfile(os.path.join(self.snapshotFolder, filename),dtype=np.float32).reshape(self.nz_abc, self.nx_abc)
+            snapshot = np.fromfile(os.path.join(self.snapshotFolder, filename),dtype=np.float32).reshape(self.nz, self.nx)
             im.set_data(snapshot)
             return [im]
 

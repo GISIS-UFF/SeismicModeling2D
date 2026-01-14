@@ -162,11 +162,16 @@ class wavefield:
             self.ZetaxFL     = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
             self.ZetazFU     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
             self.ZetazFD     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
-
-        if self.migration == "RTM":
+        if self.migration in ["checkpoint", "boundaries"] :
             self.currentbck  = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
             self.futurebck   = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
-            self.savefield   = np.zeros([self.step, self.nz, self.nx], dtype=np.float32)
+            if self.migration == "checkpoint":
+                self.save_field   = np.zeros([self.step,self.nz,self.nx],dtype=np.float32)
+            if self.migration == "boundaries":
+                self.top = np.zeros([self.nt,self.N_abc,self.nx_abc],dtype = np.float32)
+                self.bot = np.zeros([self.nt,self.N_abc,self.nx_abc],dtype = np.float32)
+                self.left = np.zeros([self.nt,self.nz_abc,self.N_abc],dtype = np.float32)
+                self.right = np.zeros([self.nt,self.nz_abc,self.N_abc],dtype = np.float32)
             if self.ABC == "CPML":
                 self.PsixFRbck      = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
                 self.PsixFLbck      = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)     
@@ -441,7 +446,7 @@ class wavefield:
         if k % self.step != 0:
             return
 
-        snapshot = self.current.astype(np.float32, copy=False)
+        snapshot = self.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc].astype(np.float32, copy=False)
 
         snapshotFile = (f"{self.snapshotFolder}{self.approximation}{self.ABC}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin")
         snapshot.tofile(snapshotFile)
@@ -454,7 +459,7 @@ class wavefield:
         print(f"info: Seismogram saved to {self.seismogramFile}")
     
     def save_checkpoint(self, shot, k):
-        if self.migration != "RTM":
+        if self.migration != "checkpoint":
             return
         if k > self.last_save:
             return
@@ -471,8 +476,8 @@ class wavefield:
             save += [self.PsixFR, self.PsixFL, self.PsizFU, self.PsizFD, self.ZetaxFR, self.ZetaxFL, self.ZetazFU, self.ZetazFD]
 
         with open(checkpointFile, "wb") as file:
-            for arr in save:
-                arr.astype(np.float32, copy=False).tofile(file)
+            for field in save:
+                field.astype(np.float32).tofile(file)
 
         print(f"info: Checkpoint saved to {checkpointFile}")
 
@@ -504,15 +509,15 @@ class wavefield:
                 self.future = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.future, self.A)
                 self.current = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.current, self.A)
 
+                #swap
+                self.current, self.future = self.future, self.current
+
                 # Register seismogram
                 self.seismogram[k, :] = self.current[rz, rx]
 
                 self.save_snapshot(shot, k)
                 self.save_checkpoint(shot, k)
-    
-                #swap
-                self.current, self.future = self.future, self.current
-            
+          
             self.save_seismogram(shot)
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
 
@@ -549,14 +554,14 @@ class wavefield:
                 self.PsixFR, self.PsixFL, self.PsizFU, self.PsizFD = updatePsi(self.PsixFR, self.PsixFL,self.PsizFU, self.PsizFD, self.nx_abc, self.nz_abc, self.current, self.dx, self.dz, self.N_abc, self.f_pico, self.d0, self.dt, self.vp_exp)
                 self.ZetaxFR, self.ZetaxFL, self.ZetazFU, self.ZetazFD = updateZeta(self.PsixFR, self.PsixFL, self.ZetaxFR, self.ZetaxFL,self.PsizFU, self.PsizFD, self.ZetazFU, self.ZetazFD, self.nx_abc, self.nz_abc, self.current, self.dx,self.dz, self.N_abc, self.f_pico, self.d0, self.dt, self.vp_exp)
                 self.future = updateWaveEquationCPML(self.future, self.current, self.vp_exp, self.nx_abc, self.nz_abc, self.dz, self.dx, self.dt, self.PsixFR, self.PsixFL, self.PsizFU, self.PsizFD, self.ZetaxFR, self.ZetaxFL, self.ZetazFU, self.ZetazFD, self.N_abc)
-                
+                    
+                #swap
+                self.current, self.future = self.future, self.current
+
                 # Register seismogram
                 self.seismogram[k, :] = self.current[rz, rx]
                 self.save_snapshot(shot, k)
                 self.save_checkpoint(shot, k)
-                    
-                #swap
-                self.current, self.future = self.future, self.current
 
             self.save_seismogram(shot)
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
@@ -591,15 +596,15 @@ class wavefield:
                 # Apply absorbing boundary condition
                 self.future = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.future, self.A)
                 self.current = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.current, self.A)
-            
+         
+                #swap
+                self.current, self.future = self.future, self.current
+
                 # Register seismogram
                 self.seismogram[k, :] = self.current[rz, rx]
 
                 self.save_snapshot(shot, k)
                 self.save_checkpoint(shot, k)
-                    
-                #swap
-                self.current, self.future = self.future, self.current
 
             self.save_seismogram(shot)
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
@@ -639,14 +644,15 @@ class wavefield:
                 self.PsixFR, self.PsixFL, self.PsizFU, self.PsizFD = updatePsi(self.PsixFR, self.PsixFL,self.PsizFU, self.PsizFD, self.nx_abc, self.nz_abc, self.current, self.dx, self.dz, self.N_abc, self.f_pico, self.d0, self.dt, self.vp_exp)
                 self.ZetaxFR, self.ZetaxFL, self.ZetazFU, self.ZetazFD = updateZeta(self.PsixFR, self.PsixFL, self.ZetaxFR, self.ZetaxFL,self.PsizFU, self.PsizFD, self.ZetazFU, self.ZetazFD, self.nx_abc, self.nz_abc, self.current, self.dx,self.dz, self.N_abc, self.f_pico, self.d0, self.dt, self.vp_exp)
                 self.future = updateWaveEquationVTICPML(self.future, self.current, self.dt, self.dx, self.dz, self.vp_exp, self.epsilon_exp, self.delta_exp,self.nx_abc, self.nz_abc, self.PsixFR, self.PsixFL, self.PsizFU, self.PsizFD, self.ZetaxFR, self.ZetaxFL, self.ZetazFU, self.ZetazFD, self.N_abc)
+
+                #swap
+                self.current, self.future = self.future, self.current
+
                 # Register seismogram
                 self.seismogram[k, :] = self.current[rz, rx]
 
                 self.save_snapshot(shot, k)
                 self.save_checkpoint(shot, k)
-
-                #swap
-                self.current, self.future = self.future, self.current
 
             self.save_seismogram(shot)
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
@@ -683,13 +689,13 @@ class wavefield:
                 self.future = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.future, self.A)
                 self.current = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.current, self.A)
             
+                #swap
+                self.current, self.future = self.future, self.current
+
                 # Register seismogram
                 self.seismogram[k, :] = self.current[rz, rx]
                 self.save_snapshot(shot, k)
                 self.save_checkpoint(shot, k)
-                
-                #swap
-                self.current, self.future = self.future, self.current
 
             self.save_seismogram(shot)
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
@@ -742,14 +748,14 @@ class wavefield:
                 self.PsixF, self.PsizF = updatePsiTTI(self.PsixF, self.PsizF, self.nx_abc, self.nz_abc,self.N_abc,self.vp_exp,self.f_pico,self.d0, self.current, self.dz, self.dx,self.dt)
                 self.ZetaxF, self.ZetazF, self.ZetaxzF, self.ZetazxF = updateZetaTTI(self.PsixF, self.PsizF, self.ZetaxF, self.ZetazF, self.ZetaxzF, self.ZetazxF, self.nx_abc, self.nz_abc,self.N_abc,self.vp_exp,self.f_pico,self.d0,self.dt, self.current, self.dz, self.dx)
                 self.future = updateWaveEquationTTICPML(self.future, self.current, self.dt, self.dx, self.dz, self.vp_exp, self.epsilon_exp, self.delta_exp,self.theta_exp,self.nx_abc, self.nz_abc,self.PsixF,self.PsizF, self.ZetaxF, self.ZetazF, self.ZetaxzF,self.ZetazxF)
-            
+             
+                #swap
+                self.current, self.future = self.future, self.current
+
                 # Register seismogram
                 self.seismogram[k, :] = self.current[rz, rx]
                 self.save_snapshot(shot, k)
                 self.save_checkpoint(shot, k)
-                
-                #swap
-                self.current, self.future = self.future, self.current
 
             self.save_seismogram(shot)
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
@@ -799,14 +805,14 @@ class wavefield:
     #             self.ZetaxFR, self.ZetaxFL, self.ZetazFU, self.ZetazFD = updateZeta(self.PsixFR, self.PsixFL, self.ZetaxFR, self.ZetaxFL,self.PsizFU, self.PsizFD, self.ZetazFU, self.ZetazFD, self.nx_abc, self.nz_abc, self.current, self.dx,self.dz, self.N_abc,self.ax,self.bx,self.az,self.bz, self.f_pico, self.d0, self.dt, self.vp_exp)
     #             self.ZetaxzFL, self.ZetaxzFR, self.ZetazxFU, self.ZetazxFD = updateZetaTTI(self.PsixFL, self.PsixFR, self.PsizFU, self.PsizFD, self.ZetaxzFL, self.ZetaxzFR, self.ZetazxFU, self.ZetazxFD, self.nx_abc, self.nz_abc, self.ax, self.bx, self.az, self.bz, self.current, self.dx, self.dz, self.N_abc)
     #             self.future = updateWaveEquationTTICPML(self.future, self.current, self.dt, self.dx, self.dz, self.vp_exp, self.epsilon_exp, self.delta_exp,self.theta_exp,self.nx_abc, self.nz_abc, self.PsixFR, self.PsixFL,self.PsizFU,self.PsizFD, self.ZetaxFR, self.ZetaxFL,self.ZetazFU, self.ZetazFD, self.ZetaxzFL,self.ZetaxzFR,self.ZetazxFU,self.ZetazxFD, self.N_abc)
-            
-    #             # Register seismogram
-    #             self.seismogram[k, :] = self.current[rz, rx]
-    #             self.save_snapshot(shot, k)
-    #             self.save_checkpoint(shot, k)
                 
     #             #swap
     #             self.current, self.future = self.future, self.current
+
+        #         # Register seismogram
+    #             self.seismogram[k, :] = self.current[rz, rx]
+    #             self.save_snapshot(shot, k)
+    #             self.save_checkpoint(shot, k)
 
             # self.save_seismogram(shot)
     #         print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
@@ -861,14 +867,14 @@ class wavefield:
     #             self.PsixF, self.PsixqF, self.PsizF, self.PsizqF = updatePsiTTI(self.PsixF, self.PsixqF,self.PsizF, self.PsizqF, self.nx_abc, self.nz_abc, self.az, self.ax, self.bz, self.bx, self.current, self.Qc, self.dz, self.dx)
     #             self.ZetaxF, self.ZetazF, self.ZetaxzF, self.ZetaxqF, self.ZetazqF, self.ZetaxzqF = updateZetaTTI(self.PsixF, self.PsizF,self.PsizqF,self.PsixqF, self.ZetaxF, self.ZetazF, self.ZetaxzF, self.ZetaxqF, self.ZetazqF, self.ZetaxzqF, self.nx_abc, self.nz_abc, self.az, self.ax, self.bz, self.bx, self.current, self.Qc, self.dz, self.dx)
     #             self.future,self.Qf = updateWaveEquationTTICPML(self.future, self.current, self.Qc, self.Qf, self.nx_abc, self.nz_abc, self.dt, self.dx, self.dz, self.vp_exp, self.vs_exp, self.epsilon_exp, self.delta_exp, self.theta_exp, self.PsixF,self.PsizF,self.PsixqF,self.PsizqF,self.ZetaxF,self.ZetazF,self.ZetaxzF,self.ZetaxqF,self.ZetazqF,self.ZetaxzqF)
-            
+                
+    #             #swap
+    #             self.current, self.future, self.Qc, self.Qf = self.future, self.current, self.Qf, self.Qc
+
     #             # Register seismogram
     #             self.seismogram[k, :] = self.current[rz, rx]
     #             self.save_snapshot(shot, k)
     #             self.save_checkpoint(shot, k)
-                
-    #             #swap
-    #             self.current, self.future, self.Qc, self.Qf = self.future, self.current, self.Qf, self.Qc
 
             # self.save_seismogram(shot)
     #         print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
