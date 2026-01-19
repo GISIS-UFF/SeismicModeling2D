@@ -162,7 +162,7 @@ class wavefield:
             self.ZetaxFL     = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
             self.ZetazFU     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
             self.ZetazFD     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
-        if self.migration in ["checkpoint", "boundaries"] :
+        if self.migration in ["checkpoint", "boundaries", "RBC"] :
             self.currentbck  = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
             self.futurebck   = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
             if self.migration == "checkpoint":
