@@ -162,26 +162,9 @@ class wavefield:
             self.ZetaxFL     = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
             self.ZetazFU     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
             self.ZetazFD     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
-        if self.migration in ["checkpoint", "boundaries", "RBC"] :
+        if self.migration in ["checkpoint", "SB", "RBC", "onthefly"] :
             self.currentbck  = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
             self.futurebck   = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
-            if self.migration == "checkpoint":
-                self.save_field   = np.zeros([self.step,self.nz,self.nx],dtype=np.float32)
-            if self.migration == "boundaries":
-                self.N_saving = self.N_abc//4
-                self.top = np.zeros([self.nt,self.N_saving,self.nx_abc],dtype = np.float32)
-                self.bot = np.zeros([self.nt,self.N_saving,self.nx_abc],dtype = np.float32)
-                self.left = np.zeros([self.nt,self.nz_abc,self.N_saving],dtype = np.float32)
-                self.right = np.zeros([self.nt,self.nz_abc,self.N_saving],dtype = np.float32)
-                if self.ABC == "CPML":
-                    self.PsixFR_bnd      = np.zeros([self.nt,self.nz_abc, self.N_saving+4], dtype=np.float32)
-                    self.PsixFL_bnd      = np.zeros([self.nt,self.nz_abc, self.N_saving+4], dtype=np.float32)     
-                    self.PsizFU_bnd      = np.zeros([self.nt,self.N_saving+4, self.nx_abc], dtype=np.float32) 
-                    self.PsizFD_bnd      = np.zeros([self.nt,self.N_saving+4, self.nx_abc], dtype=np.float32)       
-                    self.ZetaxFR_bnd     = np.zeros([self.nt,self.nz_abc, self.N_saving+4], dtype=np.float32)
-                    self.ZetaxFL_bnd     = np.zeros([self.nt,self.nz_abc, self.N_saving+4], dtype=np.float32)
-                    self.ZetazFU_bnd     = np.zeros([self.nt,self.N_saving+4, self.nx_abc], dtype=np.float32)
-                    self.ZetazFD_bnd     = np.zeros([self.nt,self.N_saving+4, self.nx_abc], dtype=np.float32)
             if self.ABC == "CPML":
                 self.PsixFRbck      = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
                 self.PsixFLbck      = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)     
@@ -192,9 +175,24 @@ class wavefield:
                 self.ZetazFUbck     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
                 self.ZetazFDbck     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
         
+            if self.migration == "checkpoint":
+                self.save_field   = np.zeros([self.step,self.nz,self.nx],dtype=np.float32)
+            if self.migration == "SB":
+                self.top   = np.zeros((self.nt, 4, self.nx), dtype=np.float32)
+                self.bot   = np.zeros((self.nt, 4, self.nx), dtype=np.float32)
+                self.left  = np.zeros((self.nt, self.nz, 4), dtype=np.float32)
+                self.right = np.zeros((self.nt, self.nz, 4), dtype=np.float32)
+                if self.ABC == "CPML":
+                    self.PsixFR_bnd      = np.zeros([self.nt,self.nz_abc, self.N_saving+4], dtype=np.float32)
+                    self.PsixFL_bnd      = np.zeros([self.nt,self.nz_abc, self.N_saving+4], dtype=np.float32)     
+                    self.PsizFU_bnd      = np.zeros([self.nt,self.N_saving+4, self.nx_abc], dtype=np.float32) 
+                    self.PsizFD_bnd      = np.zeros([self.nt,self.N_saving+4, self.nx_abc], dtype=np.float32)       
+                    self.ZetaxFR_bnd     = np.zeros([self.nt,self.nz_abc, self.N_saving+4], dtype=np.float32)
+                    self.ZetaxFL_bnd     = np.zeros([self.nt,self.nz_abc, self.N_saving+4], dtype=np.float32)
+                    self.ZetazFU_bnd     = np.zeros([self.nt,self.N_saving+4, self.nx_abc], dtype=np.float32)
+                    self.ZetazFD_bnd     = np.zeros([self.nt,self.N_saving+4, self.nx_abc], dtype=np.float32)
 
         print(f"info: Wavefields initialized: {self.nx}x{self.nz}x{self.nt}")
-
         #create or import velocity model
         if (self.vpFile==None):
             self.vpFile = "VpModel"
@@ -203,19 +201,9 @@ class wavefield:
             self.vp = self.ImportModel(self.vpFile)
         
         if self.approximation in ["VTI", "TTI"]:
-            # Initialize velocity model and wavefields
-            self.Qc = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
-            self.Qf = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
             # Initialize epsilon and delta models
             self.epsilon = np.zeros([self.nz,self.nx],dtype=np.float32)
             self.delta = np.zeros([self.nz,self.nx],dtype=np.float32)
-
-            if self.approximation  == "TTI" and self.ABC == "CPML":
-                # Initialize absorbing layers
-                self.PsizqFU     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
-                self.PsizqFD     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
-                self.ZetazqFU    = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
-                self.ZetazqFD    = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
 
             #import epsilon and delta model
             if (self.epsilonFile == None):
@@ -235,7 +223,29 @@ class wavefield:
             self.vs = np.zeros([self.nz,self.nx], dtype=np.float32)
             self.theta = np.zeros([self.nz,self.nx],dtype=np.float32)
 
+            #import vs and theta models
+            if (self.vsFile == None):
+                self.vsFile = "VsModel"
+                self.createLayeredVsModel()
+            else: 
+                self.vs = self.ImportModel(self.vsFile)
+
+            if (self.thetaFile == None):
+                self.thetaFile = "ThetaModel"
+                self.createLayeredThetaModel(np.radians(self.thetaLayer1), np.radians(self.thetaLayer2))
+            else:
+                self.theta = self.ImportModel(self.thetaFile)
+                self.theta = np.radians(self.theta)
+        
             if self.approximation == "TTI" and self.ABC == "CPML":
+                # Initialize velocity model and wavefields
+                self.Qc = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
+                self.Qf = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
+                # Initialize absorbing layers
+                self.PsizqFU     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
+                self.PsizqFD     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
+                self.ZetazqFU    = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
+                self.ZetazqFD    = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
                 # Initialize absorbing layers
                 # self.PsixqFR     = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
                 # self.PsixqFL     = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
@@ -280,20 +290,6 @@ class wavefield:
                 # self.ZetazxFU   = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
                 # self.ZetazxFD   = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
 
-            #import vs and theta models
-            if (self.vsFile == None):
-                self.vsFile = "VsModel"
-                self.createLayeredVsModel()
-            else: 
-                self.vs = self.ImportModel(self.vsFile)
-
-            if (self.thetaFile == None):
-                self.thetaFile = "ThetaModel"
-                self.createLayeredThetaModel(np.radians(self.thetaLayer1), np.radians(self.thetaLayer2))
-            else:
-                self.theta = self.ImportModel(self.thetaFile)
-                self.theta = np.radians(self.theta)
-        
     def createLayeredVpModel(self,v1, v2):
         self.vp[0:self.nz//2, :] = v1
         self.vp[self.nz//2:self.nz, :] = v2
@@ -377,7 +373,7 @@ class wavefield:
         R_ref = 1e-3
         R = R_ref ** (self.N_abc/borda_ref)
 
-        if self.N_abc >= 150:
+        if self.N_abc >= 200:
             R = R_ref ** (150/borda_ref)
 
         return R
@@ -440,10 +436,10 @@ class wavefield:
                 print("WARNING: Dispersion or stability conditions not satisfied.")
     
     def createCerjanVector(self):
-        sb = 3 * self.N_abc
+        sb = 3. * self.N_abc
         A = np.ones(self.N_abc)
         for i in range(self.N_abc):
-                fb = (self.N_abc - i) / (np.sqrt(2) * sb)
+                fb = (self.N_abc - i) / (np.sqrt(2.) * sb)
                 A[i] = np.exp(-fb * fb)
                 
         return A 
@@ -456,14 +452,13 @@ class wavefield:
         if k % self.step != 0:
             return
 
-        snapshot = self.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc].astype(np.float32, copy=False)
+        snapshot = self.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc]
 
         snapshotFile = (f"{self.snapshotFolder}{self.approximation}{self.ABC}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin")
         snapshot.tofile(snapshotFile)
         print(f"info: Snapshot saved to {snapshotFile}")
     
     def save_seismogram(self,shot):        
-
         self.seismogramFile = f"{self.seismogramFolder}{self.approximation}{self.ABC}_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
         self.seismogram.tofile(self.seismogramFile)
         print(f"info: Seismogram saved to {self.seismogramFile}")

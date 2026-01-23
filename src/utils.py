@@ -1172,7 +1172,7 @@ def AbsorbingBoundary(N_abc, nz_abc, nx_abc, f, A):
     for j in prange(N_abc):
         for i in prange(nx_abc):
             f[nz_abc - j - 1, i] *= A[j]
-
+            
     return f
 
 @jit(nopython=True,parallel=True)

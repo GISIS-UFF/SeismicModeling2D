@@ -172,7 +172,7 @@ class plotting:
         return shot, frame
 
     def viewSnapshot(self, keyword_snap, path_model):
-        perc = 1
+        perc = 1e-8
 
         model = np.fromfile(path_model, dtype=np.float32).reshape(self.nx, self.nz).T
 
@@ -207,8 +207,8 @@ class plotting:
             plt.tight_layout()
             plt.show()
 
-    def movieSnapshot(self, keyword_snap, path_model, interval=200):
-        perc = 1e-1
+    def movieSnapshot(self, keyword_snap, path_model, interval=200, savegif = False):
+        perc = 1e-8
 
         snap_files = []
         for filename in os.listdir(self.snapshotFolder):
@@ -237,6 +237,10 @@ class plotting:
             return [im]
 
         ani = FuncAnimation(fig,update,frames=len(snap_files),interval=interval,blit=True)
+
+        if savegif == True:
+            gif_path = os.path.join(self.snapshotFolder, "snapshots.gif")
+            ani.save(gif_path, writer="pillow", fps=1000/interval)
 
         plt.show()
 
