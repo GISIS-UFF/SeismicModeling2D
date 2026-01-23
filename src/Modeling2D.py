@@ -174,9 +174,6 @@ class wavefield:
                 self.ZetaxFLbck     = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
                 self.ZetazFUbck     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
                 self.ZetazFDbck     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
-        
-            if self.migration == "checkpoint":
-                self.save_field   = np.zeros([self.step,self.nz,self.nx],dtype=np.float32)
             if self.migration == "SB":
                 self.top   = np.zeros((self.nt, 4, self.nx), dtype=np.float32)
                 self.bot   = np.zeros((self.nt, 4, self.nx), dtype=np.float32)
@@ -462,29 +459,6 @@ class wavefield:
         self.seismogramFile = f"{self.seismogramFolder}{self.approximation}{self.ABC}_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
         self.seismogram.tofile(self.seismogramFile)
         print(f"info: Seismogram saved to {self.seismogramFile}")
-    
-    def save_checkpoint(self, shot, k):
-        if self.migration != "checkpoint":
-            return
-        if k > self.last_save:
-            return
-        if k % self.step != 0:
-            return
-
-        if self.approximation == "TTI" and self.ABC == "CPML":
-            raise ValueError("Checkpoint saving for TTI CPML not implemented yet.")
-        
-        checkpointFile = (f"{self.checkpointFolder}{self.approximation}{self.ABC}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin")
-
-        save = [self.current, self.future]
-        if self.ABC == "CPML":
-            save += [self.PsixFR, self.PsixFL, self.PsizFU, self.PsizFD, self.ZetaxFR, self.ZetaxFL, self.ZetazFU, self.ZetazFD]
-
-        with open(checkpointFile, "wb") as file:
-            for field in save:
-                field.astype(np.float32).tofile(file)
-
-        print(f"info: Checkpoint saved to {checkpointFile}")
 
     def solveAcousticWaveEquation(self):
         start_time = time.time()
@@ -518,8 +492,7 @@ class wavefield:
                 self.seismogram[k, :] = self.current[rz, rx]
 
                 self.save_snapshot(shot, k)
-                self.save_checkpoint(shot, k)
-
+                
                 #swap
                 self.current, self.future = self.future, self.current
           
@@ -564,7 +537,6 @@ class wavefield:
                 # Register seismogram
                 self.seismogram[k, :] = self.current[rz, rx]
                 self.save_snapshot(shot, k)
-                self.save_checkpoint(shot, k)
 
                 #swap
                 self.current, self.future = self.future, self.current
@@ -605,8 +577,7 @@ class wavefield:
                 self.seismogram[k, :] = self.current[rz, rx]
 
                 self.save_snapshot(shot, k)
-                self.save_checkpoint(shot, k)
-
+                
                 #swap
                 self.current, self.future = self.future, self.current
             self.save_seismogram(shot)
@@ -653,8 +624,7 @@ class wavefield:
                 self.seismogram[k, :] = self.current[rz, rx]
 
                 self.save_snapshot(shot, k)
-                self.save_checkpoint(shot, k)
-
+                
                 #swap
                 self.current, self.future = self.future, self.current
 
@@ -694,8 +664,7 @@ class wavefield:
                 # Register seismogram
                 self.seismogram[k, :] = self.current[rz, rx]
                 self.save_snapshot(shot, k)
-                self.save_checkpoint(shot, k)
-
+                
                 #swap
                 self.current, self.future = self.future, self.current
 
@@ -756,8 +725,7 @@ class wavefield:
                 # Register seismogram
                 self.seismogram[k, :] = self.current[rz, rx]
                 self.save_snapshot(shot, k)
-                self.save_checkpoint(shot, k)
-
+                
                 #swap
                 self.current, self.future = self.future, self.current
 
@@ -813,8 +781,7 @@ class wavefield:
         #         Register seismogram
     #             self.seismogram[k, :] = self.current[rz, rx]
     #             self.save_snapshot(shot, k)
-    #             self.save_checkpoint(shot, k)
-
+    #             
     #             #swap
     #             self.current, self.future = self.future, self.current
 
@@ -875,7 +842,7 @@ class wavefield:
         #       # Register seismogram
     #             self.seismogram[k, :] = self.current[rz, rx]
     #             self.save_snapshot(shot, k)
-    #             self.save_checkpoint(shot, k)
+    #             
     #             #swap
     #             self.current, self.future, self.Qc, self.Qf = self.future, self.current, self.Qf, self.Qc
 

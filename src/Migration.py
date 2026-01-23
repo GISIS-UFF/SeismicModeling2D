@@ -217,7 +217,7 @@ class migration:
 
         return last_t
                    
-    def load_state(self, shot, k):
+    def load_checkpoint(self, shot, k):
         checkpointFile = (f"{self.checkpointFolder}{self.approximation}{self.ABC}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin")
         with open(checkpointFile, "rb") as file:
             count = self.nx_abc * self.nz_abc
@@ -237,17 +237,27 @@ class migration:
                 self.wf.ZetaxFL = np.fromfile(file, np.float32, count_x).reshape(self.nz_abc, self.N_abc+4)
                 self.wf.ZetazFU = np.fromfile(file, np.float32, count_z).reshape(self.N_abc+4, self.nx_abc)
                 self.wf.ZetazFD = np.fromfile(file, np.float32, count_z).reshape(self.N_abc+4, self.nx_abc)
- 
-    def save_state(self, shot, k):
-        checkpointFile = (f"{self.checkpointFolder}{self.approximation}{self.ABC}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin")
+    
+    def save_checkpoint(self, shot, k):
+        if self.migration != "checkpoint":
+            return
+        if k > self.last_save:
+            return
+        if k % self.step != 0:
+            return
+
+        if self.approximation == "TTI" and self.ABC == "CPML":
+            raise ValueError("Checkpoint saving for TTI CPML not implemented yet.")
         
+        checkpointFile = (f"{self.checkpointFolder}{self.approximation}{self.ABC}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin")
+
         save = [self.wf.current, self.wf.future]
         if self.ABC == "CPML":
-            save += [self.wf.PsixFR, self.wf.PsixFL, self.wf.PsizFU, self.wf.PsizFD, self.wf.ZetaxFR, self.wf.ZetaxFL, self.wf.ZetazFU, self.wf.ZetazFD]
+            save += [self.wf.PsixFR, self.wf.PsixFL, self.wf.wf.PsizFU, self.wf.PsizFD, self.wf.ZetaxFR, self.wf.ZetaxFL, self.wf.ZetazFU, self.wf.ZetazFD]
 
         with open(checkpointFile, "wb") as file:
             for field in save:
-                field.astype(np.float32, copy=False).tofile(file)
+                field.astype(np.float32).tofile(file)
 
         print(f"info: Checkpoint saved to {checkpointFile}")
     
@@ -619,28 +629,30 @@ class migration:
 
             self.migrated_partial = np.zeros_like(self.wf.migrated_image)
             self.build_ckpts_steps()
+            for k in range(self.nt):
+                self.forward_step(k)
+                self.save_checkpoint(shot, k)
+                # if k == 1200:
+                #     plt.figure()
+                #     plt.imshow(self.wf.current)
+                #     plt.show()
+                #     snapshot = self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc]
+                #     snapshotFile = (f"{self.snapshotFolder}{self.approximation}{self.ABC}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}CHECKPOINT.bin")
+                #     snapshot.tofile(snapshotFile)
+                #swap
+                self.wf.current, self.wf.future = self.wf.future, self.wf.current
             for (t0,t1) in reversed(self.ckpts_steps):
-                self.load_state(shot,t0)
-                for k in range(t0,t1):
-                    self.forward_step(k)
-                    self.wf.save_field[k - t0,:,:] = self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc]
-                    if k == 1200:
-                        plt.figure()
-                        plt.imshow(self.wf.current)
-                        plt.show()
-                        snapshot = self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc]
-                        snapshotFile = (f"{self.snapshotFolder}{self.approximation}{self.ABC}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}CHECKPOINT.bin")
-                        snapshot.tofile(snapshotFile)
+                self.load_checkpoint(shot,t1)
+                for t in range(t1 - 1, t0 - 1, -1):
+                    self.reconstructed_step(t)
+                    self.backward_step(t)
+                    # if t == 1200:
+                    #     plt.figure()
+                    #     plt.imshow(self.wf.currentbck)
+                    #     plt.show()
+                    self.migrated_partial += (self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc] * self.wf.currentbck[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc])
                     #swap
                     self.wf.current, self.wf.future = self.wf.future, self.wf.current
-                for t in range(t1 - 1, t0 - 1, -1):
-                    self.backward_step(t)
-                    if t == 1200:
-                        plt.figure()
-                        plt.imshow(self.wf.currentbck)
-                        plt.show()
-                    self.migrated_partial += (self.wf.save_field[t-t0,:,:] * self.wf.currentbck[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc])/(np.sqrt(self.wf.save_field[t-t0,:,:]**2) + 1e-8)
-                    #swap
                     self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
             self.wf.migrated_image += self.migrated_partial
             print(f"info: Shot {shot+1} backward done.")
@@ -685,12 +697,12 @@ class migration:
                 self.load_state(shot,t0)
                 for k in range(t0,t1):
                     self.forward_step(k)
-                    self.wf.save_field[k - t0,:,:] = self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc]
+                    self.save_checkpoint(shot, k)
                     #swap
                     self.wf.current, self.wf.future = self.wf.future, self.wf.current
                 for t in range(t1 - 1, t0 - 1, -1):
                     self.backward_step(t)
-                    self.migrated_partial += (self.wf.save_field[t-t0,:,:] * self.wf.currentbck[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc])
+                    self.migrated_partial += (self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc] * self.wf.currentbck[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc])
                     #swap
                     self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
             self.wf.migrated_image += self.migrated_partial
