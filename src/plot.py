@@ -10,20 +10,50 @@ plt = plotting("../inputs/Parameters.json")
 plt.viewMigratedImage("../outputs/migrated_image/migrated_image_acoustic_Nx301_Nz101.bin",perc=99)
 # plt.viewSnapshotAnalyticalComparison(1,"../outputs/snapshots/TTI_CPML_shot_1_Nx501_Nz201_Nt6000_frame_1000.bin")
 
-# import matplotlib.pyplot as plt
-# import numpy as np
+import matplotlib.pyplot as plt
+import numpy as np
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-# nx = 301
-# nz = 101
+def adjustColorBar(fig,ax,im):
+    # Create a divider for the existing axes instance
+    divider = make_axes_locatable(ax)
+    # Append an axes to the right of the current axes, with the same height
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    cbar = fig.colorbar(im,cax=cax)
+    return cbar
+
+nx = 301
+nz = 101
 
 # snaponthefly = np.fromfile("../outputs/snapshots/acousticcerjan_shot_1_Nx301_Nz101_Nt4001_frame_1200ONTHEFLY.bin", dtype=np.float32).reshape(nz, nx)
-# snap = np.fromfile("../outputs/snapshots/acousticcerjan_shot_1_Nx301_Nz101_Nt4001_frame_1200.bin", dtype=np.float32).reshape(nz, nx)
+snap = np.fromfile("../outputs/snapshots/acousticcerjan_shot_1_Nx301_Nz101_Nt4001_frame_1200FORWARD.bin", dtype=np.float32).reshape(nz, nx)
 # snapcheck = np.fromfile("../outputs/snapshots/acousticcerjan_shot_1_Nx301_Nz101_Nt4001_frame_1200CHECKPOINT.bin", dtype=np.float32).reshape(nz, nx)
+snapSB = np.fromfile("../outputs/snapshots/acousticcerjan_shot_1_Nx301_Nz101_Nt4001_frame_1200SB.bin", dtype=np.float32).reshape(nz, nx)
 
-# diff = snap - snapcheck
-# plt.figure()
-# plt.plot(snap[:, nx//2], label = "foward")
-# plt.plot(snapcheck[:, nx//2], label = "reconstruido")
-# plt.plot(diff[:, nx//2], label = "diff")
-# plt.legend()
-# plt.show()
+diff = snap - snapSB
+
+plt.figure()
+plt.plot(snap[:, nx//2], label="forward")
+plt.plot(snapSB[:, nx//2], label="reconstruído")
+plt.plot(diff[:, nx//2], label="diff")
+plt.legend()
+
+fig, ax = plt.subplots()
+im = ax.imshow(snap)
+cbar = adjustColorBar(fig, ax, im)
+cbar.set_label("Amplitude")
+ax.set_title("Forward")
+
+fig, ax = plt.subplots()
+im = ax.imshow(snapSB)
+cbar = adjustColorBar(fig, ax, im)
+cbar.set_label("Amplitude")
+ax.set_title("Reconstruído")
+
+fig, ax = plt.subplots()
+im = ax.imshow(diff)
+cbar = adjustColorBar(fig, ax, im)
+cbar.set_label("Amplitude")
+ax.set_title("Diferença")
+
+plt.show()

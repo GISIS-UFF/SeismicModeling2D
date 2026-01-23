@@ -253,93 +253,79 @@ class migration:
     
     def forward_step(self,k):
         if self.approximation == "acoustic" and self.ABC == "cerjan":
-            self.wf.current[self.sz,self.sx] += self.wf.source[k]
             self.wf.future = updateWaveEquation(self.wf.future, self.wf.current, self.vp_exp, self.nz_abc, self.nx_abc, self.dz, self.dx, self.dt)
+            self.wf.future[self.sz,self.sx] += self.wf.source[k]
             # Apply absorbing boundary condition
             self.wf.future = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.wf.future, self.A)
             self.wf.current = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.wf.current, self.A)
-            #swap
-            self.wf.current, self.wf.future = self.wf.future, self.wf.current
+
 
         elif self.approximation == "acoustic" and self.ABC == "CPML":
-            self.wf.current[self.sz,self.sx] += self.wf.source[k]
             self.wf.PsixFR, self.wf.PsixFL, self.wf.PsizFU, self.wf.PsizFD = updatePsi(self.wf.PsixFR, self.wf.PsixFL,self.wf.PsizFU, self.wf.PsizFD, self.nx_abc, self.nz_abc, self.wf.current, self.dx, self.dz, self.N_abc, self.f_pico, self.d0, self.dt, self.vp_exp)
             self.wf.ZetaxFR, self.wf.ZetaxFL, self.wf.ZetazFU, self.wf.ZetazFD = updateZeta(self.wf.PsixFR, self.wf.PsixFL, self.wf.ZetaxFR, self.wf.ZetaxFL,self.wf.PsizFU, self.wf.PsizFD, self.wf.ZetazFU, self.wf.ZetazFD, self.nx_abc, self.nz_abc, self.wf.current, self.dx,self.dz, self.N_abc, self.f_pico, self.d0, self.dt, self.vp_exp)
             self.wf.future = updateWaveEquationCPML(self.wf.future, self.wf.current, self.vp_exp, self.nx_abc, self.nz_abc, self.dz, self.dx, self.dt, self.wf.PsixFR, self.wf.PsixFL, self.wf.PsizFU, self.wf.PsizFD, self.wf.ZetaxFR, self.wf.ZetaxFL, self.wf.ZetazFU, self.wf.ZetazFD, self.N_abc)             
-            #swap
-            self.wf.current, self.wf.future = self.wf.future, self.wf.current 
+            self.wf.future[self.sz,self.sx] += self.wf.source[k]
 
         elif self.approximation == "VTI" and self.ABC == "cerjan":
-            self.wf.current[self.sz,self.sx] += self.wf.source[k]
             self.wf.future= updateWaveEquationVTI(self.wf.future, self.wf.current, self.nx_abc, self.nz_abc, self.dt, self.dx, self.dz, self.vp_exp, self.epsilon_exp, self.delta_exp)
+            self.wf.future[self.sz,self.sx] += self.wf.source[k]
             # Apply absorbing boundary condition
             self.wf.future = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.wf.future, self.A)
             self.wf.current = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.wf.current, self.A)
-            #swap
-            self.wf.current, self.wf.future = self.wf.future, self.wf.current
 
         elif self.approximation == "VTI" and self.ABC == "CPML":
-            self.wf.current[self.sz,self.sx] += self.wf.source[k]
             self.wf.PsixFR, self.wf.PsixFL, self.wf.PsizFU, self.wf.PsizFD = updatePsi(self.wf.PsixFR, self.wf.PsixFL,self.wf.PsizFU, self.wf.PsizFD, self.nx_abc, self.nz_abc, self.wf.current, self.dx, self.dz, self.N_abc, self.f_pico, self.d0, self.dt, self.vp_exp)
             self.wf.ZetaxFR, self.wf.ZetaxFL, self.wf.ZetazFU, self.wf.ZetazFD = updateZeta(self.wf.PsixFR, self.wf.PsixFL, self.wf.ZetaxFR, self.wf.ZetaxFL,self.wf.PsizFU, self.wf.PsizFD, self.wf.ZetazFU, self.wf.ZetazFD, self.nx_abc, self.nz_abc, self.wf.current, self.dx,self.dz, self.N_abc, self.f_pico, self.d0, self.dt, self.vp_exp)
             self.wf.future = updateWaveEquationVTICPML(self.wf.future, self.wf.current, self.dt, self.dx, self.dz, self.vp_exp, self.epsilon_exp, self.delta_exp,self.nx_abc, self.nz_abc, self.wf.PsixFR, self.wf.PsixFL, self.wf.PsizFU, self.wf.PsizFD, self.wf.ZetaxFR, self.wf.ZetaxFL, self.wf.ZetazFU, self.wf.ZetazFD, self.N_abc)
-            #swap
-            self.wf.current, self.wf.future = self.wf.future, self.wf.current
+            self.wf.future[self.sz,self.sx] += self.wf.source[k]
 
         elif self.approximation == "TTI" and self.ABC == "cerjan":
-            self.wf.current[self.sz,self.sx] += self.wf.source[k]
             self.wf.future= updateWaveEquationTTI(self.wf.future, self.wf.current, self.nx_abc, self.nz_abc, self.dt, self.dx, self.dz, self.vp_exp, self.epsilon_exp, self.delta_exp, self.theta_exp)
+            self.wf.future[self.sz,self.sx] += self.wf.source[k]
             # Apply absorbing boundary condition
             self.wf.future = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.wf.future, self.A)
             self.wf.current = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.wf.current, self.A)
-            #swap
-            self.wf.current, self.wf.future = self.wf.future, self.wf.current
-    
-    def reconstructed_step(self):
+
+    def reconstructed_step(self,t):
         if self.approximation == "acoustic" and self.ABC == "cerjan":
+            self.wf.future[self.sz, self.sx] -= self.wf.source[t]
             self.wf.future = updateWaveEquation(self.wf.future, self.wf.current, self.vp_exp, self.nz_abc, self.nx_abc, self.dz, self.dx, self.dt)
             # Apply absorbing boundary condition
             self.wf.future = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.wf.future, self.A)
             self.wf.current = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.wf.current, self.A)
-            #swap
-            self.wf.current, self.wf.future = self.wf.future, self.wf.current
 
         elif self.approximation == "acoustic" and self.ABC == "CPML":
+            self.wf.future[self.sz, self.sx] -= self.wf.source[t]
             self.wf.PsixFR, self.wf.PsixFL, self.wf.PsizFU, self.wf.PsizFD = updatePsi(self.wf.PsixFR, self.wf.PsixFL,self.wf.PsizFU, self.wf.PsizFD, self.nx_abc, self.nz_abc, self.wf.current, self.dx, self.dz, self.N_abc, self.f_pico, self.d0, self.dt, self.vp_exp)
             self.wf.ZetaxFR, self.wf.ZetaxFL, self.wf.ZetazFU, self.wf.ZetazFD = updateZeta(self.wf.PsixFR, self.wf.PsixFL, self.wf.ZetaxFR, self.wf.ZetaxFL,self.wf.PsizFU, self.wf.PsizFD, self.wf.ZetazFU, self.wf.ZetazFD, self.nx_abc, self.nz_abc, self.wf.current, self.dx,self.dz, self.N_abc, self.f_pico, self.d0, self.dt, self.vp_exp)
             self.wf.future = updateWaveEquationCPML(self.wf.future, self.wf.current, self.vp_exp, self.nx_abc, self.nz_abc, self.dz, self.dx, self.dt, self.wf.PsixFR, self.wf.PsixFL, self.wf.PsizFU, self.wf.PsizFD, self.wf.ZetaxFR, self.wf.ZetaxFL, self.wf.ZetazFU, self.wf.ZetazFD, self.N_abc)             
-            #swap
-            self.wf.current, self.wf.future = self.wf.future, self.wf.current 
 
         elif self.approximation == "VTI" and self.ABC == "cerjan":
+            self.wf.future[self.sz, self.sx] -= self.wf.source[t]
             self.wf.future= updateWaveEquationVTI(self.wf.future, self.wf.current, self.nx_abc, self.nz_abc, self.dt, self.dx, self.dz, self.vp_exp, self.epsilon_exp, self.delta_exp)
             # Apply absorbing boundary condition
             self.wf.future = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.wf.future, self.A)
             self.wf.current = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.wf.current, self.A)
-            #swap
-            self.wf.current, self.wf.future = self.wf.future, self.wf.current
 
         elif self.approximation == "VTI" and self.ABC == "CPML":
+            self.wf.future[self.sz, self.sx] -= self.wf.source[t]
             self.wf.PsixFR, self.wf.PsixFL, self.wf.PsizFU, self.wf.PsizFD = updatePsi(self.wf.PsixFR, self.wf.PsixFL,self.wf.PsizFU, self.wf.PsizFD, self.nx_abc, self.nz_abc, self.wf.current, self.dx, self.dz, self.N_abc, self.f_pico, self.d0, self.dt, self.vp_exp)
             self.wf.ZetaxFR, self.wf.ZetaxFL, self.wf.ZetazFU, self.wf.ZetazFD = updateZeta(self.wf.PsixFR, self.wf.PsixFL, self.wf.ZetaxFR, self.wf.ZetaxFL,self.wf.PsizFU, self.wf.PsizFD, self.wf.ZetazFU, self.wf.ZetazFD, self.nx_abc, self.nz_abc, self.wf.current, self.dx,self.dz, self.N_abc, self.f_pico, self.d0, self.dt, self.vp_exp)
             self.wf.future = updateWaveEquationVTICPML(self.wf.future, self.wf.current, self.dt, self.dx, self.dz, self.vp_exp, self.epsilon_exp, self.delta_exp,self.nx_abc, self.nz_abc, self.wf.PsixFR, self.wf.PsixFL, self.wf.PsizFU, self.wf.PsizFD, self.wf.ZetaxFR, self.wf.ZetaxFL, self.wf.ZetazFU, self.wf.ZetazFD, self.N_abc)
-            #swap
-            self.wf.current, self.wf.future = self.wf.future, self.wf.current
 
         elif self.approximation == "TTI" and self.ABC == "cerjan":
+            self.wf.future[self.sz, self.sx] -= self.wf.source[t]
             self.wf.future= updateWaveEquationTTI(self.wf.future, self.wf.current, self.nx_abc, self.nz_abc, self.dt, self.dx, self.dz, self.vp_exp, self.epsilon_exp, self.delta_exp, self.theta_exp)
             # Apply absorbing boundary condition
             self.wf.future = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.wf.future, self.A)
             self.wf.current = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.wf.current, self.A)
-            #swap
-            self.wf.current, self.wf.future = self.wf.future, self.wf.current
 
     def save_boundaries(self,k): 
         if self.migration == "SB":
-            self.wf.top[k,:,:]   = self.wf.current[self.N_abc: self.N_abc + 4, self.N_abc: self.N_abc + self.nx]
-            self.wf.bot[k,:,:]   = self.wf.current[self.N_abc + self.nz - 3: self.N_abc + self.nz + 1, self.N_abc: self.N_abc + self.nx]
-            self.wf.left[k,:,:]  = self.wf.current[self.N_abc: self.N_abc + self.nz , self.N_abc: self.N_abc+4]
-            self.wf.right[k,:,:] = self.wf.current[self.N_abc: self.N_abc + self.nz,self.N_abc + self.nx - 3: self.N_abc + self.nx + 1]
+            self.wf.top[k,:,:]   = self.wf.future[self.N_abc: self.N_abc + 4, self.N_abc: self.N_abc + self.nx]
+            self.wf.bot[k,:,:]   = self.wf.future[self.N_abc + self.nz - 4: self.N_abc + self.nz , self.N_abc: self.N_abc + self.nx]
+            self.wf.left[k,:,:]  = self.wf.future[self.N_abc: self.N_abc + self.nz , self.N_abc: self.N_abc+4]
+            self.wf.right[k,:,:] = self.wf.future[self.N_abc: self.N_abc + self.nz,self.N_abc + self.nx - 4: self.N_abc + self.nx]
             if self.ABC == "CPML":
                 self.wf.PsixFR_bnd[k,:,:] = self.wf.PsixFR[:, :self.wf.N_saving+4]
                 self.wf.PsixFL_bnd[k,:,:] = self.wf.PsixFL[:, :self.wf.N_saving+4]
@@ -352,10 +338,10 @@ class migration:
 
     def apply_boundaries(self,k):
         if self.migration == "SB":
-            self.wf.current[self.N_abc: self.N_abc + 4, self.N_abc: self.N_abc + self.nx] = self.wf.top[k,:,:]
-            self.wf.current[self.N_abc + self.nz - 3: self.N_abc + self.nz + 1, self.N_abc: self.N_abc + self.nx]  = self.wf.bot[k,:,:]
-            self.wf.current[self.N_abc: self.N_abc + self.nz , self.N_abc: self.N_abc+4] = self.wf.left[k,:,:] 
-            self.wf.current[self.N_abc: self.N_abc + self.nz,self.N_abc + self.nx - 3: self.N_abc + self.nx + 1] = self.wf.right[k,:,:]
+            self.wf.future[self.N_abc: self.N_abc + 4, self.N_abc: self.N_abc + self.nx] = self.wf.top[k,:,:]
+            self.wf.future[self.N_abc + self.nz - 4: self.N_abc + self.nz , self.N_abc: self.N_abc + self.nx]  = self.wf.bot[k,:,:]
+            self.wf.future[self.N_abc: self.N_abc + self.nz , self.N_abc: self.N_abc+4] = self.wf.left[k,:,:] 
+            self.wf.future[self.N_abc: self.N_abc + self.nz,self.N_abc + self.nx - 4: self.N_abc + self.nx] = self.wf.right[k,:,:]
             if self.ABC == "CPML":
                 self.wf.PsixFR[:, :self.wf.N_saving+4] = self.wf.PsixFR_bnd[k,:,:]
                 self.wf.PsixFL[:, :self.wf.N_saving+4] = self.wf.PsixFL_bnd[k,:,:]
@@ -368,48 +354,39 @@ class migration:
        
     def backward_step(self,k):
         if self.approximation == "acoustic" and self.ABC == "cerjan":
-            self.wf.currentbck[self.rz, self.rx] += self.muted_seismogram[k, :]
             self.wf.futurebck = updateWaveEquation(self.wf.futurebck, self.wf.currentbck, self.vp_exp,self.nz_abc, self.nx_abc, self.dz, self.dx, self.dt)
+            self.wf.futurebck[self.rz, self.rx] += self.muted_seismogram[k, :]
             # Apply absorbing boundary condition
             self.wf.futurebck = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.wf.futurebck, self.A)
             self.wf.currentbck = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.wf.currentbck, self.A)
-            #swap
-            self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
-        
+            
         elif self.approximation == "acoustic" and self.ABC == "CPML":
-            self.wf.currentbck[self.rz, self.rx] += self.muted_seismogram[k, :]
             self.wf.PsixFRbck, self.wf.PsixFLbck, self.wf.PsizFUbck, self.wf.PsizFDbck = updatePsi(self.wf.PsixFRbck, self.wf.PsixFLbck,self.wf.PsizFUbck, self.wf.PsizFDbck, self.nx_abc, self.nz_abc, self.wf.currentbck, self.dx, self.dz, self.N_abc, self.f_pico, self.d0, self.dt, self.vp_exp)
             self.wf.ZetaxFRbck, self.wf.ZetaxFLbck, self.wf.ZetazFUbck, self.wf.ZetazFDbck = updateZeta(self.wf.PsixFRbck, self.wf.PsixFLbck, self.wf.ZetaxFRbck, self.wf.ZetaxFLbck,self.wf.PsizFUbck, self.wf.PsizFDbck, self.wf.ZetazFUbck, self.wf.ZetazFDbck, self.nx_abc, self.nz_abc, self.wf.currentbck, self.dx,self.dz, self.N_abc, self.f_pico, self.d0, self.dt, self.vp_exp)
             self.wf.futurebck = updateWaveEquationCPML(self.wf.futurebck, self.wf.currentbck, self.vp_exp, self.nx_abc, self.nz_abc, self.dz, self.dx, self.dt, self.wf.PsixFRbck, self.wf.PsixFLbck, self.wf.PsizFUbck, self.wf.PsizFDbck, self.wf.ZetaxFRbck, self.wf.ZetaxFLbck, self.wf.ZetazFUbck, self.wf.ZetazFDbck, self.N_abc)             
-            #swap
-            self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck 
-
+            self.wf.futurebck[self.rz, self.rx] += self.muted_seismogram[k, :]
+            
         elif self.approximation == "VTI" and self.ABC == "cerjan":
-            self.wf.currentbck[self.rz, self.rx] += self.muted_seismogram[k, :]
             self.wf.futurebck= updateWaveEquationVTI(self.wf.futurebck, self.wf.currentbck, self.nx_abc, self.nz_abc, self.dt, self.dx, self.dz, self.vp_exp, self.epsilon_exp, self.delta_exp)
+            self.wf.futurebck[self.rz, self.rx] += self.muted_seismogram[k, :]
             # Apply absorbing boundary condition
             self.wf.futurebck = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.wf.futurebck, self.A)
             self.wf.currentbck = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.wf.currentbck, self.A)
-            #swap
-            self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
+            
 
         elif self.approximation == "VTI" and self.ABC == "CPML":
-            self.wf.currentbck[self.rz, self.rx] += self.muted_seismogram[k, :]
             self.wf.PsixFRbck, self.wf.PsixFLbck, self.wf.PsizFUbck, self.wf.PsizFDbck = updatePsi(self.wf.PsixFRbck, self.wf.PsixFLbck,self.wf.PsizFUbck, self.wf.PsizFDbck, self.nx_abc, self.nz_abc, self.wf.currentbck, self.dx, self.dz, self.N_abc, self.f_pico, self.d0, self.dt, self.vp_exp)
             self.wf.ZetaxFRbck, self.wf.ZetaxFLbck, self.wf.ZetazFUbck, self.wf.ZetazFDbck = updateZeta(self.wf.PsixFRbck, self.wf.PsixFLbck, self.wf.ZetaxFRbck, self.wf.ZetaxFLbck,self.wf.PsizFUbck, self.wf.PsizFDbck, self.wf.ZetazFUbck, self.wf.ZetazFDbck, self.nx_abc, self.nz_abc, self.wf.currentbck, self.dx,self.dz, self.N_abc, self.f_pico, self.d0, self.dt, self.vp_exp)
             self.wf.futurebck = updateWaveEquationVTICPML(self.wf.futurebck, self.wf.currentbck, self.dt, self.dx, self.dz, self.vp_exp, self.epsilon_exp, self.delta_exp,self.nx_abc, self.nz_abc, self.wf.PsixFRbck, self.wf.PsixFLbck, self.wf.PsizFUbck, self.wf.PsizFDbck, self.wf.ZetaxFRbck, self.wf.ZetaxFLbck, self.wf.ZetazFUbck, self.wf.ZetazFDbck, self.N_abc)
-            #swap
-            self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
-
+            self.wf.futurebck[self.rz, self.rx] += self.muted_seismogram[k, :]
+            
         elif self.approximation == "TTI" and self.ABC == "cerjan":
-            self.wf.currentbck[self.rz, self.rx] += self.muted_seismogram[k, :]
             self.wf.futurebck= updateWaveEquationTTI(self.wf.futurebck, self.wf.currentbck, self.nx_abc, self.nz_abc, self.dt, self.dx, self.dz, self.vp_exp, self.epsilon_exp, self.delta_exp, self.theta_exp)
+            self.wf.futurebck[self.rz, self.rx] += self.muted_seismogram[k, :]
             # Apply absorbing boundary condition
             self.wf.futurebck = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.wf.futurebck, self.A)
             self.wf.currentbck = AbsorbingBoundary(self.N_abc, self.nz_abc, self.nx_abc, self.wf.currentbck, self.A)
-            #swap
-            self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
-    
+            
     def forward_sweep(self, shot, ind, n, nextcpstep, nextcptype, s, m, l):
         for t in range(ind, ind + n):
             self.forward_step(t)
@@ -540,6 +517,8 @@ class migration:
                 #     snapshot = self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc]
                 #     snapshotFile = (f"{self.snapshotFolder}{self.approximation}{self.ABC}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}ONTHEFLY.bin")
                 #     snapshot.tofile(snapshotFile)
+                #swap
+                self.wf.current, self.wf.future = self.wf.future, self.wf.current
             for t in range(self.nt - 1, -1, -1):
                 self.backward_step(t)
                 # if t%200 == 0:
@@ -547,6 +526,8 @@ class migration:
                 #     plt.imshow(self.wf.currentbck)
                 #     plt.show()
                 self.migrated_partial += (save_field[t,:,:] * self.wf.currentbck[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc])
+                #swap
+                self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
             self.wf.migrated_image += self.migrated_partial
             print(f"info: Shot {shot+1} backward done.")
      
@@ -591,9 +572,13 @@ class migration:
             for k in range(self.nt):
                 self.forward_step(k)
                 save_field[k,:,:] = self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc]
+                #swap
+                self.wf.current, self.wf.future = self.wf.future, self.wf.current
             for t in range(self.nt - 1, self.last_t, -1):
                 self.backward_step(t)
                 self.migrated_partial += (save_field[t,:,:] * self.wf.currentbck[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc])
+                #swap
+                self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
             self.wf.migrated_image += self.migrated_partial
             print(f"info: Shot {shot+1} backward done.")
      
@@ -646,13 +631,17 @@ class migration:
                         snapshot = self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc]
                         snapshotFile = (f"{self.snapshotFolder}{self.approximation}{self.ABC}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}CHECKPOINT.bin")
                         snapshot.tofile(snapshotFile)
+                    #swap
+                    self.wf.current, self.wf.future = self.wf.future, self.wf.current
                 for t in range(t1 - 1, t0 - 1, -1):
                     self.backward_step(t)
-                    # if t%200 ==0:
-                    #     plt.figure()
-                    #     plt.imshow(self.wf.currentbck)
-                    #     plt.show()
+                    if t == 1200:
+                        plt.figure()
+                        plt.imshow(self.wf.currentbck)
+                        plt.show()
                     self.migrated_partial += (self.wf.save_field[t-t0,:,:] * self.wf.currentbck[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc])/(np.sqrt(self.wf.save_field[t-t0,:,:]**2) + 1e-8)
+                    #swap
+                    self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
             self.wf.migrated_image += self.migrated_partial
             print(f"info: Shot {shot+1} backward done.")
      
@@ -697,9 +686,13 @@ class migration:
                 for k in range(t0,t1):
                     self.forward_step(k)
                     self.wf.save_field[k - t0,:,:] = self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc]
+                    #swap
+                    self.wf.current, self.wf.future = self.wf.future, self.wf.current
                 for t in range(t1 - 1, t0 - 1, -1):
                     self.backward_step(t)
                     self.migrated_partial += (self.wf.save_field[t-t0,:,:] * self.wf.currentbck[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc])
+                    #swap
+                    self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
             self.wf.migrated_image += self.migrated_partial
             print(f"info: Shot {shot+1} backward done.")
      
@@ -742,24 +735,28 @@ class migration:
             for k in range(self.nt):
                 self.forward_step(k)
                 self.save_boundaries(k)
+                if k==1200:
+                    snapshot = self.wf.future[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc]
+                    snapshotFile = (f"{self.snapshotFolder}{self.approximation}{self.ABC}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}FORWARD.bin")
+                    snapshot.tofile(snapshotFile)               
+                #swap
+                self.wf.current, self.wf.future = self.wf.future, self.wf.current
 
-            current_prev = self.wf.current
-            future_prev = self.wf.future
+            for t in range(self.nt - 2, -1, -1):
+               self.reconstructed_step(t)
+               self.apply_boundaries(t)
+               if t==1200:
+                    snapshot = self.wf.future[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc]
+                    snapshotFile = (f"{self.snapshotFolder}{self.approximation}{self.ABC}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{t}SB.bin")
+                    snapshot.tofile(snapshotFile)
 
-            self.wf.current = current_prev
-            self.wf.future = future_prev
+               self.backward_step(t)
+               self.migrated_partial += (self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc] * self.wf.currentbck[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc])
+                
+               #swap
+               self.wf.current, self.wf.future = self.wf.future, self.wf.current
+               self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
 
-            for t in range(self.nt - 1, -1, -1):
-                # self.wf.current[self.sz, self.sx] -= self.wf.source[t]
-                self.reconstructed_step()
-                self.apply_boundaries(t)
-                self.backward_step(t)
-                if t%100 == 0:
-                    plt.figure()
-                    plt.imshow(self.wf.current)
-                    plt.show()
-
-                self.migrated_partial += (self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc] * self.wf.currentbck[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc])
             self.wf.migrated_image += self.migrated_partial
             print(f"info: Shot {shot+1} backward done.")
      
@@ -801,13 +798,17 @@ class migration:
             for k in range(self.nt):
                 self.forward_step(k)
                 self.save_boundaries(k)
+                #swap
+                self.wf.current, self.wf.future = self.wf.future, self.wf.current
 
             for t in range(self.nt - 1, -1, -1):
-                self.backward_step(t)
-                self.apply_boundaries(t)
-                self.reconstructed_step()
-            
-                self.migrated_partial += (self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc] * self.wf.currentbck[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc])
+               self.reconstructed_step(t)
+               self.apply_boundaries(t)
+               self.backward_step(t)
+               self.migrated_partial += (self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc] * self.wf.currentbck[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc])
+               #swap
+               self.wf.current, self.wf.future = self.wf.future, self.wf.current
+               self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
             self.wf.migrated_image += self.migrated_partial
             print(f"info: Shot {shot+1} backward done.")
      
