@@ -1,6 +1,6 @@
 {
     "approximation": "acoustic",
-    "migration": "checkpoint",
+    "migration": "SB",
     "ABC": "cerjan",
     "dx": 10,
     "dz": 10,

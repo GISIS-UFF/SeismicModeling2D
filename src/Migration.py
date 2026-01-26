@@ -322,7 +322,7 @@ class migration:
     def build_ckpts_steps(self):
         self.ckpts_steps = []
         for t0 in range (0,self.nt-1,self.step):
-            t1 = min(t0 + self.step,self.nt)
+            t1 = min(t0 + self.step,self.nt-1)
             self.ckpts_steps.append((t0,t1))
     
     def reset_field(self):
@@ -343,8 +343,7 @@ class migration:
     def create_random_boundary(self):
         cmax = 0.5
         v_limite = (cmax*self.dx)/self.dt
-        A = self.vp_exp.max()*2 
-        print(A)
+        A = self.vp.min() * 1.3
         for i in range(self.nx_abc):
             for j in range(self.nz_abc):
                 if i < self.N_abc:
@@ -367,14 +366,14 @@ class migration:
                 
                 found = False
                 while found == False:
-                    r = A * 2.*np.random.rand()-1.
+                    r = A * (2.0*np.random.rand()-1.0)
                     vtest = self.vp_exp[j,i] + r * d
                     if vtest <= v_limite:
                         self.vp_exp[j,i] = vtest
                         found = True
-        plt.figure()
-        plt.imshow(self.vp_exp)
-        plt.show()
+        # plt.figure()
+        # plt.imshow(self.vp_exp, cmap = 'jet')
+        # plt.show()
 
     #On the fly
     def solveBackwardWaveEquationOntheFly(self):
@@ -537,7 +536,7 @@ class migration:
                 #     snapshot.tofile(snapshotFile)               
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
-
+            self.wf.current, self.wf.future = self.wf.future, self.wf.current    
             for t in range(self.nt - 1, -1, -1):
                self.reconstructed_step(t)
                self.apply_boundaries(t)
@@ -545,10 +544,8 @@ class migration:
             #     plt.figure()
             #     plt.imshow(self.wf.current)
             #     plt.show()
-
                self.backward_step(t)
-               self.migrated_partial += (self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc] * self.wf.currentbck[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc])
-                
+               self.migrated_partial += (self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc] * self.wf.currentbck[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc])  
                #swap
                self.wf.current, self.wf.future = self.wf.future, self.wf.current
                self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
@@ -594,20 +591,20 @@ class migration:
 
             for k in range(self.nt):
                 self.forward_step(k)
-                if k%500 == 0:
-                    plt.figure()
-                    plt.imshow(self.wf.current)
-                    plt.show()
+                # if k == 4000:
+                #     plt.figure()
+                #     plt.imshow(self.wf.current)
+                #     plt.show()
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
-            
+            self.wf.current, self.wf.future = self.wf.future, self.wf.current    
             for t in range(self.nt - 1, -1, -1):
                 self.reconstructed_step(t)
                 self.backward_step(t)
-                if t%500 == 0:
-                    plt.figure()
-                    plt.imshow(self.wf.current)
-                    plt.show()
+                # if t == 200:
+                #     plt.figure()
+                #     plt.imshow(self.wf.current)
+                #     plt.show()
                 self.migrated_partial += (self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc] * self.wf.currentbck[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc])
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
