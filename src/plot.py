@@ -27,14 +27,14 @@ nz = 101
 
 # snaponthefly = np.fromfile("../outputs/snapshots/acousticcerjan_shot_1_Nx301_Nz101_Nt4001_frame_1200ONTHEFLY.bin", dtype=np.float32).reshape(nz, nx)
 snap = np.fromfile("../outputs/snapshots/acousticcerjan_shot_1_Nx301_Nz101_Nt4001_frame_1200FORWARD.bin", dtype=np.float32).reshape(nz, nx)
-# snapcheck = np.fromfile("../outputs/snapshots/acousticcerjan_shot_1_Nx301_Nz101_Nt4001_frame_1200CHECKPOINT.bin", dtype=np.float32).reshape(nz, nx)
-snapSB = np.fromfile("../outputs/snapshots/acousticcerjan_shot_1_Nx301_Nz101_Nt4001_frame_1200SB.bin", dtype=np.float32).reshape(nz, nx)
+snapcheck = np.fromfile("../outputs/snapshots/acousticcerjan_shot_1_Nx301_Nz101_Nt4001_frame_1200CHECKPOINT.bin", dtype=np.float32).reshape(nz, nx)
+# snapSB = np.fromfile("../outputs/snapshots/acousticcerjan_shot_1_Nx301_Nz101_Nt4001_frame_1200SB.bin", dtype=np.float32).reshape(nz, nx)
 
-diff = snap - snapSB
+diff = snap - snapcheck
 
 plt.figure()
 plt.plot(snap[:, nx//2], label="forward")
-plt.plot(snapSB[:, nx//2], label="reconstruído")
+plt.plot(snapcheck[:, nx//2], label="reconstruído")
 plt.plot(diff[:, nx//2], label="diff")
 plt.legend()
 
@@ -45,7 +45,7 @@ cbar.set_label("Amplitude")
 ax.set_title("Forward")
 
 fig, ax = plt.subplots()
-im = ax.imshow(snapSB)
+im = ax.imshow(snapcheck)
 cbar = adjustColorBar(fig, ax, im)
 cbar.set_label("Amplitude")
 ax.set_title("Reconstruído")

@@ -165,29 +165,11 @@ class wavefield:
         if self.migration in ["checkpoint", "SB", "RBC", "onthefly"] :
             self.currentbck  = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
             self.futurebck   = np.zeros([self.nz_abc,self.nx_abc],dtype=np.float32)
-            if self.ABC == "CPML":
-                self.PsixFRbck      = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
-                self.PsixFLbck      = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)     
-                self.PsizFUbck      = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32) 
-                self.PsizFDbck      = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)       
-                self.ZetaxFRbck     = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
-                self.ZetaxFLbck     = np.zeros([self.nz_abc, self.N_abc+4], dtype=np.float32)
-                self.ZetazFUbck     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
-                self.ZetazFDbck     = np.zeros([self.N_abc+4, self.nx_abc], dtype=np.float32)
             if self.migration == "SB":
                 self.top   = np.zeros((self.nt, 4, self.nx), dtype=np.float32)
                 self.bot   = np.zeros((self.nt, 4, self.nx), dtype=np.float32)
                 self.left  = np.zeros((self.nt, self.nz, 4), dtype=np.float32)
                 self.right = np.zeros((self.nt, self.nz, 4), dtype=np.float32)
-                if self.ABC == "CPML":
-                    self.PsixFR_bnd      = np.zeros([self.nt,self.nz_abc, self.N_saving+4], dtype=np.float32)
-                    self.PsixFL_bnd      = np.zeros([self.nt,self.nz_abc, self.N_saving+4], dtype=np.float32)     
-                    self.PsizFU_bnd      = np.zeros([self.nt,self.N_saving+4, self.nx_abc], dtype=np.float32) 
-                    self.PsizFD_bnd      = np.zeros([self.nt,self.N_saving+4, self.nx_abc], dtype=np.float32)       
-                    self.ZetaxFR_bnd     = np.zeros([self.nt,self.nz_abc, self.N_saving+4], dtype=np.float32)
-                    self.ZetaxFL_bnd     = np.zeros([self.nt,self.nz_abc, self.N_saving+4], dtype=np.float32)
-                    self.ZetazFU_bnd     = np.zeros([self.nt,self.N_saving+4, self.nx_abc], dtype=np.float32)
-                    self.ZetazFD_bnd     = np.zeros([self.nt,self.N_saving+4, self.nx_abc], dtype=np.float32)
 
         print(f"info: Wavefields initialized: {self.nx}x{self.nz}x{self.nt}")
         #create or import velocity model
@@ -382,15 +364,6 @@ class wavefield:
         d0 = - (M + 1)* np.log(Rcoef) 
 
         return d0, f_pico
-    
-    def LastTimeStepWithSignificantSourceAmplitude(self):
-        source_abs = np.abs(self.source)
-        source_max = source_abs.max()
-        for k in range(self.nt):
-            if abs(self.source[k]) > 1e-3 * source_max:
-                last_t = k
-
-        return last_t
 
     def checkDispersionAndStability(self):
         if self.approximation == "acoustic":
@@ -433,7 +406,7 @@ class wavefield:
                 print("WARNING: Dispersion or stability conditions not satisfied.")
     
     def createCerjanVector(self):
-        sb = 3. * self.N_abc
+        sb = 4. * self.N_abc
         A = np.ones(self.N_abc)
         for i in range(self.N_abc):
                 fb = (self.N_abc - i) / (np.sqrt(2.) * sb)

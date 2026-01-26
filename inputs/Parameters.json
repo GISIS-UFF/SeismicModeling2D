@@ -26,7 +26,7 @@
     "deltaLayer1": 1.5,
     "deltaLayer2": 1.5,
     "snap": false,
-    "step": 100,
+    "step": 250,
     "last_save": 4000,
     "snapshotFolder": "../outputs/snapshots/",
     "seismogramFolder": "../outputs/seismograms/",

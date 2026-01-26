@@ -1156,23 +1156,17 @@ def AnalyticalModel(vpz, epsilon, delta, dt, f0, frame):
 
 @jit(parallel=True, nopython=True)
 def AbsorbingBoundary(N_abc, nz_abc, nx_abc, f, A):
+    for y in prange(nz_abc):
+        for x in range(N_abc):
+            f[y, x] *= A[x]
+        for x in range(nx_abc - N_abc, nx_abc):
+            f[y, x] *= A[nx_abc - 1 - x] 
+    for x in prange(nx_abc):
+        for y in range(N_abc):
+            f[y, x] *= A[y]
+        for y in range(nz_abc - N_abc, nz_abc):
+            f[y, x] *= A[nz_abc - 1 - y]  
 
-    for i in prange(N_abc):
-        for j in prange(nz_abc):
-            f[j, i] *= A[i]
-    
-    for j in prange(N_abc):
-        for i in prange(nx_abc):
-            f[j, i] *= A[j]
-    
-    for i in prange(N_abc):
-        for j in prange(nz_abc):
-            f[j, nx_abc - i - 1] *= A[i]
-    
-    for j in prange(N_abc):
-        for i in prange(nx_abc):
-            f[nz_abc - j - 1, i] *= A[j]
-            
     return f
 
 @jit(nopython=True,parallel=True)
