@@ -407,18 +407,10 @@ class migration:
             for k in range(self.nt):
                 self.forward_step(k)
                 save_field[k,:,:] = self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc]
-                # if k%500 == 0:
-                #     plt.figure()
-                #     plt.imshow(self.wf.current)
-                #     plt.show()
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
             for t in range(self.nt - 1, -1, -1):
                 self.backward_step(t)
-                # if k%500 == 0:
-                #     plt.figure()
-                #     plt.imshow(self.wf.currentbck)
-                #     plt.show()
                 self.migrated_partial += (save_field[t,:,:] * self.wf.currentbck[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc])
                 #swap
                 self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
@@ -463,9 +455,6 @@ class migration:
                 self.forward_step(k)
                 self.save_checkpoint(shot, k)
                 if k == 1200:
-                    plt.figure()
-                    plt.imshow(self.wf.current)
-                    plt.show()
                     snapshot = self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc]
                     snapshotFile = (f"{self.snapshotFolder}{self.approximation}{self.ABC}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}FORWARD.bin")
                     snapshot.tofile(snapshotFile)
@@ -477,11 +466,8 @@ class migration:
                     self.reconstructed_step(t)
                     self.backward_step(t)
                     if t == 1200:
-                        plt.figure()
-                        plt.imshow(self.wf.current)
-                        plt.show()
                         snapshot = self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc]
-                        snapshotFile = (f"{self.snapshotFolder}{self.approximation}{self.ABC}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}CHECKPOINT.bin")
+                        snapshotFile = (f"{self.snapshotFolder}{self.approximation}{self.ABC}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{t}CHECKPOINT.bin")
                         snapshot.tofile(snapshotFile)
                     self.migrated_partial += (self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc] * self.wf.currentbck[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc])
                     #swap
@@ -528,27 +514,19 @@ class migration:
             self.muted_seismogram = self.Mute(seismogram, shot)
             self.migrated_partial = np.zeros_like(self.wf.migrated_image)
             for k in range(self.nt):
-                self.forward_step(k)
                 self.save_boundaries(k)
-                # if k==1200:
-                #     snapshot = self.wf.future[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc]
-                #     snapshotFile = (f"{self.snapshotFolder}{self.approximation}{self.ABC}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}FORWARD.bin")
-                #     snapshot.tofile(snapshotFile)               
+                self.forward_step(k)            
+                #swap
+                self.wf.current, self.wf.future = self.wf.future, self.wf.current 
+            self.wf.current, self.wf.future = self.wf.future, self.wf.current 
+            for t in range(self.nt - 1, -1, -1):
+                self.reconstructed_step(t)
+                self.apply_boundaries(t)           
+                self.backward_step(t)
+                self.migrated_partial += (self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc] * self.wf.currentbck[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc])  
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
-            self.wf.current, self.wf.future = self.wf.future, self.wf.current    
-            for t in range(self.nt - 1, -1, -1):
-               self.reconstructed_step(t)
-               self.apply_boundaries(t)
-            #    if t%50 == 0:
-            #     plt.figure()
-            #     plt.imshow(self.wf.current)
-            #     plt.show()
-               self.backward_step(t)
-               self.migrated_partial += (self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc] * self.wf.currentbck[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc])  
-               #swap
-               self.wf.current, self.wf.future = self.wf.future, self.wf.current
-               self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
+                self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
 
             self.wf.migrated_image += self.migrated_partial
             print(f"info: Shot {shot+1} backward done.")
@@ -590,21 +568,13 @@ class migration:
             self.migrated_partial = np.zeros_like(self.wf.migrated_image)
 
             for k in range(self.nt):
-                self.forward_step(k)
-                # if k == 4000:
-                #     plt.figure()
-                #     plt.imshow(self.wf.current)
-                #     plt.show()
+                self.forward_step(k) 
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
             self.wf.current, self.wf.future = self.wf.future, self.wf.current    
-            for t in range(self.nt - 1, -1, -1):
+            for t in range(self.nt - 1, -1, -1): 
                 self.reconstructed_step(t)
-                self.backward_step(t)
-                # if t == 200:
-                #     plt.figure()
-                #     plt.imshow(self.wf.current)
-                #     plt.show()
+                self.backward_step(t)     
                 self.migrated_partial += (self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc] * self.wf.currentbck[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc])
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current

@@ -4,7 +4,7 @@ import pandas as pd
 
 # sources
 sx_init = 1500
-sx_end  = 3000
+sx_end  = 2900
 Nsource = 1
 sx = np.linspace(sx_init,sx_end,Nsource)
 sz = 100*np.ones(len(sx))
