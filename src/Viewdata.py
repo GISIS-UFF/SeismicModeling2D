@@ -78,15 +78,16 @@ class plotting:
         self.epsilonFile = self.parameters["epsilonFile"]  
         self.deltaFile   = self.parameters["deltaFile"]  
 
-        #Anisotropy parameters for Layered model
-        self.vpLayer1 = self.parameters["vpLayer1"]
-        self.vpLayer2 = self.parameters["vpLayer2"]
-        self.thetaLayer1 = self.parameters["thetaLayer1"]
-        self.thetaLayer2 = self.parameters["thetaLayer2"]
-        self.epsilonLayer1 = self.parameters["epsilonLayer1"]
-        self.epsilonLayer2 = self.parameters["epsilonLayer2"]
-        self.deltaLayer1   = self.parameters["deltaLayer1"]
-        self.deltaLayer2  = self.parameters["deltaLayer2"]
+        #Anisotropy parameters for Layered model and diffractor model
+        self.vp1 = self.parameters["vp1"]
+        self.vp2 = self.parameters["vp2"]
+        self.theta1 = self.parameters["theta1"]
+        self.theta2 = self.parameters["theta2"]
+        self.epsilon1 = self.parameters["epsilon1"]
+        self.epsilon2 = self.parameters["epsilon2"]
+        self.delta1   = self.parameters["delta1"]
+        self.delta2  = self.parameters["delta2"]
+        self.diffractor = self.parameters["diffractor"]
 
     def readAcquisitionGeometry(self):        
         # Read receiver and source coordinates from CSV files

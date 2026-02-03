@@ -88,15 +88,16 @@ class wavefield:
         self.epsilonFile = self.parameters["epsilonFile"]  
         self.deltaFile   = self.parameters["deltaFile"]  
 
-        #Anisotropy parameters for Layered model
-        self.vpLayer1 = self.parameters["vpLayer1"]
-        self.vpLayer2 = self.parameters["vpLayer2"]
-        self.thetaLayer1 = self.parameters["thetaLayer1"]
-        self.thetaLayer2 = self.parameters["thetaLayer2"]
-        self.epsilonLayer1 = self.parameters["epsilonLayer1"]
-        self.epsilonLayer2 = self.parameters["epsilonLayer2"]
-        self.deltaLayer1   = self.parameters["deltaLayer1"]
-        self.deltaLayer2  = self.parameters["deltaLayer2"]
+        #Anisotropy parameters for Layered model and diffractor model
+        self.vp1 = self.parameters["vp1"]
+        self.vp2 = self.parameters["vp2"]
+        self.theta1 = self.parameters["theta1"]
+        self.theta2 = self.parameters["theta2"]
+        self.epsilon1 = self.parameters["epsilon1"]
+        self.epsilon2 = self.parameters["epsilon2"]
+        self.delta1   = self.parameters["delta1"]
+        self.delta2  = self.parameters["delta2"]
+        self.diffractor = self.parameters["diffractor"]
 
     def readAcquisitionGeometry(self):        
         # Read receiver and source coordinates from CSV files
@@ -116,7 +117,8 @@ class wavefield:
 
     def createSourceWavelet(self):
         # Create Ricker wavelet
-        self.source = ricker(self.fcut, self.t, self.dt, self.dx, self.dz)
+        self.source = ricker(self.fcut, self.t)
+        self.source  = self.source * self.dt**2/(self.dx*self.dz)
         print(f"info: Ricker Source wavelet created: {self.nt} samples")
         
     def ImportModel(self, filename):
@@ -173,27 +175,36 @@ class wavefield:
 
         print(f"info: Wavefields initialized: {self.nx}x{self.nz}x{self.nt}")
         #create or import velocity model
-        if (self.vpFile==None):
+        if self.vpFile is None:
             self.vpFile = "VpModel"
-            self.createLayeredVpModel(self.vpLayer1,self.vpLayer2)
+            if self.diffractor == True:
+                self.createDiffractorVpModel(self.vp1, self.vp2)
+            else:
+                self.createLayeredVpModel(self.vp1, self.vp2)
         else:
             self.vp = self.ImportModel(self.vpFile)
-        
+
         if self.approximation in ["VTI", "TTI"]:
             # Initialize epsilon and delta models
             self.epsilon = np.zeros([self.nz,self.nx],dtype=np.float32)
             self.delta = np.zeros([self.nz,self.nx],dtype=np.float32)
 
             #import epsilon and delta model
-            if (self.epsilonFile == None):
+            if self.epsilonFile is None:
                 self.epsilonFile = "EpsilonModel"
-                self.createLayeredEpsilonModel(self.epsilonLayer1,self.epsilonLayer2)
+                if self.diffractor==True:
+                    self.createDiffractorEpsilonModel(self.epsilon1,self.epsilon2) 
+                else:
+                    self.createLayeredEpsilonModel(self.epsilon1,self.epsilon2)
             else:
                 self.epsilon = self.ImportModel(self.epsilonFile)
 
-            if (self.deltaFile == None):
-                self.deltaFile = "DeltaModel"
-                self.createLayeredDeltaModel(self.deltaLayer1,self.deltaLayer2)
+            if self.deltaFile is None:
+                self.vpFile = "DeltaModel" 
+                if (self.diffractor==True):
+                    self.createDiffractorDeltaModel(self.delta1,self.delta2) 
+                else:
+                    self.createLayeredDeltaModel(self.delta1,self.delta2)
             else:
                 self.delta = self.ImportModel(self.deltaFile)
                 
@@ -203,15 +214,21 @@ class wavefield:
             self.theta = np.zeros([self.nz,self.nx],dtype=np.float32)
 
             #import vs and theta models
-            if (self.vsFile == None):
-                self.vsFile = "VsModel"
-                self.createLayeredVsModel()
+            if self.vsFile is None:
+                self.vpFile = "VsModel"
+                if (self.diffractor==True):
+                    self.createDiffractorVsModel() 
+                else:
+                    self.createLayeredVsModel()
             else: 
                 self.vs = self.ImportModel(self.vsFile)
 
-            if (self.thetaFile == None):
-                self.thetaFile = "ThetaModel"
-                self.createLayeredThetaModel(np.radians(self.thetaLayer1), np.radians(self.thetaLayer2))
+            if self.thetaFile is None:
+                self.vpFile = "ThetaModel"
+                if (self.diffractor==True):
+                    self.createDiffractorThetaModel(np.radians(self.theta1), np.radians(self.theta2)) 
+                else:
+                    self.createLayeredThetaModel(np.radians(self.theta1), np.radians(self.theta2))
             else:
                 self.theta = self.ImportModel(self.thetaFile)
                 self.theta = np.radians(self.theta)
@@ -272,18 +289,33 @@ class wavefield:
     def createLayeredVpModel(self,v1, v2):
         self.vp[0:self.nz//2, :] = v1
         self.vp[self.nz//2:self.nz, :] = v2
-
         self.modelFile = f"{self.modelFolder}layeredvp_Nz{self.nz}_Nx{self.nx}.bin"
+        self.vp.T.tofile(self.modelFile)
+        print(f"info: Vp saved to {self.modelFile}")
+    
+    def createDiffractorVpModel(self, v1, v2):
+        self.vp[:, :] = v1
+        self.vp[self.nz // 2, self.nx // 2] = v2
+        self.modelFile = f"{self.modelFolder}diffractorvp_Nz{self.nz}_Nx{self.nx}.bin"
         self.vp.T.tofile(self.modelFile)
         print(f"info: Vp saved to {self.modelFile}")
 
     def createLayeredVsModel(self):
-        vs1 = np.sqrt(self.vpLayer1*self.vpLayer1*(self.epsilonLayer1 - self.deltaLayer1)/0.8)
-        vs2 = np.sqrt(self.vpLayer2*self.vpLayer2*(self.epsilonLayer2 - self.deltaLayer2)/0.8)
+        vs1 = np.sqrt(self.vp1*self.vp1*(self.epsilon1 - self.delta1)/0.8)
+        vs2 = np.sqrt(self.vp2*self.vp2*(self.epsilon2 - self.delta2)/0.8)
         self.vs[0:self.nz//2, :] = vs1
         self.vs[self.nz//2:self.nz, :] = vs2
 
         self.modelFile = f"{self.modelFolder}layeredvs_Nz{self.nz}_Nx{self.nx}.bin"
+        self.vs.T.tofile(self.modelFile)
+        print(f"info: Vs saved to {self.modelFile}")
+    
+    def createDiffractorVsModel(self):
+        vs1 = np.sqrt(self.vp1*self.vp1*(self.epsilon1 - self.delta1)/0.8)
+        vs2 = np.sqrt(self.vp2*self.vp2*(self.epsilon2 - self.delta2)/0.8)
+        self.vs[:, :] = vs1
+        self.vs[self.nz // 2, self.nx // 2] = vs2
+        self.modelFile = f"{self.modelFolder}diffractorvs_Nz{self.nz}_Nx{self.nx}.bin"
         self.vs.T.tofile(self.modelFile)
         print(f"info: Vs saved to {self.modelFile}")
 
@@ -294,6 +326,13 @@ class wavefield:
         self.modelFile = f"{self.modelFolder}layeredtheta_Nz{self.nz}_Nx{self.nx}.bin"
         self.theta.T.tofile(self.modelFile)
         print(f"info: Theta saved to {self.modelFile}")
+    
+    def createDiffractorThetaModel(self, t1, t2):
+        self.theta[:, :] = t1
+        self.theta[self.nz // 2, self.nx // 2] = t2
+        self.modelFile = f"{self.modelFolder}diffractortheta_Nz{self.nz}_Nx{self.nx}.bin"
+        self.theta.T.tofile(self.modelFile)
+        print(f"info: Theta saved to {self.modelFile}")
 
     def createLayeredEpsilonModel(self,e1, e2):
         self.epsilon[0:self.nz//2, :] = e1
@@ -302,12 +341,26 @@ class wavefield:
         self.modelFile = f"{self.modelFolder}layeredepsilon_Nz{self.nz}_Nx{self.nx}.bin"
         self.epsilon.T.tofile(self.modelFile)
         print(f"info: Epsilon saved to {self.modelFile}")
+    
+    def createDiffractorEpsilonModel(self, e1, e2):
+        self.epsilon[:, :] = e1
+        self.epsilon[self.nz // 2, self.nx // 2] = e2
+        self.modelFile = f"{self.modelFolder}diffractorepsilon_Nz{self.nz}_Nx{self.nx}.bin"
+        self.epsilon.T.tofile(self.modelFile)
+        print(f"info: Epsilon saved to {self.modelFile}")
 
     def createLayeredDeltaModel(self, d1, d2):
         self.delta[0:self.nz//2, :] = d1
         self.delta[self.nz//2:self.nz, :] = d2
 
         self.modelFile = f"{self.modelFolder}layereddelta_Nz{self.nz}_Nx{self.nx}.bin"
+        self.delta.T.tofile(self.modelFile)
+        print(f"info: Delta saved to {self.modelFile}")
+    
+    def createDiffractorDeltaModel(self, d1, d2):
+        self.delta[:, :] = d1
+        self.delta[self.nz // 2, self.nx // 2] = d2
+        self.modelFile = f"{self.modelFolder}diffractordelta_Nz{self.nz}_Nx{self.nx}.bin"
         self.delta.T.tofile(self.modelFile)
         print(f"info: Delta saved to {self.modelFile}")
 
@@ -429,7 +482,7 @@ class wavefield:
         print(f"info: Snapshot saved to {snapshotFile}")
     
     def save_seismogram(self,shot):        
-        self.seismogramFile = f"{self.seismogramFolder}{self.approximation}{self.ABC}_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
+        self.seismogramFile = f"{self.seismogramFolder}{self.ABC}_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
         self.seismogram.tofile(self.seismogramFile)
         print(f"info: Seismogram saved to {self.seismogramFile}")
 

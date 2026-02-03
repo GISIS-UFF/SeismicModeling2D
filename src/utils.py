@@ -2,11 +2,11 @@ import numpy as np
 from numba import jit,prange, njit, cuda
 import math
 
-def ricker(f0, t,dt,dx,dz):
+def ricker(f0, t):
     pi = np.pi
     td  = t - 2 * np.sqrt(pi) / f0
     fcd = f0 / (np.sqrt(pi) * 3) 
-    source = (1 - 2 * pi * (pi * fcd * td) * (pi * fcd * td)) * np.exp(-pi * (pi * fcd * td) * (pi * fcd * td)) * dt**2/(dx*dz)
+    source = (1 - 2 * pi * (pi * fcd * td) * (pi * fcd * td)) * np.exp(-pi * (pi * fcd * td) * (pi * fcd * td)) 
     return source
 
 @njit(inline = "always")

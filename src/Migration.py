@@ -89,15 +89,16 @@ class migration:
         self.epsilonFile = self.parameters["epsilonFile"]  
         self.deltaFile   = self.parameters["deltaFile"]  
 
-        #Anisotropy parameters for Layered model
-        self.vpLayer1 = self.parameters["vpLayer1"]
-        self.vpLayer2 = self.parameters["vpLayer2"]
-        self.thetaLayer1 = self.parameters["thetaLayer1"]
-        self.thetaLayer2 = self.parameters["thetaLayer2"]
-        self.epsilonLayer1 = self.parameters["epsilonLayer1"]
-        self.epsilonLayer2 = self.parameters["epsilonLayer2"]
-        self.deltaLayer1   = self.parameters["deltaLayer1"]
-        self.deltaLayer2  = self.parameters["deltaLayer2"]
+        #Anisotropy parameters for Layered model and diffractor model
+        self.vp1 = self.parameters["vp1"]
+        self.vp2 = self.parameters["vp2"]
+        self.theta1 = self.parameters["theta1"]
+        self.theta2 = self.parameters["theta2"]
+        self.epsilon1 = self.parameters["epsilon1"]
+        self.epsilon2 = self.parameters["epsilon2"]
+        self.delta1   = self.parameters["delta1"]
+        self.delta2  = self.parameters["delta2"]
+        self.diffractor = self.parameters["diffractor"]
 
     def readAcquisitionGeometry(self):        
         # Read receiver and source coordinates from CSV files
@@ -116,7 +117,7 @@ class migration:
         self.Nshot = len(self.shot_x) 
     
     def loadSeismogram(self, shot):
-        seismogramFile = f"{self.seismogramFolder}{self.approximation}{self.ABC}_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
+        seismogramFile = f"{self.seismogramFolder}{self.ABC}_seismogram_shot_{shot+1}_Nt{self.nt}_Nrec{self.Nrec}.bin"
         seismogram = np.fromfile(seismogramFile, dtype=np.float32).reshape(self.nt,self.Nrec) 
         return seismogram
 
@@ -129,14 +130,23 @@ class migration:
         distx = self.rec_x - self.shot_x[shot]   
         dist = np.sqrt(distx**2 + distz**2)
         t_lag = 2 * np.sqrt(np.pi) / self.fcut
-        traveltimes = dist / v0_rec + 2.5 * t_lag 
+        traveltimes = (dist / v0_rec) + 3 * t_lag 
         
         for r in range(self.Nrec): 
             mute_samples = int(traveltimes[r] / self.dt)
             muted[:mute_samples, r] = 0 
                 
         return muted
+    
+    def LastTimeStepWithSignificantSourceAmplitude(self):
+        source_abs = np.abs(self.wf.source)
+        source_max = source_abs.max()
+        for k in range(self.nt):
+            if abs(self.wf.source[k]) > 1e-3 * source_max:
+                last_t = k
 
+        return last_t
+        
     def laplacian_filter(self, f):
         dim1,dim2 = np.shape(f)
         g = np.zeros([dim1,dim2])
@@ -217,13 +227,12 @@ class migration:
     def save_checkpoint(self, shot, k):
         if self.migration != "checkpoint":
             return
+        if k < self.last_t:
+            return
         if k > self.last_save:
             return
         if k % self.step != 0:
             return
-
-        if self.approximation == "TTI" and self.ABC == "CPML":
-            raise ValueError("Checkpoint saving for TTI CPML not implemented yet.")
         
         checkpointFile = (f"{self.checkpointFolder}{self.approximation}{self.ABC}_shot_{shot+1}_Nx{self.nx}_Nz{self.nz}_Nt{self.nt}_frame_{k}.bin")
 
@@ -283,14 +292,14 @@ class migration:
 
     def reconstructed_step(self,t):
         if self.approximation == "acoustic":
-            self.wf.future[self.sz, self.sx] -= self.wf.source[t]
             self.wf.future = updateWaveEquation(self.wf.future, self.wf.current, self.vp_exp, self.nz_abc, self.nx_abc, self.dz, self.dx, self.dt)
+            self.wf.future[self.sz, self.sx] -= self.wf.source[t]
         elif self.approximation == "VTI":
-            self.wf.future[self.sz, self.sx] -= self.wf.source[t]
             self.wf.future= updateWaveEquationVTI(self.wf.future, self.wf.current, self.nx_abc, self.nz_abc, self.dt, self.dx, self.dz, self.vp_exp, self.epsilon_exp, self.delta_exp)
-        elif self.approximation == "TTI":
             self.wf.future[self.sz, self.sx] -= self.wf.source[t]
+        elif self.approximation == "TTI":
             self.wf.future= updateWaveEquationTTI(self.wf.future, self.wf.current, self.nx_abc, self.nz_abc, self.dt, self.dx, self.dz, self.vp_exp, self.epsilon_exp, self.delta_exp, self.theta_exp)
+            self.wf.future[self.sz, self.sx] -= self.wf.source[t]
         
     def save_boundaries(self,k): 
         if self.migration == "SB":
@@ -321,7 +330,8 @@ class migration:
 
     def build_ckpts_steps(self):
         self.ckpts_steps = []
-        for t0 in range (0,self.nt-1,self.step):
+        last_t_ceil = ((self.last_t + self.step - 1) // self.step) * self.step
+        for t0 in range (last_t_ceil,self.nt-1,self.step):
             t1 = min(t0 + self.step,self.nt-1)
             self.ckpts_steps.append((t0,t1))
     
@@ -380,7 +390,7 @@ class migration:
         print(f"info: Solving backward acoustic wave equation")
         # Expand velocity model and Create absorbing layers
         self.vp = self.smooth_model(self.wf.vp, 9)
-        self.vp_exp = self.wf.ExpandModel(self.vp)
+        self.vp_exp = self.wf.ExpandModel(self.wf.vp)
         if self.approximation in ["VTI", "TTI"]:
             self.epsilon_exp = self.wf.ExpandModel(self.wf.epsilon)
             self.delta_exp = self.wf.ExpandModel(self.wf.delta)
@@ -390,6 +400,7 @@ class migration:
         self.rx = np.int32(self.rec_x/self.dx) + self.N_abc
         self.rz = np.int32(self.rec_z/self.dz) + self.N_abc
         save_field = np.zeros([self.nt,self.nz,self.nx],dtype=np.float32)
+        self.last_t = self.LastTimeStepWithSignificantSourceAmplitude()
         for shot in range(self.Nshot):
             print(f"info: Shot {shot+1} of {self.Nshot}")
 
@@ -409,7 +420,7 @@ class migration:
                 save_field[k,:,:] = self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc]
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
-            for t in range(self.nt - 1, -1, -1):
+            for t in range(self.nt - 1, self.last_t, -1):
                 self.backward_step(t)
                 self.migrated_partial += (save_field[t,:,:] * self.wf.currentbck[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc])
                 #swap
@@ -438,6 +449,7 @@ class migration:
         
         self.rx = np.int32(self.rec_x/self.dx) + self.N_abc
         self.rz = np.int32(self.rec_z/self.dz) + self.N_abc
+        self.last_t = self.LastTimeStepWithSignificantSourceAmplitude()
         for shot in range(self.Nshot):
             print(f"info: Shot {shot+1} of {self.Nshot}")
             self.reset_field()
@@ -501,6 +513,7 @@ class migration:
 
         self.rx = np.int32(self.rec_x/self.dx) + self.N_abc
         self.rz = np.int32(self.rec_z/self.dz) + self.N_abc
+        self.last_t = self.LastTimeStepWithSignificantSourceAmplitude()
         for shot in range(self.Nshot):
             print(f"info: Shot {shot+1} of {self.Nshot}")
             self.reset_field()
@@ -519,7 +532,7 @@ class migration:
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current 
             self.wf.current, self.wf.future = self.wf.future, self.wf.current 
-            for t in range(self.nt - 1, -1, -1):
+            for t in range(self.nt - 1, self.last_t, -1):
                 self.reconstructed_step(t)
                 self.apply_boundaries(t)           
                 self.backward_step(t)
@@ -553,6 +566,7 @@ class migration:
 
         self.rx = np.int32(self.rec_x/self.dx) + self.N_abc
         self.rz = np.int32(self.rec_z/self.dz) + self.N_abc
+        self.last_t = self.LastTimeStepWithSignificantSourceAmplitude()
         for shot in range(self.Nshot):
             print(f"info: Shot {shot+1} of {self.Nshot}")
             self.reset_field()
@@ -572,7 +586,7 @@ class migration:
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
             self.wf.current, self.wf.future = self.wf.future, self.wf.current    
-            for t in range(self.nt - 1, -1, -1): 
+            for t in range(self.nt - 1, self.last_t, -1): 
                 self.reconstructed_step(t)
                 self.backward_step(t)     
                 self.migrated_partial += (self.wf.current[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc] * self.wf.currentbck[self.N_abc:self.nz_abc - self.N_abc,self.N_abc:self.nx_abc - self.N_abc])
