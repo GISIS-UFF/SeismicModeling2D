@@ -5,8 +5,8 @@ import math
 def ricker(f0, t):
     pi = np.pi
     td  = t - 2 * np.sqrt(pi) / f0
-    fcd = f0 / (np.sqrt(pi) * 3) 
-    source = (1 - 2 * pi * (pi * fcd * td) * (pi * fcd * td)) * np.exp(-pi * (pi * fcd * td) * (pi * fcd * td)) 
+    fcd = f0 / 3 
+    source = (1 - 2 * (pi * pi) * (fcd * fcd) * (td * td)) * np.exp(-(pi * pi) * (fcd * fcd) * (td * td)) 
     return source
 
 @njit(inline = "always")
