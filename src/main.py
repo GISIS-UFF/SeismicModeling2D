@@ -1,9 +1,13 @@
+from survey import parameters
 from Modeling2D import wavefield
 
-wavefield = wavefield("../inputs/Parameters.json")
+pmt = parameters("../inputs/Parameters.json")
+
+wavefield = wavefield(pmt)
 
 wavefield.createSourceWavelet()
 wavefield.initializeWavefields()
+wavefield.loadModels()
 wavefield.checkDispersionAndStability()
 wavefield.SolveWaveEquation()
 
