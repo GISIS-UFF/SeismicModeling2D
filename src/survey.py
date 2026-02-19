@@ -46,6 +46,9 @@ class parameters:
         # Max frequency
         self.fcut = self.parameters["fcut"]
 
+        # Source delay
+        self.tlag = self.parameters["tlag"]
+
         # Output folders
         self.seismogramFolder = self.parameters["seismogramFolder"]
         self.migratedimageFolder = self.parameters["migratedimageFolder"]

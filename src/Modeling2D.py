@@ -17,24 +17,24 @@ class wavefield:
 
     def createSourceWavelet(self):
         # Create Ricker wavelet
-        self.source = ricker(self.pmt.fcut, self.pmt.t)
+        self.source = ricker(self.pmt.fcut, self.pmt.t, self.pmt.tlag)
         self.source = self.source * (self.pmt.dt * self.pmt.dt)/(self.pmt.dx*self.pmt.dz)
-        import matplotlib.pyplot as plt
-        plt.figure()
-        plt.plot(self.pmt.t, self.source)
-        plt.xlabel("Time (s)")
-        plt.ylabel("Amplitude")
-        plt.show()
+        # import matplotlib.pyplot as plt
+        # plt.figure()
+        # plt.plot(self.pmt.t, self.source)
+        # plt.xlabel("Time (s)")
+        # plt.ylabel("Amplitude")
+        # plt.show()
 
-        fft_result = np.fft.rfft(self.source)
-        amplitude = np.abs(fft_result)
-        freq = np.fft.rfftfreq(len(self.source), d=self.pmt.dt)
+        # fft_result = np.fft.rfft(self.source)
+        # amplitude = np.abs(fft_result)
+        # freq = np.fft.rfftfreq(len(self.source), d=self.pmt.dt)
 
-        plt.figure()
-        plt.plot(freq, amplitude)
-        plt.xlabel("Frequency (Hz)")
-        plt.ylabel("Amplitude")
-        plt.show()
+        # plt.figure()
+        # plt.plot(freq, amplitude)
+        # plt.xlabel("Frequency (Hz)")
+        # plt.ylabel("Amplitude")
+        # plt.show()
         print(f"info: Ricker Source wavelet created: {self.pmt.nt} samples")
         
     def ImportModel(self, filename):
@@ -194,60 +194,11 @@ class wavefield:
         self.seismogram.tofile(self.seismogramFile)
         print(f"info: Seismogram saved to {self.seismogramFile}")
 
-    def solveAcousticWaveEquation(self):
-        start_time = time.time()
-        print(f"info: Solving acoustic wave equation")
-        # Expand velocity model and Create absorbing layers
-        self.vp_exp = self.ExpandModel(self.vp)
-        self.A = self.createCerjanVector()
-        
-        rx = np.int32(self.pmt.rec_x/self.pmt.dx) + self.pmt.N_abc
-        rz = np.int32(self.pmt.rec_z/self.pmt.dz) + self.pmt.N_abc
-
-        for shot in range(self.pmt.Nshot):
-            print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
-            self.current.fill(0)
-            self.future.fill(0)
-            self.seismogram.fill(0)
-
-            # convert acquisition geometry coordinates to grid points
-            sx = int(self.pmt.shot_x[shot]/self.pmt.dx) + self.pmt.N_abc
-            sz = int(self.pmt.shot_z[shot]/self.pmt.dz) + self.pmt.N_abc           
-
-            for k in range(self.pmt.nt):        
-                self.future = updateWaveEquation(self.future, self.current, self.vp_exp, self.pmt.nz_abc, self.pmt.nx_abc, self.pmt.dz, self.pmt.dx, self.pmt.dt)
-                self.future[sz,sx] += self.source[k]
-
-                # Apply absorbing boundary condition
-                self.future = AbsorbingBoundary(self.pmt.N_abc, self.pmt.nz_abc, self.pmt.nx_abc, self.future, self.A)
-                self.current = AbsorbingBoundary(self.pmt.N_abc, self.pmt.nz_abc, self.pmt.nx_abc, self.current, self.A)
-
-                # Register seismogram
-                self.seismogram[k, :] = self.current[rz, rx]
-
-                self.save_snapshot(shot, k)
-                
-                #swap
-                self.current, self.future = self.future, self.current
-                
-            self.save_seismogram(shot)
-            print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
-
-    def solveAcousticWaveEquationCPML(self):
-        start_time = time.time()
-        print(f"info: Solving acoustic CPML wave equation")
-        # Expand velocity model and Create absorbing layers
-        self.vp_exp = self.ExpandModel(self.vp)
-        self.d0, self.f_pico = self.dampening_const()
-
-        rx = np.int32(self.pmt.rec_x/self.pmt.dx) + self.pmt.N_abc
-        rz = np.int32(self.pmt.rec_z/self.pmt.dz) + self.pmt.N_abc
-
-        for shot in range(self.pmt.Nshot):
-            print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
-            self.current.fill(0)
-            self.future.fill(0)
-            self.seismogram.fill(0)
+    def reset_field(self):
+        self.current.fill(0)
+        self.future.fill(0)
+        self.seismogram.fill(0)
+        if self.pmt.ABC == "CPML":
             self.PsixFR.fill(0)
             self.PsixFL.fill(0)
             self.PsizFU.fill(0)  
@@ -256,167 +207,82 @@ class wavefield:
             self.ZetaxFL.fill(0)
             self.ZetazFU.fill(0)
             self.ZetazFD.fill(0)
-
-            # convert acquisition geometry coordinates to grid points
-            sx = int(self.pmt.shot_x[shot]/self.pmt.dx) + self.pmt.N_abc
-            sz = int(self.pmt.shot_z[shot]/self.pmt.dz) + self.pmt.N_abc
-
-            for k in range(self.pmt.nt):
-                self.PsixFR, self.PsixFL, self.PsizFU, self.PsizFD = updatePsi(self.PsixFR, self.PsixFL,self.PsizFU, self.PsizFD, self.pmt.nx_abc, self.pmt.nz_abc, self.current, self.pmt.dx, self.pmt.dz, self.pmt.N_abc, self.f_pico, self.d0, self.pmt.dt, self.vp_exp)
-                self.ZetaxFR, self.ZetaxFL, self.ZetazFU, self.ZetazFD = updateZeta(self.PsixFR, self.PsixFL, self.ZetaxFR, self.ZetaxFL,self.PsizFU, self.PsizFD, self.ZetazFU, self.ZetazFD, self.pmt.nx_abc, self.pmt.nz_abc, self.current, self.pmt.dx,self.pmt.dz, self.pmt.N_abc, self.f_pico, self.d0, self.pmt.dt, self.vp_exp)
-                self.future = updateWaveEquationCPML(self.future, self.current, self.vp_exp, self.pmt.nx_abc, self.pmt.nz_abc, self.pmt.dz, self.pmt.dx, self.pmt.dt, self.PsixFR, self.PsixFL, self.PsizFU, self.PsizFD, self.ZetaxFR, self.ZetaxFL, self.ZetazFU, self.ZetazFD, self.pmt.N_abc)
-                
-                self.future[sz,sx] += self.source[k]
-
-                # Register seismogram
-                self.seismogram[k, :] = self.current[rz, rx]
-                self.save_snapshot(shot, k)
-
-                #swap
-                self.current, self.future = self.future, self.current
-
-            self.save_seismogram(shot)
-            print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
-
-    def solveAcousticVTIWaveEquation(self):
-        start_time = time.time()
-        print(f"info: Solving acoustic VTI wave equation")
-        # Expand models and Create absorbing layers
-        self.vp_exp = self.ExpandModel(self.vp)
-        self.epsilon_exp = self.ExpandModel(self.epsilon)
-        self.delta_exp = self.ExpandModel(self.delta)
-        self.A = self.createCerjanVector()
-
-        rx = np.int32(self.pmt.rec_x/self.pmt.dx) + self.pmt.N_abc
-        rz = np.int32(self.pmt.rec_z/self.pmt.dz) + self.pmt.N_abc
-
-        for shot in range(self.pmt.Nshot):
-            print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
-            self.current.fill(0)
-            self.future.fill(0)
-            self.seismogram.fill(0)
-
-            # convert acquisition geometry coordinates to grid points
-            sx = int(self.pmt.shot_x[shot]/self.pmt.dx) + self.pmt.N_abc
-            sz = int(self.pmt.shot_z[shot]/self.pmt.dz) + self.pmt.N_abc 
-
-            for k in range(self.pmt.nt):
-                self.future= updateWaveEquationVTI(self.future, self.current, self.pmt.nx_abc, self.pmt.nz_abc, self.pmt.dt, self.pmt.dx, self.pmt.dz, self.vp_exp, self.epsilon_exp, self.delta_exp)
-                self.future[sz,sx] += self.source[k]
+    
+    def foward_step(self, k):
+            if self.pmt.approximation == "acoustic" and self.pmt.ABC == "cerjan":
+                self.future = updateWaveEquation(self.future, self.current, self.vp_exp, self.pmt.nz_abc, self.pmt.nx_abc, self.pmt.dz, self.pmt.dx, self.pmt.dt)
+                self.future[self.sz,self.sx] += self.source[k]
                 # Apply absorbing boundary condition
                 self.future = AbsorbingBoundary(self.pmt.N_abc, self.pmt.nz_abc, self.pmt.nx_abc, self.future, self.A)
                 self.current = AbsorbingBoundary(self.pmt.N_abc, self.pmt.nz_abc, self.pmt.nx_abc, self.current, self.A)
 
-                # Register seismogram
-                self.seismogram[k, :] = self.current[rz, rx]
+            elif self.pmt.approximation == "acoustic" and self.pmt.ABC == "CPML":
+                self.PsixFR, self.PsixFL, self.PsizFU, self.PsizFD = updatePsi(self.PsixFR, self.PsixFL,self.PsizFU, self.PsizFD, self.pmt.nx_abc, self.pmt.nz_abc, self.current, self.pmt.dx, self.pmt.dz, self.pmt.N_abc, self.f_pico, self.d0, self.pmt.dt, self.vp_exp)
+                self.ZetaxFR, self.ZetaxFL, self.ZetazFU, self.ZetazFD = updateZeta(self.PsixFR, self.PsixFL, self.ZetaxFR, self.ZetaxFL,self.PsizFU, self.PsizFD, self.ZetazFU, self.ZetazFD, self.pmt.nx_abc, self.pmt.nz_abc, self.current, self.pmt.dx,self.pmt.dz, self.pmt.N_abc, self.f_pico, self.d0, self.pmt.dt, self.vp_exp)
+                self.future = updateWaveEquationCPML(self.future, self.current, self.vp_exp, self.pmt.nx_abc, self.pmt.nz_abc, self.pmt.dz, self.pmt.dx, self.pmt.dt, self.PsixFR, self.PsixFL, self.PsizFU, self.PsizFD, self.ZetaxFR, self.ZetaxFL, self.ZetazFU, self.ZetazFD, self.pmt.N_abc)             
+                self.future[self.sz,self.sx] += self.source[k]
 
-                self.save_snapshot(shot, k)
-                
-                #swap
-                self.current, self.future = self.future, self.current
-            self.save_seismogram(shot)
-            print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
-        
-    def solveAcousticVTIWaveEquationCPML(self):
-        start_time = time.time()
-        print(f"info: Solving acoustic VTI CPML wave equation")
-        # Expand models and Create absorbing layers
-        self.vp_exp = self.ExpandModel(self.vp)
-        self.epsilon_exp = self.ExpandModel(self.epsilon)
-        self.delta_exp = self.ExpandModel(self.delta)
-        self.d0, self.f_pico = self.dampening_const()
+            elif self.pmt.approximation == "VTI" and self.pmt.ABC == "cerjan":
+                self.future= updateWaveEquationVTI(self.future, self.current, self.pmt.nx_abc, self.pmt.nz_abc, self.pmt.dt, self.pmt.dx, self.pmt.dz, self.vp_exp, self.epsilon_exp, self.delta_exp)
+                self.future[self.sz,self.sx] += self.source[k]
+                # Apply absorbing boundary condition
+                self.future = AbsorbingBoundary(self.pmt.N_abc, self.pmt.nz_abc, self.pmt.nx_abc, self.future, self.A)
+                self.current = AbsorbingBoundary(self.pmt.N_abc, self.pmt.nz_abc, self.pmt.nx_abc, self.current, self.A)
 
-        rx = np.int32(self.pmt.rec_x/self.pmt.dx) + self.pmt.N_abc
-        rz = np.int32(self.pmt.rec_z/self.pmt.dz) + self.pmt.N_abc
-
-        for shot in range(self.pmt.Nshot):
-            print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
-            self.current.fill(0)
-            self.future.fill(0)
-            self.seismogram.fill(0)
-            self.PsixFR.fill(0)
-            self.PsixFL.fill(0)
-            self.PsizFU.fill(0)
-            self.PsizFD.fill(0)
-            self.ZetaxFR.fill(0)
-            self.ZetaxFL.fill(0)
-            self.ZetazFU.fill(0)
-            self.ZetazFD.fill(0)
-
-            # convert acquisition geometry coordinates to grid points
-            sx = int(self.pmt.shot_x[shot]/self.pmt.dx) + self.pmt.N_abc
-            sz = int(self.pmt.shot_z[shot]/self.pmt.dz) + self.pmt.N_abc 
-
-            for k in range(self.pmt.nt):
+            elif self.pmt.approximation == "VTI" and self.pmt.ABC == "CPML":
                 self.PsixFR, self.PsixFL, self.PsizFU, self.PsizFD = updatePsi(self.PsixFR, self.PsixFL,self.PsizFU, self.PsizFD, self.pmt.nx_abc, self.pmt.nz_abc, self.current, self.pmt.dx, self.pmt.dz, self.pmt.N_abc, self.f_pico, self.d0, self.pmt.dt, self.vp_exp)
                 self.ZetaxFR, self.ZetaxFL, self.ZetazFU, self.ZetazFD = updateZeta(self.PsixFR, self.PsixFL, self.ZetaxFR, self.ZetaxFL,self.PsizFU, self.PsizFD, self.ZetazFU, self.ZetazFD, self.pmt.nx_abc, self.pmt.nz_abc, self.current, self.pmt.dx,self.pmt.dz, self.pmt.N_abc, self.f_pico, self.d0, self.pmt.dt, self.vp_exp)
                 self.future = updateWaveEquationVTICPML(self.future, self.current, self.pmt.dt, self.pmt.dx, self.pmt.dz, self.vp_exp, self.epsilon_exp, self.delta_exp,self.pmt.nx_abc, self.pmt.nz_abc, self.PsixFR, self.PsixFL, self.PsizFU, self.PsizFD, self.ZetaxFR, self.ZetaxFL, self.ZetazFU, self.ZetazFD, self.pmt.N_abc)
-                
-                self.future[sz,sx] += self.source[k]
+                self.future[self.sz,self.sx] += self.source[k]
 
-                # Register seismogram
-                self.seismogram[k, :] = self.current[rz, rx]
-
-                self.save_snapshot(shot, k)
-                
-                #swap
-                self.current, self.future = self.future, self.current
-
-            self.save_seismogram(shot)
-            print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
-
-    def solveAcousticTTIWaveEquation(self):
+            elif self.pmt.approximation == "TTI" and self.pmt.ABC == "cerjan":
+                self.future= updateWaveEquationTTI(self.future, self.current, self.pmt.nx_abc, self.pmt.nz_abc, self.pmt.dt, self.pmt.dx, self.pmt.dz, self.vp_exp, self.epsilon_exp, self.delta_exp, self.theta_exp)
+                self.future[self.sz,self.sx] += self.source[k]
+                # Apply absorbing boundary condition
+                self.future = AbsorbingBoundary(self.pmt.N_abc, self.pmt.nz_abc, self.pmt.nx_abc, self.future, self.A)
+                self.current = AbsorbingBoundary(self.pmt.N_abc, self.pmt.nz_abc, self.pmt.nx_abc, self.current, self.A)
+            else:
+                raise ValueError("ERROR: Unknown approximation. Choose 'acoustic', 'VTI' or 'TTI'. Otherwise, unknown Absorbing Boundary Condition. Choose 'cerjan' or 'CPML'.")
+        
+    def solveWaveEquation(self):
         start_time = time.time()
-        print(f"info: Solving acoustic TTI wave equation")
-        # Expand models and Create absorbing layers
+        print(f"info: Solving acoustic wave equation")
+        # Expand velocity model and Create absorbing layers
         self.vp_exp = self.ExpandModel(self.vp)
-        self.theta_exp = self.ExpandModel(self.theta)
-        self.epsilon_exp = self.ExpandModel(self.epsilon)
-        self.delta_exp = self.ExpandModel(self.delta)
-        self.A = self.createCerjanVector()
-
+        if self.pmt.ABC == "cerjan":
+            self.A = self.createCerjanVector()
+        elif self.pmt.ABC == "CPML":
+            self.d0, self.f_pico = self.dampening_const()
+        if self.pmt.approximation in ["VTI", "TTI"]:
+            self.epsilon_exp = self.ExpandModel(self.wf.epsilon)
+            self.delta_exp = self.ExpandModel(self.wf.delta)
+            if self.pmt.approximation == "TTI":
+                self.theta_exp = self.ExpandModel(self.wf.theta)
+        
         rx = np.int32(self.pmt.rec_x/self.pmt.dx) + self.pmt.N_abc
         rz = np.int32(self.pmt.rec_z/self.pmt.dz) + self.pmt.N_abc
 
         for shot in range(self.pmt.Nshot):
             print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
-            self.current.fill(0)
-            self.future.fill(0)
-            self.seismogram.fill(0)
+
+            self.reset_field()
 
             # convert acquisition geometry coordinates to grid points
-            sx = int(self.pmt.shot_x[shot]/self.pmt.dx) + self.pmt.N_abc
-            sz = int(self.pmt.shot_z[shot]/self.pmt.dz) + self.pmt.N_abc            
+            self.sx = int(self.pmt.shot_x[shot]/self.pmt.dx) + self.pmt.N_abc
+            self.sz = int(self.pmt.shot_z[shot]/self.pmt.dz) + self.pmt.N_abc           
 
-            for k in range(self.pmt.nt):
-                self.future= updateWaveEquationTTI(self.future, self.current, self.pmt.nx_abc, self.pmt.nz_abc, self.pmt.dt, self.pmt.dx, self.pmt.dz, self.vp_exp, self.epsilon_exp, self.delta_exp, self.theta_exp)
-                self.future[sz,sx] += self.source[k]
-                # Apply absorbing boundary condition
-                self.future = AbsorbingBoundary(self.pmt.N_abc, self.pmt.nz_abc, self.pmt.nx_abc, self.future, self.A)
-                self.current = AbsorbingBoundary(self.pmt.N_abc, self.pmt.nz_abc, self.pmt.nx_abc, self.current, self.A)
+            for k in range(self.pmt.nt):        
+                self.foward_step(k)
 
                 # Register seismogram
                 self.seismogram[k, :] = self.current[rz, rx]
+
                 self.save_snapshot(shot, k)
                 
                 #swap
                 self.current, self.future = self.future, self.current
-
-
+                
             self.save_seismogram(shot)
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
-
-    def SolveWaveEquation(self):
-        if self.pmt.approximation == "acoustic" and self.pmt.ABC == "cerjan":
-            self.solveAcousticWaveEquation()
-        elif self.pmt.approximation == "acoustic" and self.pmt.ABC == "CPML":
-            self.solveAcousticWaveEquationCPML()
-        elif self.pmt.approximation == "VTI" and self.pmt.ABC == "cerjan":
-            self.solveAcousticVTIWaveEquation()
-        elif self.pmt.approximation == "VTI" and self.pmt.ABC == "CPML":
-            self.solveAcousticVTIWaveEquationCPML()
-        elif self.pmt.approximation == "TTI" and self.pmt.ABC == "cerjan":
-            self.solveAcousticTTIWaveEquation()
-        else:
-            raise ValueError("ERROR: Unknown approximation. Choose 'acoustic', 'VTI' or 'TTI'. Otherwise, unknown Absorbing Boundary Condition. Choose 'cerjan' or 'CPML'.")
         print(f"info: Wave equation solved")
+

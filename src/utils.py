@@ -2,12 +2,38 @@ import numpy as np
 from numba import jit,prange, njit, cuda
 import math
 
-def ricker(f0, t):
+def ricker(f0, t, t_lag):
     pi = np.pi
     f = f0 / (np.sqrt(pi) * 3) 
-    td  = t - 0.12
+    td  = t - t_lag
     source = (1 - 2 * pi * (pi * f * td) * (pi * f * td)) * np.exp(-pi * (pi * f * td) * (pi * f * td)) 
     return source
+
+@jit(parallel=True)
+def Mute(seismogram, shot, rec_x, rec_z, shot_x, shot_z, dt,window = 0.2 ,v0=1500): 
+    result = np.zeros_like(seismogram)
+    Nt = seismogram.shape[0]
+    Nrec = seismogram.shape[1]  
+    dist = np.sqrt((rec_z - shot_z[shot])**2 + (rec_x - shot_x[shot])**2)
+    traveltimes = dist/v0
+    for rec in prange(Nrec):
+        t1 = traveltimes[rec]
+        t2 = traveltimes[rec] + window
+        t3 = (Nt - 1) * dt - window
+        t4 = (Nt - 1) * dt
+        for i in prange(Nt):
+            t = (i-1)*dt
+            if t <=t1:
+                result[i,rec] = 0.0
+            elif t>t1 and t<t2:
+                result[i,rec] = (t-t1)/(t2-t1)*seismogram[i,rec]
+            elif t>=t2 and t<t3:
+                result[i,rec] = seismogram[i,rec]
+            elif t>=t3 and t<t4:
+                result[i,rec] = (t4-t)/(t4-t3)*seismogram[i,rec]
+            elif t>t4:
+                result[i,rec] = 0.0
+    return result
 
 @njit(inline = "always")
 def horizontal_dampening_profiles(N_abc,nx_abc, dx, vp, f_pico, d0, dt, i, j):

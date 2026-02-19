@@ -9,7 +9,7 @@ wavefield.createSourceWavelet()
 wavefield.initializeWavefields()
 wavefield.loadModels()
 wavefield.checkDispersionAndStability()
-wavefield.SolveWaveEquation()
+wavefield.solveWaveEquation()
 
 
 

@@ -1,5 +1,4 @@
 import numpy as np
-
 from utils import updateWaveEquation
 from utils import updateWaveEquationCPML
 from utils import updateWaveEquationVTI
@@ -8,6 +7,7 @@ from utils import updateWaveEquationTTI
 from utils import AbsorbingBoundary
 from utils import updatePsi
 from utils import updateZeta
+from utils import Mute
 
 class migration: 
 
@@ -19,23 +19,6 @@ class migration:
         seismogramFile = f"{self.pmt.seismogramFolder}seismogram_shot_{shot+1}_Nt{self.pmt.nt}_Nrec{self.pmt.Nrec}.bin"
         seismogram = np.fromfile(seismogramFile, dtype=np.float32).reshape(self.pmt.nt,self.pmt.Nrec) 
         return seismogram
-
-    def Mute(self, seismogram, shot): 
-        muted = seismogram.copy() 
-        v0 = self.wf.vp[0, :]
-        rec_idx = (self.pmt.rec_x / self.pmt.dx).astype(int)
-        v0_rec = v0[rec_idx]
-        distz = self.pmt.rec_z - self.pmt.shot_z[shot]   
-        distx = self.pmt.rec_x - self.pmt.shot_x[shot]   
-        dist = np.sqrt(distx**2 + distz**2)
-        t_lag = 2 * np.sqrt(np.pi) / self.pmt.fcut
-        traveltimes = (dist / v0_rec) + 0.12 
-        
-        for r in range(self.pmt.Nrec): 
-            mute_samples = int(traveltimes[r] / self.pmt.dt)
-            muted[:mute_samples, r] = 0 
-                
-        return muted
         
     def laplacian_filter(self, f):
         dim1,dim2 = np.shape(f)
@@ -298,7 +281,16 @@ class migration:
 
             # Top muting
             seismogram = self.loadSeismogram(shot)
-            self.muted_seismogram = self.Mute(seismogram, shot)
+            self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,window = 0.3,v0=1500)
+            import matplotlib.pyplot as plt
+            plt.figure(figsize=(5,5))
+            plt.plot(self.muted_seismogram[:, 300],label = "muted")
+            plt.plot(seismogram[:, 300],label = "seism")
+            plt.legend()
+            plt.show()
+            plt.figure()
+            plt.imshow(self.muted_seismogram)
+            plt.show()
             self.migrated_partial = np.zeros_like(self.wf.migrated_image)
 
             for k in range(self.pmt.nt):
@@ -345,7 +337,7 @@ class migration:
 
             # Top muting
             seismogram = self.loadSeismogram(shot)
-            self.muted_seismogram = self.Mute(seismogram, shot)
+            self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,window = 0.3,v0=1500)
             self.migrated_partial = np.zeros_like(self.wf.migrated_image)
             self.build_ckpts_steps()
             for k in range(self.pmt.nt):
@@ -400,7 +392,7 @@ class migration:
 
             # Top muting
             seismogram = self.loadSeismogram(shot)
-            self.muted_seismogram = self.Mute(seismogram, shot)
+            self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,window = 0.3,v0=1500)
             self.migrated_partial = np.zeros_like(self.wf.migrated_image)
             for k in range(self.pmt.nt):
                 self.save_boundaries(k)
@@ -452,7 +444,7 @@ class migration:
 
             # Top muting
             seismogram = self.loadSeismogram(shot)
-            self.muted_seismogram = self.Mute(seismogram, shot)
+            self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,window = 0.3,v0=1500)
 
             self.migrated_partial = np.zeros_like(self.wf.migrated_image)
 
