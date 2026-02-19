@@ -3,16 +3,16 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 # sources
-sx_init = 100
-sx_end  = 3720
+sx_init = 200
+sx_end  = 2800
 Nsource = 10
 sx = np.linspace(sx_init,sx_end,Nsource)
-sz = 5*np.ones(len(sx))
+sz = 200*np.ones(len(sx))
 sIdx = np.arange(Nsource)
 
 # receivers
 rx_init = 0
-rx_end = 3820
+rx_end = 3000
 Nrec = 501
 rx = np.linspace(rx_init,rx_end,Nrec)
 rz = 10*np.ones(len(rx))

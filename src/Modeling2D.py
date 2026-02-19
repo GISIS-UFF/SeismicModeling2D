@@ -24,24 +24,23 @@ class wavefield:
         plt.plot(self.pmt.t, self.source)
         plt.xlabel("Time (s)")
         plt.ylabel("Amplitude")
-        plt.title("Source wavelet (solver)")
         plt.show()
 
-        freq = np.fft.rfftfreq(self.pmt.nt, self.pmt.dt)
-        W = np.abs(np.fft.rfft(self.source))
+        fft_result = np.fft.rfft(self.source)
+        amplitude = np.abs(fft_result)
+        freq = np.fft.rfftfreq(len(self.source), d=self.pmt.dt)
 
         plt.figure()
-        plt.plot(freq, W)
+        plt.plot(freq, amplitude)
         plt.xlabel("Frequency (Hz)")
         plt.ylabel("Amplitude")
-        plt.title("Source spectrum (solver)")
         plt.show()
         print(f"info: Ricker Source wavelet created: {self.pmt.nt} samples")
         
     def ImportModel(self, filename):
-        data = np.fromfile(filename, dtype=np.float32).reshape(self.pmt.nx, self.pmt.nz).T
+        data = np.fromfile(filename, dtype=np.float32).reshape(self.pmt.nx, self.pmt.nz)
         print(f"info: Imported: {filename}")
-        return data
+        return data.T
         
     def ExpandModel(self, model_data):
         N = self.pmt.N_abc

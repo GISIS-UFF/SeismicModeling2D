@@ -29,7 +29,7 @@ class migration:
         distx = self.pmt.rec_x - self.pmt.shot_x[shot]   
         dist = np.sqrt(distx**2 + distz**2)
         t_lag = 2 * np.sqrt(np.pi) / self.pmt.fcut
-        traveltimes = (dist / v0_rec) + 3 * t_lag 
+        traveltimes = (dist / v0_rec) + 0.12 
         
         for r in range(self.pmt.Nrec): 
             mute_samples = int(traveltimes[r] / self.pmt.dt)
@@ -63,7 +63,7 @@ class migration:
         return fator * np.exp(expoente)
 
     def gaussian_filter2D(self,sigma):
-        kernel_size = np.ceil(2 * sigma + 1)
+        kernel_size = np.ceil(2 * sigma + 1).astype(int)
         if kernel_size % 2 == 0:
             kernel_size += 1
 

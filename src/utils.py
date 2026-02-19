@@ -5,7 +5,7 @@ import math
 def ricker(f0, t):
     pi = np.pi
     f = f0 / (np.sqrt(pi) * 3) 
-    td  = t - (2 * np.sqrt(pi) / f)
+    td  = t - 0.12
     source = (1 - 2 * pi * (pi * f * td) * (pi * f * td)) * np.exp(-pi * (pi * f * td) * (pi * f * td)) 
     return source
 
