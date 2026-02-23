@@ -4,7 +4,7 @@ import math
 
 def ricker(f0, t, t_lag):
     pi = np.pi
-    f = f0 / (np.sqrt(pi) * 3) 
+    f = f0 / (3 * np.sqrt(pi)) 
     td  = t - t_lag
     source = (1 - 2 * pi * (pi * f * td) * (pi * f * td)) * np.exp(-pi * (pi * f * td) * (pi * f * td)) 
     return source
@@ -19,20 +19,15 @@ def Mute(seismogram, shot, rec_x, rec_z, shot_x, shot_z, dt,window = 0.2 ,v0=150
     for rec in prange(Nrec):
         t1 = traveltimes[rec]
         t2 = traveltimes[rec] + window
-        t3 = (Nt - 1) * dt - window
-        t4 = (Nt - 1) * dt
         for i in prange(Nt):
             t = (i-1)*dt
             if t <=t1:
                 result[i,rec] = 0.0
             elif t>t1 and t<t2:
+                # result[i,rec] = 0.0
                 result[i,rec] = (t-t1)/(t2-t1)*seismogram[i,rec]
-            elif t>=t2 and t<t3:
+            elif t>=t2:
                 result[i,rec] = seismogram[i,rec]
-            elif t>=t3 and t<t4:
-                result[i,rec] = (t4-t)/(t4-t3)*seismogram[i,rec]
-            elif t>t4:
-                result[i,rec] = 0.0
     return result
 
 @njit(inline = "always")

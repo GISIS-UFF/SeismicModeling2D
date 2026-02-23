@@ -167,12 +167,11 @@ class wavefield:
                 print("WARNING: Dispersion or stability conditions not satisfied.")
     
     def createCerjanVector(self):
-        sb = 4. * self.pmt.N_abc
+        sb = 6. * self.pmt.N_abc
         A = np.ones(self.pmt.N_abc)
         for i in range(self.pmt.N_abc):
                 fb = (self.pmt.N_abc - i) / (np.sqrt(2.) * sb)
                 A[i] = np.exp(-fb * fb)
-                
         return A 
     
     def save_snapshot(self,shot, k):        

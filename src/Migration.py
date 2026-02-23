@@ -260,7 +260,7 @@ class migration:
         print(f"info: Solving backward acoustic wave equation")
         # Expand velocity model and Create absorbing layers
         self.vp = self.smooth_model(self.wf.vp, 9)
-        self.vp_exp = self.wf.ExpandModel(self.wf.vp)
+        self.vp_exp = self.wf.ExpandModel(self.vp)
         if self.pmt.approximation in ["VTI", "TTI"]:
             self.epsilon_exp = self.wf.ExpandModel(self.wf.epsilon)
             self.delta_exp = self.wf.ExpandModel(self.wf.delta)
@@ -281,7 +281,7 @@ class migration:
 
             # Top muting
             seismogram = self.loadSeismogram(shot)
-            self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,window = 0.3,v0=1500)
+            self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,window = 0.3,v0=2000)
             import matplotlib.pyplot as plt
             plt.figure(figsize=(5,5))
             plt.plot(self.muted_seismogram[:, 300],label = "muted")
@@ -292,7 +292,7 @@ class migration:
             plt.imshow(self.muted_seismogram)
             plt.show()
             self.migrated_partial = np.zeros_like(self.wf.migrated_image)
-
+            self.ilum = np.zeros_like(self.wf.migrated_image)
             for k in range(self.pmt.nt):
                 self.forward_step(k)
                 save_field[k,:,:] = self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
@@ -303,7 +303,7 @@ class migration:
                 self.migrated_partial += (save_field[t,:,:] * self.wf.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc])
                 #swap
                 self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
-            self.wf.migrated_image += self.migrated_partial
+            self.wf.migrated_image += self.migrated_partial / (self.ilum + 1e-12)
             print(f"info: Shot {shot+1} backward done.")
      
         # Apply laplacian_filter filter 
@@ -337,8 +337,9 @@ class migration:
 
             # Top muting
             seismogram = self.loadSeismogram(shot)
-            self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,window = 0.3,v0=1500)
+            self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,window = 0.3,v0=2000)
             self.migrated_partial = np.zeros_like(self.wf.migrated_image)
+            self.ilum = np.zeros_like(self.wf.migrated_image)
             self.build_ckpts_steps()
             for k in range(self.pmt.nt):
                 self.forward_step(k)
@@ -354,7 +355,7 @@ class migration:
                     #swap
                     self.wf.current, self.wf.future = self.wf.future, self.wf.current
                     self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
-            self.wf.migrated_image += self.migrated_partial
+            self.wf.migrated_image += self.migrated_partial / (self.ilum + 1e-12)
             print(f"info: Shot {shot+1} backward done.")
      
         # Apply laplacian_filter filter 
@@ -394,6 +395,7 @@ class migration:
             seismogram = self.loadSeismogram(shot)
             self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,window = 0.3,v0=1500)
             self.migrated_partial = np.zeros_like(self.wf.migrated_image)
+            self.ilum = np.zeros_like(self.wf.migrated_image)
             for k in range(self.pmt.nt):
                 self.save_boundaries(k)
                 self.forward_step(k)            
@@ -405,11 +407,12 @@ class migration:
                 self.apply_boundaries(t)           
                 self.backward_step(t)
                 self.migrated_partial += (self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc])  
+                self.ilum += self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
                 self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
 
-            self.wf.migrated_image += self.migrated_partial
+            self.wf.migrated_image += self.migrated_partial / (self.ilum + 1e-12)
             print(f"info: Shot {shot+1} backward done.")
      
         # Apply laplacian_filter filter 
@@ -444,23 +447,32 @@ class migration:
 
             # Top muting
             seismogram = self.loadSeismogram(shot)
-            self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,window = 0.3,v0=1500)
-
+            self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,window = 0.3,v0=2000)
             self.migrated_partial = np.zeros_like(self.wf.migrated_image)
-
+            self.ilum = np.zeros_like(self.wf.migrated_image)
             for k in range(self.pmt.nt):
-                self.forward_step(k) 
+                self.forward_step(k)
+                import matplotlib.pyplot as plt
+                if k == 1200:
+                    snapshot = self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
+                    snapshotFile = (f"{self.pmt.snapshotFolder}{self.pmt.approximation}{self.pmt.ABC}_shot_{shot+1}_Nx{self.pmt.nx}_Nz{self.pmt.nz}_Nt{self.pmt.nt}_frame_{k}forward.bin")
+                    snapshot.tofile(snapshotFile)
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
             self.wf.current, self.wf.future = self.wf.future, self.wf.current    
             for t in range(self.pmt.nt - 1, -1, -1): 
                 self.reconstructed_step(t)
-                self.backward_step(t)     
+                self.backward_step(t) 
+                if t == 1200:
+                    snapshot = self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
+                    snapshotFile = (f"{self.pmt.snapshotFolder}{self.pmt.approximation}{self.pmt.ABC}_shot_{shot+1}_Nx{self.pmt.nx}_Nz{self.pmt.nz}_Nt{self.pmt.nt}_frame_{t}RBC.bin")
+                    snapshot.tofile(snapshotFile)     
                 self.migrated_partial += (self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc])
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
                 self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
-            self.wf.migrated_image += self.migrated_partial
+                
+            self.wf.migrated_image += self.migrated_partial / (self.ilum + 1e-12)
             print(f"info: Shot {shot+1} backward done.")
      
         # Apply Laplacian filter 
