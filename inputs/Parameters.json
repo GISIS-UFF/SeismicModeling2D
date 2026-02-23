@@ -1,6 +1,6 @@
 {
     "approximation": "acoustic",
-    "migration": "SB",
+    "migration": "onthefly",
     "ABC": "cerjan",
     "dx": 10,
     "dz": 10,

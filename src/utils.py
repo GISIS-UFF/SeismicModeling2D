@@ -24,7 +24,6 @@ def Mute(seismogram, shot, rec_x, rec_z, shot_x, shot_z, dt,window = 0.2 ,v0=150
             if t <=t1:
                 result[i,rec] = 0.0
             elif t>t1 and t<t2:
-                # result[i,rec] = 0.0
                 result[i,rec] = (t-t1)/(t2-t1)*seismogram[i,rec]
             elif t>=t2:
                 result[i,rec] = seismogram[i,rec]
