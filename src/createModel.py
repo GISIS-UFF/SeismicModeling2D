@@ -6,8 +6,8 @@ class model:
         self.wf = wavefield
 
         self.vp1 = 1500.0 
-        self.vp2 = 1500.0
-        self.vp3 = 0.0
+        self.vp2 = 3000.0
+        self.vp3 = 00.0
 
         self.epsilon1 = 0.0
         self.epsilon2 = 0.0

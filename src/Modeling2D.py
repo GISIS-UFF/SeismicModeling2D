@@ -19,22 +19,6 @@ class wavefield:
         # Create Ricker wavelet
         self.source = ricker(self.pmt.fcut, self.pmt.t, self.pmt.tlag)
         self.source = self.source * (self.pmt.dt * self.pmt.dt)/(self.pmt.dx*self.pmt.dz)
-        # import matplotlib.pyplot as plt
-        # plt.figure()
-        # plt.plot(self.pmt.t, self.source)
-        # plt.xlabel("Time (s)")
-        # plt.ylabel("Amplitude")
-        # plt.show()
-
-        # fft_result = np.fft.rfft(self.source)
-        # amplitude = np.abs(fft_result)
-        # freq = np.fft.rfftfreq(len(self.source), d=self.pmt.dt)
-
-        # plt.figure()
-        # plt.plot(freq, amplitude)
-        # plt.xlabel("Frequency (Hz)")
-        # plt.ylabel("Amplitude")
-        # plt.show()
         print(f"info: Ricker Source wavelet created: {self.pmt.nt} samples")
         
     def ImportModel(self, filename):
@@ -182,7 +166,7 @@ class wavefield:
         if k % self.pmt.step != 0:
             return
 
-        snapshot = self.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
+        snapshot = self.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
 
         snapshotFile = (f"{self.pmt.snapshotFolder}{self.pmt.approximation}_shot_{shot+1}_Nx{self.pmt.nx}_Nz{self.pmt.nz}_Nt{self.pmt.nt}_frame_{k}.bin")
         snapshot.tofile(snapshotFile)
@@ -245,7 +229,7 @@ class wavefield:
         
     def solveWaveEquation(self):
         start_time = time.time()
-        print(f"info: Solving acoustic wave equation")
+        print(f"info: Solving {self.pmt.approximation} wave equation")
         # Expand velocity model and Create absorbing layers
         self.vp_exp = self.ExpandModel(self.vp)
         if self.pmt.ABC == "cerjan":
@@ -253,10 +237,10 @@ class wavefield:
         elif self.pmt.ABC == "CPML":
             self.d0, self.f_pico = self.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
-            self.epsilon_exp = self.ExpandModel(self.wf.epsilon)
-            self.delta_exp = self.ExpandModel(self.wf.delta)
+            self.epsilon_exp = self.ExpandModel(self.epsilon)
+            self.delta_exp = self.ExpandModel(self.delta)
             if self.pmt.approximation == "TTI":
-                self.theta_exp = self.ExpandModel(self.wf.theta)
+                self.theta_exp = self.ExpandModel(self.theta)
         
         rx = np.int32(self.pmt.rec_x/self.pmt.dx) + self.pmt.N_abc
         rz = np.int32(self.pmt.rec_z/self.pmt.dz) + self.pmt.N_abc
@@ -274,7 +258,7 @@ class wavefield:
                 self.foward_step(k)
 
                 # Register seismogram
-                self.seismogram[k, :] = self.current[rz, rx]
+                self.seismogram[k, :] = self.future[rz, rx]
 
                 self.save_snapshot(shot, k)
                 
