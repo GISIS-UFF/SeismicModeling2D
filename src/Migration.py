@@ -1,5 +1,6 @@
 import numpy as np
 import time
+import random
 
 from utils import updateWaveEquation
 from utils import updateWaveEquationCPML
@@ -132,38 +133,49 @@ class migration:
         print(f"info: Checkpoint saved to {checkpointFile}")
     
     def forward_step(self,k):
-        if self.pmt.approximation == "acoustic" and self.pmt.ABC == "cerjan":
-            self.wf.future = updateWaveEquation(self.wf.future, self.wf.current, self.vp_exp, self.pmt.nz_abc, self.pmt.nx_abc, self.pmt.dz, self.pmt.dx, self.pmt.dt)
-            self.wf.future[self.sz,self.sx] += self.wf.source[k]
-            # Apply absorbing boundary condition
-            self.wf.future = AbsorbingBoundary(self.pmt.N_abc, self.pmt.nz_abc, self.pmt.nx_abc, self.wf.future, self.A)
-            self.wf.current = AbsorbingBoundary(self.pmt.N_abc, self.pmt.nz_abc, self.pmt.nx_abc, self.wf.current, self.A)
+        if self.pmt.migration in ["onthefly", "checkpoint", "SB"]:
+            if self.pmt.approximation == "acoustic" and self.pmt.ABC == "cerjan":
+                self.wf.future = updateWaveEquation(self.wf.future, self.wf.current, self.vp_exp, self.pmt.nz_abc, self.pmt.nx_abc, self.pmt.dz, self.pmt.dx, self.pmt.dt)
+                self.wf.future[self.sz,self.sx] += self.wf.source[k]
+                # Apply absorbing boundary condition
+                self.wf.future = AbsorbingBoundary(self.pmt.N_abc, self.pmt.nz_abc, self.pmt.nx_abc, self.wf.future, self.A)
+                self.wf.current = AbsorbingBoundary(self.pmt.N_abc, self.pmt.nz_abc, self.pmt.nx_abc, self.wf.current, self.A)
 
-        elif self.pmt.approximation == "acoustic" and self.pmt.ABC == "CPML":
-            self.wf.PsixFR, self.wf.PsixFL, self.wf.PsizFU, self.wf.PsizFD = updatePsi(self.wf.PsixFR, self.wf.PsixFL,self.wf.PsizFU, self.wf.PsizFD, self.pmt.nx_abc, self.pmt.nz_abc, self.wf.current, self.pmt.dx, self.pmt.dz, self.pmt.N_abc, self.f_pico, self.d0, self.pmt.dt, self.vp_exp)
-            self.wf.ZetaxFR, self.wf.ZetaxFL, self.wf.ZetazFU, self.wf.ZetazFD = updateZeta(self.wf.PsixFR, self.wf.PsixFL, self.wf.ZetaxFR, self.wf.ZetaxFL,self.wf.PsizFU, self.wf.PsizFD, self.wf.ZetazFU, self.wf.ZetazFD, self.pmt.nx_abc, self.pmt.nz_abc, self.wf.current, self.pmt.dx,self.pmt.dz, self.pmt.N_abc, self.f_pico, self.d0, self.pmt.dt, self.vp_exp)
-            self.wf.future = updateWaveEquationCPML(self.wf.future, self.wf.current, self.vp_exp, self.pmt.nx_abc, self.pmt.nz_abc, self.pmt.dz, self.pmt.dx, self.pmt.dt, self.wf.PsixFR, self.wf.PsixFL, self.wf.PsizFU, self.wf.PsizFD, self.wf.ZetaxFR, self.wf.ZetaxFL, self.wf.ZetazFU, self.wf.ZetazFD, self.pmt.N_abc)             
-            self.wf.future[self.sz,self.sx] += self.wf.source[k]
+            elif self.pmt.approximation == "acoustic" and self.pmt.ABC == "CPML":
+                self.wf.PsixFR, self.wf.PsixFL, self.wf.PsizFU, self.wf.PsizFD = updatePsi(self.wf.PsixFR, self.wf.PsixFL,self.wf.PsizFU, self.wf.PsizFD, self.pmt.nx_abc, self.pmt.nz_abc, self.wf.current, self.pmt.dx, self.pmt.dz, self.pmt.N_abc, self.f_pico, self.d0, self.pmt.dt, self.vp_exp)
+                self.wf.ZetaxFR, self.wf.ZetaxFL, self.wf.ZetazFU, self.wf.ZetazFD = updateZeta(self.wf.PsixFR, self.wf.PsixFL, self.wf.ZetaxFR, self.wf.ZetaxFL,self.wf.PsizFU, self.wf.PsizFD, self.wf.ZetazFU, self.wf.ZetazFD, self.pmt.nx_abc, self.pmt.nz_abc, self.wf.current, self.pmt.dx,self.pmt.dz, self.pmt.N_abc, self.f_pico, self.d0, self.pmt.dt, self.vp_exp)
+                self.wf.future = updateWaveEquationCPML(self.wf.future, self.wf.current, self.vp_exp, self.pmt.nx_abc, self.pmt.nz_abc, self.pmt.dz, self.pmt.dx, self.pmt.dt, self.wf.PsixFR, self.wf.PsixFL, self.wf.PsizFU, self.wf.PsizFD, self.wf.ZetaxFR, self.wf.ZetaxFL, self.wf.ZetazFU, self.wf.ZetazFD, self.pmt.N_abc)             
+                self.wf.future[self.sz,self.sx] += self.wf.source[k]
 
-        elif self.pmt.approximation == "VTI" and self.pmt.ABC == "cerjan":
-            self.wf.future= updateWaveEquationVTI(self.wf.future, self.wf.current, self.pmt.nx_abc, self.pmt.nz_abc, self.pmt.dt, self.pmt.dx, self.pmt.dz, self.vp_exp, self.epsilon_exp, self.delta_exp)
-            self.wf.future[self.sz,self.sx] += self.wf.source[k]
-            # Apply absorbing boundary condition
-            self.wf.future = AbsorbingBoundary(self.pmt.N_abc, self.pmt.nz_abc, self.pmt.nx_abc, self.wf.future, self.A)
-            self.wf.current = AbsorbingBoundary(self.pmt.N_abc, self.pmt.nz_abc, self.pmt.nx_abc, self.wf.current, self.A)
+            elif self.pmt.approximation == "VTI" and self.pmt.ABC == "cerjan":
+                self.wf.future= updateWaveEquationVTI(self.wf.future, self.wf.current, self.pmt.nx_abc, self.pmt.nz_abc, self.pmt.dt, self.pmt.dx, self.pmt.dz, self.vp_exp, self.epsilon_exp, self.delta_exp)
+                self.wf.future[self.sz,self.sx] += self.wf.source[k]
+                # Apply absorbing boundary condition
+                self.wf.future = AbsorbingBoundary(self.pmt.N_abc, self.pmt.nz_abc, self.pmt.nx_abc, self.wf.future, self.A)
+                self.wf.current = AbsorbingBoundary(self.pmt.N_abc, self.pmt.nz_abc, self.pmt.nx_abc, self.wf.current, self.A)
 
-        elif self.pmt.approximation == "VTI" and self.pmt.ABC == "CPML":
-            self.wf.PsixFR, self.wf.PsixFL, self.wf.PsizFU, self.wf.PsizFD = updatePsi(self.wf.PsixFR, self.wf.PsixFL,self.wf.PsizFU, self.wf.PsizFD, self.pmt.nx_abc, self.pmt.nz_abc, self.wf.current, self.pmt.dx, self.pmt.dz, self.pmt.N_abc, self.f_pico, self.d0, self.pmt.dt, self.vp_exp)
-            self.wf.ZetaxFR, self.wf.ZetaxFL, self.wf.ZetazFU, self.wf.ZetazFD = updateZeta(self.wf.PsixFR, self.wf.PsixFL, self.wf.ZetaxFR, self.wf.ZetaxFL,self.wf.PsizFU, self.wf.PsizFD, self.wf.ZetazFU, self.wf.ZetazFD, self.pmt.nx_abc, self.pmt.nz_abc, self.wf.current, self.pmt.dx,self.pmt.dz, self.pmt.N_abc, self.f_pico, self.d0, self.pmt.dt, self.vp_exp)
-            self.wf.future = updateWaveEquationVTICPML(self.wf.future, self.wf.current, self.pmt.dt, self.pmt.dx, self.pmt.dz, self.vp_exp, self.epsilon_exp, self.delta_exp,self.pmt.nx_abc, self.pmt.nz_abc, self.wf.PsixFR, self.wf.PsixFL, self.wf.PsizFU, self.wf.PsizFD, self.wf.ZetaxFR, self.wf.ZetaxFL, self.wf.ZetazFU, self.wf.ZetazFD, self.pmt.N_abc)
-            self.wf.future[self.sz,self.sx] += self.wf.source[k]
+            elif self.pmt.approximation == "VTI" and self.pmt.ABC == "CPML":
+                self.wf.PsixFR, self.wf.PsixFL, self.wf.PsizFU, self.wf.PsizFD = updatePsi(self.wf.PsixFR, self.wf.PsixFL,self.wf.PsizFU, self.wf.PsizFD, self.pmt.nx_abc, self.pmt.nz_abc, self.wf.current, self.pmt.dx, self.pmt.dz, self.pmt.N_abc, self.f_pico, self.d0, self.pmt.dt, self.vp_exp)
+                self.wf.ZetaxFR, self.wf.ZetaxFL, self.wf.ZetazFU, self.wf.ZetazFD = updateZeta(self.wf.PsixFR, self.wf.PsixFL, self.wf.ZetaxFR, self.wf.ZetaxFL,self.wf.PsizFU, self.wf.PsizFD, self.wf.ZetazFU, self.wf.ZetazFD, self.pmt.nx_abc, self.pmt.nz_abc, self.wf.current, self.pmt.dx,self.pmt.dz, self.pmt.N_abc, self.f_pico, self.d0, self.pmt.dt, self.vp_exp)
+                self.wf.future = updateWaveEquationVTICPML(self.wf.future, self.wf.current, self.pmt.dt, self.pmt.dx, self.pmt.dz, self.vp_exp, self.epsilon_exp, self.delta_exp,self.pmt.nx_abc, self.pmt.nz_abc, self.wf.PsixFR, self.wf.PsixFL, self.wf.PsizFU, self.wf.PsizFD, self.wf.ZetaxFR, self.wf.ZetaxFL, self.wf.ZetazFU, self.wf.ZetazFD, self.pmt.N_abc)
+                self.wf.future[self.sz,self.sx] += self.wf.source[k]
 
-        elif self.pmt.approximation == "TTI" and self.pmt.ABC == "cerjan":
-            self.wf.future= updateWaveEquationTTI(self.wf.future, self.wf.current, self.pmt.nx_abc, self.pmt.nz_abc, self.pmt.dt, self.pmt.dx, self.pmt.dz, self.vp_exp, self.epsilon_exp, self.delta_exp, self.theta_exp)
-            self.wf.future[self.sz,self.sx] += self.wf.source[k]
-            # Apply absorbing boundary condition
-            self.wf.future = AbsorbingBoundary(self.pmt.N_abc, self.pmt.nz_abc, self.pmt.nx_abc, self.wf.future, self.A)
-            self.wf.current = AbsorbingBoundary(self.pmt.N_abc, self.pmt.nz_abc, self.pmt.nx_abc, self.wf.current, self.A)
+            elif self.pmt.approximation == "TTI" and self.pmt.ABC == "cerjan":
+                self.wf.future= updateWaveEquationTTI(self.wf.future, self.wf.current, self.pmt.nx_abc, self.pmt.nz_abc, self.pmt.dt, self.pmt.dx, self.pmt.dz, self.vp_exp, self.epsilon_exp, self.delta_exp, self.theta_exp)
+                self.wf.future[self.sz,self.sx] += self.wf.source[k]
+                # Apply absorbing boundary condition
+                self.wf.future = AbsorbingBoundary(self.pmt.N_abc, self.pmt.nz_abc, self.pmt.nx_abc, self.wf.future, self.A)
+                self.wf.current = AbsorbingBoundary(self.pmt.N_abc, self.pmt.nz_abc, self.pmt.nx_abc, self.wf.current, self.A)
+        if self.pmt.migration == "RBC":
+            if self.pmt.approximation == "acoustic":
+                self.wf.future = updateWaveEquation(self.wf.future, self.wf.current, self.vp_exp, self.pmt.nz_abc, self.pmt.nx_abc, self.pmt.dz, self.pmt.dx, self.pmt.dt)
+                self.wf.future[self.sz,self.sx] += self.wf.source[k]
+            elif self.pmt.approximation == "VTI":
+                self.wf.future= updateWaveEquationVTI(self.wf.future, self.wf.current, self.pmt.nx_abc, self.pmt.nz_abc, self.pmt.dt, self.pmt.dx, self.pmt.dz, self.vp_exp, self.epsilon_exp, self.delta_exp)
+                self.wf.future[self.sz,self.sx] += self.wf.source[k]
+            elif self.pmt.approximation == "TTI":
+                self.wf.future= updateWaveEquationTTI(self.wf.future, self.wf.current, self.pmt.nx_abc, self.pmt.nz_abc, self.pmt.dt, self.pmt.dx, self.pmt.dz, self.vp_exp, self.epsilon_exp, self.delta_exp, self.theta_exp)
+                self.wf.future[self.sz,self.sx] += self.wf.source[k]
 
     def backward_step(self,k):
         if self.pmt.approximation == "acoustic" and self.pmt.ABC == "cerjan":
@@ -198,17 +210,6 @@ class migration:
             # Apply absorbing boundary condition
             self.wf.futurebck = AbsorbingBoundary(self.pmt.N_abc, self.pmt.nz_abc, self.pmt.nx_abc, self.wf.futurebck, self.A)
             self.wf.currentbck = AbsorbingBoundary(self.pmt.N_abc, self.pmt.nz_abc, self.pmt.nx_abc, self.wf.currentbck, self.A)
-    
-    def forward_step_RBC(self,k):
-        if self.pmt.approximation == "acoustic":
-            self.wf.future = updateWaveEquation(self.wf.future, self.wf.current, self.vp_exp, self.pmt.nz_abc, self.pmt.nx_abc, self.pmt.dz, self.pmt.dx, self.pmt.dt)
-            self.wf.future[self.sz,self.sx] += self.wf.source[k]
-        elif self.pmt.approximation == "VTI":
-            self.wf.future= updateWaveEquationVTI(self.wf.future, self.wf.current, self.pmt.nx_abc, self.pmt.nz_abc, self.pmt.dt, self.pmt.dx, self.pmt.dz, self.vp_exp, self.epsilon_exp, self.delta_exp)
-            self.wf.future[self.sz,self.sx] += self.wf.source[k]
-        elif self.pmt.approximation == "TTI":
-            self.wf.future= updateWaveEquationTTI(self.wf.future, self.wf.current, self.pmt.nx_abc, self.pmt.nz_abc, self.pmt.dt, self.pmt.dx, self.pmt.dz, self.vp_exp, self.epsilon_exp, self.delta_exp, self.theta_exp)
-            self.wf.future[self.sz,self.sx] += self.wf.source[k]
 
     def save_boundaries(self,k): 
         if self.pmt.migration == "SB":
@@ -230,8 +231,7 @@ class migration:
             t1 = min(t0 + self.pmt.step,self.pmt.nt-1)
             self.ckpts_steps.append((t0,t1))
         self.ckpt_frames = {t1 for (t0, t1) in self.ckpts_steps}
-
-    
+   
     def reset_field(self):
         self.wf.current.fill(0)
         self.wf.future.fill(0)
@@ -247,40 +247,137 @@ class migration:
             self.wf.ZetazFU.fill(0)
             self.wf.ZetazFD.fill(0)
 
+    def get_randomvalue(self,velocity, func, par):
+        point = np.random.normal(velocity, par*func)    
+        value = par if point < par else (par + velocity 
+                    if point > par + velocity else point)
+        return value
+
+    def poisson_disk_sampling(self, x_max, z_max, radius, k=30):
+        cell_size = radius / np.sqrt(2)
+        grid_width = int(x_max / cell_size) + 1
+        grid_height = int(z_max / cell_size) + 1
+        grid = [[None for _ in range(grid_height)] for _ in range(grid_width)]
+        
+        def get_cell_coords(p):
+            return int(p[0] / cell_size), int(p[1] / cell_size)
+
+        def is_valid(p):
+            gx, gy = get_cell_coords(p)
+            for i in range(max(gx - 2, 0), min(gx + 3, grid_width)):
+                for j in range(max(gy - 2, 0), min(gy + 3, grid_height)):
+                    neighbor = grid[i][j]
+                    if neighbor is not None:
+                        dx, dy = neighbor[0] - p[0], neighbor[1] - p[1]
+                        if dx * dx + dy * dy < radius * radius:
+                            return False
+            return True
+
+        def generate_random_point_around(p):
+            r = random.uniform(radius, 2 * radius)
+            angle = random.uniform(0, 2 * np.pi)
+            return (p[0] + r * np.cos(angle), p[1] + r * np.sin(angle))
+
+        # Initial point
+        p0 = (random.uniform(0, x_max), random.uniform(0, z_max))
+        process_list = [p0]
+        samples = [p0]
+        gx, gy = get_cell_coords(p0)
+        grid[gx][gy] = p0
+
+        while process_list:
+            idx = random.randint(0, len(process_list) - 1)
+            p = process_list[idx]
+            found = False
+            for _ in range(k):
+                q = generate_random_point_around(p)
+                if 0 <= q[0] < x_max and 0 <= q[1] < z_max and is_valid(q):
+                    process_list.append(q)
+                    samples.append(q)
+                    gx, gy = get_cell_coords(q)
+                    grid[gx][gy] = q
+                    found = True
+            if not found:
+                process_list.pop(idx)
+
+        return samples
+
     def create_random_boundary(self):
-        cmax = 0.5
-        v_limite = (cmax*self.pmt.dx)/self.pmt.dt
-        A = self.vp.min() * 1.3
-        for i in range(self.pmt.nx_abc):
-            for j in range(self.pmt.nz_abc):
-                if i < self.pmt.N_abc:
-                    dx = self.pmt.N_abc - i
-                elif i >= self.pmt.nx_abc - self.pmt.N_abc:
-                    dx = i - (self.pmt.nx_abc - self.pmt.N_abc)
-                else:
-                    dx = 0
+        f1d = np.linspace(0, 1, self.pmt.N_abc)
+        vmax = self.vp_exp.max()
+        vmin = self.vp_exp.min()
+        dvel = 1500
+        ratio = 300
+        boundary_x = self.pmt.N_abc * self.pmt.dx
+        boundary_z = self.pmt.N_abc * self.pmt.dz
+        L_abc = (self.pmt.nx_abc * self.pmt.dx) - self.pmt.dx
+        D_abc = (self.pmt.nz_abc * self.pmt.dz) - self.pmt.dz
+        N_abc = self.pmt.N_abc * self.pmt.dx
+        rectangle = np.array([[boundary_x, boundary_x], 
+                      [boundary_x, D_abc - boundary_x], 
+                      [L_abc - boundary_x, D_abc - boundary_x],
+                      [L_abc - boundary_x, boundary_x],
+                      [boundary_x, boundary_x]])
+        for i in range(self.pmt.nz):
+            for j in range(self.pmt.N_abc):
+                self.vp_exp[self.pmt.N_abc+i,j] = self.get_randomvalue(self.vp_exp[self.pmt.N_abc+i,self.pmt.N_abc], f1d[self.pmt.N_abc-j-1], dvel) 
+                self.vp_exp[self.pmt.N_abc+i,self.pmt.nx_abc-j-1] = self.get_randomvalue(self.vp_exp[self.pmt.N_abc+i,self.pmt.nx_abc-self.pmt.N_abc], f1d[self.pmt.N_abc-j-1], dvel)
 
-                if j < self.pmt.N_abc:
-                    dz = self.pmt.N_abc - j
-                elif j >= self.pmt.nz_abc - self.pmt.N_abc:
-                    dz = j - (self.pmt.nz_abc - self.pmt.N_abc)
-                else:
-                    dz = 0
+        for i in range(self.pmt.N_abc):
+            for j in range(self.pmt.nx):
+                self.vp_exp[i,self.pmt.N_abc+j] = self.get_randomvalue(self.vp_exp[self.pmt.N_abc,self.pmt.N_abc+j], f1d[self.pmt.N_abc-i-1], dvel)
+                self.vp_exp[self.pmt.nz_abc-i-1,self.pmt.N_abc+j] = self.get_randomvalue(self.vp_exp[self.pmt.nz_abc-self.pmt.N_abc,self.pmt.N_abc+j], f1d[self.pmt.N_abc-i-1], dvel)
 
-                d = np.sqrt(dx*dx + dz*dz)
-                
-                d = d / self.pmt.N_abc
-                
-                found = False
-                while found == False:
-                    r = A * (2.0*np.random.rand()-1.0)
-                    vtest = self.vp_exp[j,i] + r * d
-                    if vtest <= v_limite:
-                        self.vp_exp[j,i] = vtest
-                        found = True
-        # plt.figure()
-        # plt.imshow(self.vp_exp, cmap = 'jet')
-        # plt.show()
+        for i in range(self.pmt.N_abc):
+            for j in range(i,self.pmt.N_abc):
+                self.vp_exp[j,i] = self.get_randomvalue(self.vp_exp[self.pmt.N_abc,self.pmt.N_abc], f1d[self.pmt.N_abc-i-1], dvel)
+                self.vp_exp[i,j] = self.get_randomvalue(self.vp_exp[self.pmt.N_abc,self.pmt.N_abc], f1d[self.pmt.N_abc-i-1], dvel)
+
+                self.vp_exp[j,self.pmt.nx_abc-i-1] = self.get_randomvalue(self.vp_exp[self.pmt.N_abc,self.pmt.nx_abc-self.pmt.N_abc], f1d[self.pmt.N_abc-i-1], dvel)
+                self.vp_exp[i,self.pmt.nx_abc-j-1] = self.get_randomvalue(self.vp_exp[self.pmt.N_abc,self.pmt.nx_abc-self.pmt.N_abc], f1d[self.pmt.N_abc-i-1], dvel)
+
+                self.vp_exp[self.pmt.nz_abc-j-1,i] = self.get_randomvalue(self.vp_exp[self.pmt.nz_abc-self.pmt.N_abc,self.pmt.N_abc], f1d[self.pmt.N_abc-i-1], dvel)
+                self.vp_exp[self.pmt.nz_abc-i-1,j] = self.get_randomvalue(self.vp_exp[self.pmt.nz_abc-self.pmt.N_abc,self.pmt.N_abc], f1d[self.pmt.N_abc-i-1], dvel)
+
+                self.vp_exp[self.pmt.nz_abc-j-1,self.pmt.nx_abc-i-1] = self.get_randomvalue(self.vp_exp[self.pmt.nz_abc-self.pmt.N_abc,self.pmt.nx_abc-self.pmt.N_abc], f1d[self.pmt.N_abc-i-1], dvel)
+                self.vp_exp[self.pmt.nz_abc-i-1,self.pmt.nx_abc-j-1] = self.get_randomvalue(self.vp_exp[self.pmt.nz_abc-self.pmt.N_abc,self.pmt.nx_abc-self.pmt.N_abc], f1d[self.pmt.N_abc-i-1], dvel)
+
+        self.vp_exp[np.where(self.vp_exp > vmax + dvel)] = vmax + dvel
+        self.vp_exp[np.where(self.vp_exp < vmin - dvel)] = vmin - dvel
+
+        points = self.poisson_disk_sampling(L_abc, D_abc, ratio)
+
+        points = np.array(points)
+
+        x_mask = np.logical_or(points[:,0] < 0.5*N_abc, points[:,0] > self.pmt.L + N_abc + 0.5*N_abc)
+        z_mask = np.logical_or(points[:,1] < 0.5*N_abc, points[:,1] > self.pmt.D + N_abc + 0.5*N_abc)
+
+        mask = np.logical_or(x_mask, z_mask)
+
+        x, z = np.meshgrid(np.arange(self.pmt.nx_abc)*self.pmt.dx, np.arange(self.pmt.nz_abc)*self.pmt.dz) 
+
+        points = points[mask]
+
+        for index in range(len(points)):
+
+            xc = points[index, 0]  
+            zc = points[index, 1] 
+
+            r = np.random.uniform(0.1*ratio, ratio)
+            A = np.random.uniform(0.5*dvel, dvel)
+
+            factor = np.random.choice([-1,1])
+
+            self.vp_exp = self.vp_exp + factor*A*np.exp(-0.5*(((x - xc) / r)**2 + ((z - zc) / r)**2))
+            
+        self.vp_exp[np.where(self.vp_exp > vmax + dvel)] = vmax + dvel
+        self.vp_exp[np.where(self.vp_exp < vmin - dvel)] = vmin - dvel
+
+        import matplotlib.pyplot as plt
+        plt.figure()
+        plt.imshow(self.vp_exp, aspect = "auto", cmap = "jet", vmax = vmax + dvel, vmin = vmin - dvel, extent = [0, L_abc, D_abc, 0])
+        plt.plot(rectangle[:,0], rectangle[:,1], "--k")
+        plt.show()
 
     #On the fly
     def solveBackwardWaveEquationOntheFly(self):
@@ -490,12 +587,12 @@ class migration:
             self.migrated_partial = np.zeros_like(self.wf.migrated_image)
             self.ilum = np.zeros_like(self.wf.migrated_image)
             for k in range(self.pmt.nt):
-                self.forward_step_RBC(k)
+                self.forward_step(k)
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
             self.wf.current, self.wf.future = self.wf.future, self.wf.current    
             for t in range(self.pmt.nt - 1, self.stop, -1): 
-                self.forward_step_RBC(t)
+                self.forward_step(t)
                 self.backward_step(t)     
                 self.migrated_partial += (self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.futurebck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc])
                 self.ilum += self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]

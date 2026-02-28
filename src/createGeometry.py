@@ -3,19 +3,19 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 # sources
-sx_init = 100
-sx_end  = 3720
-Nsource = 10
+sx_init = 1500
+sx_end  = 2900
+Nsource = 1
 sx = np.linspace(sx_init,sx_end,Nsource)
 sz = 105*np.ones(len(sx))
 sIdx = np.arange(Nsource)
 
 # receivers
 rx_init = 0
-rx_end = 3820
+rx_end = 3000
 Nrec = 501
 rx = np.linspace(rx_init,rx_end,Nrec)
-rz = 100*np.ones(len(rx))
+rz = 107*np.ones(len(rx))
 rIdx = np.arange(Nrec)
 
 plt.figure()
