@@ -19,6 +19,26 @@ class plotting:
         cax = divider.append_axes("right", size="5%", pad=0.05)
         cbar = fig.colorbar(im,cax=cax)
         return cbar
+    
+    def laplacian_filter(self, f):
+        dim1,dim2 = np.shape(f)
+        g = np.zeros([dim1,dim2])
+        lap_z = 0
+        lap_x = 0
+        for ix in range(1, dim2 - 1):
+            for iz in range(1, dim1 - 1):
+                lap_z = f[iz+1, ix] + f[iz-1, ix] - 2 * f[iz, ix]
+                lap_x = f[iz, ix+1] + f[iz, ix-1] - 2 * f[iz, ix]
+                g[iz, ix] = lap_z/(self.pmt.dz*self.pmt.dz) + lap_x/(self.pmt.dx*self.pmt.dx)
+
+        for ix in range(dim2):
+            g[0, ix] = g[1, ix]
+            g[-1, ix] = g[-2, ix]
+        for iz in range(dim1):
+            g[iz, 0] = g[iz, 1]
+            g[iz, -1] = g[iz, -2]
+
+        return(-g)
 
     def viewSeismogram(self,filename, perc=99):
         sism = np.fromfile(filename, dtype=np.float32).reshape(self.pmt.nt,self.pmt.Nrec) 
@@ -151,8 +171,10 @@ class plotting:
 
         plt.show()
 
-    def viewMigratedImage(self,filename,perc=99):
+    def viewMigratedImage(self,filename,laplacian,perc=99):
         migrated_image = np.fromfile(filename, dtype=np.float32).reshape(self.pmt.nz, self.pmt.nx)
+        if laplacian == True:
+            migrated_image = self.laplacian_filter(migrated_image)
         perc = np.percentile(migrated_image, perc)
         plt.imshow(migrated_image, cmap='gray', vmin=-perc, vmax=perc, extent=[0, self.pmt.nx*self.pmt.dx, self.pmt.nz*self.pmt.dz, 0])  
         plt.colorbar(label='Amplitude')
@@ -162,9 +184,10 @@ class plotting:
         plt.show()
 
     def viewSourceWavelet(self):
-        self.source = ricker(self.pmt.fcut, self.pmt.T)
+        self.source = ricker(self.pmt.fcut, self.pmt.t, self.pmt.tlag)
+        self.source = self.source * (self.pmt.dt * self.pmt.dt)/(self.pmt.dx*self.pmt.dz)
         plt.figure()
-        plt.plot(self.pmt.T, self.source)
+        plt.plot(self.pmt.t, self.source)
         plt.title("Source Wavelet")
         plt.xlabel("Time (s)")
         plt.ylabel("Amplitude")

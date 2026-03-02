@@ -22,26 +22,6 @@ class migration:
         seismogramFile = f"{self.pmt.seismogramFolder}seismogram_shot_{shot+1}_Nt{self.pmt.nt}_Nrec{self.pmt.Nrec}.bin"
         seismogram = np.fromfile(seismogramFile, dtype=np.float32).reshape(self.pmt.nt,self.pmt.Nrec) 
         return seismogram
-        
-    def laplacian_filter(self, f):
-        dim1,dim2 = np.shape(f)
-        g = np.zeros([dim1,dim2])
-        lap_z = 0
-        lap_x = 0
-        for ix in range(1, dim2 - 1):
-            for iz in range(1, dim1 - 1):
-                lap_z = f[iz+1, ix] + f[iz-1, ix] - 2 * f[iz, ix]
-                lap_x = f[iz, ix+1] + f[iz, ix-1] - 2 * f[iz, ix]
-                g[iz, ix] = lap_z/(self.pmt.dz*self.pmt.dz) + lap_x/(self.pmt.dx*self.pmt.dx)
-
-        for ix in range(dim2):
-            g[0, ix] = g[1, ix]
-            g[-1, ix] = g[-2, ix]
-        for iz in range(dim1):
-            g[iz, 0] = g[iz, 1]
-            g[iz, -1] = g[iz, -2]
-
-        return(-g)
     
     def gaussian_kernel(self, x, z, sigma):
         fator = 1. / (2.*np.pi*sigma*sigma)
@@ -99,7 +79,6 @@ class migration:
             count = self.pmt.nx_abc * self.pmt.nz_abc
             self.wf.current = np.fromfile(file, np.float32, count).reshape(self.pmt.nz_abc, self.pmt.nx_abc)
             self.wf.future  = np.fromfile(file, np.float32, count).reshape(self.pmt.nz_abc, self.pmt.nx_abc)
-
             if self.pmt.ABC == "CPML":
                 count_x = self.pmt.nz_abc * (self.pmt.N_abc+4)
                 count_z = (self.pmt.N_abc+4) * self.pmt.nx_abc
@@ -176,6 +155,14 @@ class migration:
             elif self.pmt.approximation == "TTI":
                 self.wf.future= updateWaveEquationTTI(self.wf.future, self.wf.current, self.pmt.nx_abc, self.pmt.nz_abc, self.pmt.dt, self.pmt.dx, self.pmt.dz, self.vp_exp, self.epsilon_exp, self.delta_exp, self.theta_exp)
                 self.wf.future[self.sz,self.sx] += self.wf.source[k]
+
+    def reconstructed_step(self):
+            if self.pmt.approximation == "acoustic":
+                self.wf.future = updateWaveEquation(self.wf.future, self.wf.current, self.vp_exp, self.pmt.nz_abc, self.pmt.nx_abc, self.pmt.dz, self.pmt.dx, self.pmt.dt)
+            elif self.pmt.approximation == "VTI":
+                self.wf.future = updateWaveEquationVTI(self.wf.future, self.wf.current, self.pmt.nx_abc, self.pmt.nz_abc, self.pmt.dt, self.pmt.dx, self.pmt.dz, self.vp_exp, self.epsilon_exp, self.delta_exp)
+            elif self.pmt.approximation == "TTI":
+                self.wf.future = updateWaveEquationTTI(self.wf.future, self.wf.current, self.pmt.nx_abc, self.pmt.nz_abc, self.pmt.dt, self.pmt.dx, self.pmt.dz, self.vp_exp, self.epsilon_exp, self.delta_exp, self.theta_exp)
 
     def backward_step(self,k):
         if self.pmt.approximation == "acoustic" and self.pmt.ABC == "cerjan":
@@ -313,11 +300,12 @@ class migration:
         L_abc = (self.pmt.nx_abc * self.pmt.dx) - self.pmt.dx
         D_abc = (self.pmt.nz_abc * self.pmt.dz) - self.pmt.dz
         N_abc = self.pmt.N_abc * self.pmt.dx
-        rectangle = np.array([[boundary_x, boundary_x], 
-                      [boundary_x, D_abc - boundary_x], 
-                      [L_abc - boundary_x, D_abc - boundary_x],
-                      [L_abc - boundary_x, boundary_x],
-                      [boundary_x, boundary_x]])
+        rectangle = np.array([
+            [boundary_x, boundary_z],                       
+            [boundary_x, D_abc - boundary_z],                
+            [L_abc - boundary_x, D_abc - boundary_z],        
+            [L_abc - boundary_x, boundary_z],               
+            [boundary_x, boundary_z]])
         for i in range(self.pmt.nz):
             for j in range(self.pmt.N_abc):
                 self.vp_exp[self.pmt.N_abc+i,j] = self.get_randomvalue(self.vp_exp[self.pmt.N_abc+i,self.pmt.N_abc], f1d[self.pmt.N_abc-j-1], dvel) 
@@ -427,9 +415,6 @@ class migration:
                 self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
             self.wf.migrated_image += self.migrated_partial / (self.ilum + 1e-12)
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
-     
-        # Apply laplacian_filter filter 
-        self.wf.migrated_image = self.laplacian_filter(self.wf.migrated_image)
         
         self.migratedFile = f"{self.pmt.migratedimageFolder}migrated_image_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
         self.wf.migrated_image.astype(np.float32).tofile(self.migratedFile)
@@ -477,7 +462,7 @@ class migration:
             for (t0,t1) in reversed(self.ckpts_steps):
                 self.load_checkpoint(shot,t1)
                 for t in range(t1, t0, -1):
-                    self.forward_step(t)
+                    self.reconstructed_step()
                     self.backward_step(t)
                     self.migrated_partial += (self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.futurebck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc])
                     self.ilum += self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
@@ -486,9 +471,6 @@ class migration:
                     self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
             self.wf.migrated_image += self.migrated_partial / (self.ilum + 1e-12)
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
-     
-        # Apply laplacian_filter filter 
-        self.wf.migrated_image = self.laplacian_filter(self.wf.migrated_image)
         
         self.migratedFile = f"{self.pmt.migratedimageFolder}migrated_image_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
         self.wf.migrated_image.astype(np.float32).tofile(self.migratedFile)
@@ -532,8 +514,8 @@ class migration:
                 self.forward_step(k)            
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current 
-            for t in range(self.pmt.nt - 1, self.stop, -1):
-                self.forward_step(t)
+            for t in range(self.pmt.nt - 1,self.stop, -1):
+                self.reconstructed_step()
                 self.apply_boundaries(t)           
                 self.backward_step(t)
                 self.migrated_partial += (self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.futurebck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc])  
@@ -544,9 +526,6 @@ class migration:
 
             self.wf.migrated_image += self.migrated_partial / (self.ilum + 1e-12)
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
-     
-        # Apply laplacian_filter filter 
-        self.wf.migrated_image = self.laplacian_filter(self.wf.migrated_image)
         
         self.migratedFile = f"{self.pmt.migratedimageFolder}migrated_image_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
         self.wf.migrated_image.astype(np.float32).tofile(self.migratedFile)
@@ -592,7 +571,7 @@ class migration:
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
             self.wf.current, self.wf.future = self.wf.future, self.wf.current    
             for t in range(self.pmt.nt - 1, self.stop, -1): 
-                self.forward_step(t)
+                self.reconstructed_step()
                 self.backward_step(t)     
                 self.migrated_partial += (self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.futurebck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc])
                 self.ilum += self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
@@ -602,9 +581,6 @@ class migration:
 
             self.wf.migrated_image += self.migrated_partial / (self.ilum + 1e-12)
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
-     
-        # Apply Laplacian filter 
-        self.wf.migrated_image = self.laplacian_filter(self.wf.migrated_image)
         
         self.migratedFile = f"{self.pmt.migratedimageFolder}migrated_image_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
         self.wf.migrated_image.astype(np.float32).tofile(self.migratedFile)

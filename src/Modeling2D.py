@@ -191,7 +191,7 @@ class wavefield:
             self.ZetazFU.fill(0)
             self.ZetazFD.fill(0)
     
-    def foward_step(self, k):
+    def forward_step(self, k):
             if self.pmt.approximation == "acoustic" and self.pmt.ABC == "cerjan":
                 self.future = updateWaveEquation(self.future, self.current, self.vp_exp, self.pmt.nz_abc, self.pmt.nx_abc, self.pmt.dz, self.pmt.dx, self.pmt.dt)
                 self.future[self.sz,self.sx] += self.source[k]
@@ -255,7 +255,7 @@ class wavefield:
             self.sz = int(self.pmt.shot_z[shot]/self.pmt.dz) + self.pmt.N_abc           
 
             for k in range(self.pmt.nt):        
-                self.foward_step(k)
+                self.forward_step(k)
 
                 # Register seismogram
                 self.seismogram[k, :] = self.future[rz, rx]

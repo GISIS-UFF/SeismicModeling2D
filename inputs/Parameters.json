@@ -1,7 +1,7 @@
 {
     "approximation": "acoustic",
-    "migration": "RBC",
-    "ABC": "cerjan",
+    "migration": "checkpoint",
+    "ABC": "CPML",
     "dx": 10,
     "dz": 10,
     "dt": 0.0005,
