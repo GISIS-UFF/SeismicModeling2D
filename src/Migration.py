@@ -403,6 +403,7 @@ class migration:
             self.migrated_partial = np.zeros_like(self.wf.migrated_image)
             self.ilum = np.zeros_like(self.wf.migrated_image)
             for k in range(self.pmt.nt):
+                self.ilum += save_field[t,:,:] * save_field[t,:,:]
                 self.forward_step(k)
                 save_field[k,:,:] = self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
                 #swap
@@ -410,7 +411,6 @@ class migration:
             for t in range(self.pmt.nt - 1, self.stop, -1):
                 self.backward_step(t)
                 self.migrated_partial += (save_field[t,:,:] * self.wf.futurebck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc])
-                self.ilum += save_field[t,:,:] * save_field[t,:,:]
                 #swap
                 self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
             self.wf.migrated_image += self.migrated_partial / (self.ilum + 1e-12)
@@ -455,6 +455,7 @@ class migration:
             self.ilum = np.zeros_like(self.wf.migrated_image)
             self.build_ckpts_steps()
             for k in range(self.pmt.nt):
+                self.ilum += self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
                 self.forward_step(k)
                 self.save_checkpoint(shot, k)
                 #swap
@@ -465,7 +466,6 @@ class migration:
                     self.reconstructed_step()
                     self.backward_step(t)
                     self.migrated_partial += (self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.futurebck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc])
-                    self.ilum += self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
                     #swap
                     self.wf.current, self.wf.future = self.wf.future, self.wf.current
                     self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
@@ -511,6 +511,7 @@ class migration:
             self.ilum = np.zeros_like(self.wf.migrated_image)
             for k in range(self.pmt.nt):
                 self.save_boundaries(k)
+                self.ilum += self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
                 self.forward_step(k)            
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current 
@@ -519,7 +520,6 @@ class migration:
                 self.apply_boundaries(t)           
                 self.backward_step(t)
                 self.migrated_partial += (self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.futurebck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc])  
-                self.ilum += self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
                 self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
@@ -566,6 +566,7 @@ class migration:
             self.migrated_partial = np.zeros_like(self.wf.migrated_image)
             self.ilum = np.zeros_like(self.wf.migrated_image)
             for k in range(self.pmt.nt):
+                self.ilum += self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
                 self.forward_step(k)
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
@@ -574,7 +575,6 @@ class migration:
                 self.reconstructed_step()
                 self.backward_step(t)     
                 self.migrated_partial += (self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.futurebck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc])
-                self.ilum += self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
                 self.wf.currentbck, self.wf.futurebck = self.wf.futurebck, self.wf.currentbck
