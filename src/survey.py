@@ -62,7 +62,6 @@ class parameters:
 
         # Velocity model file
         self.vpFile = self.parameters["vpFile"]
-        self.vsFile = self.parameters["vsFile"]
         self.thetaFile = self.parameters["thetaFile"]
 
         # Snapshot flag
