@@ -40,6 +40,26 @@ class plotting:
 
         return(-g)
 
+    def laplacian_filter(self, f):
+        dim1,dim2 = np.shape(f)
+        g = np.zeros([dim1,dim2])
+        lap_z = 0
+        lap_x = 0
+        for ix in range(1, dim2 - 1):
+            for iz in range(1, dim1 - 1):
+                lap_z = f[iz+1, ix] + f[iz-1, ix] - 2 * f[iz, ix]
+                lap_x = f[iz, ix+1] + f[iz, ix-1] - 2 * f[iz, ix]
+                g[iz, ix] = lap_z/(self.pmt.dz*self.pmt.dz) + lap_x/(self.pmt.dx*self.pmt.dx)
+
+        for ix in range(dim2):
+            g[0, ix] = g[1, ix]
+            g[-1, ix] = g[-2, ix]
+        for iz in range(dim1):
+            g[iz, 0] = g[iz, 1]
+            g[iz, -1] = g[iz, -2]
+
+        return(-g)
+
     def viewSeismogram(self,filename, perc=99):
         sism = np.fromfile(filename, dtype=np.float32).reshape(self.pmt.nt,self.pmt.Nrec) 
         plt.figure(figsize=(5, 5))
@@ -181,6 +201,42 @@ class plotting:
         plt.title("Migrated Image")
         plt.xlabel("Distance (m)")
         plt.ylabel("Depth (m)")
+        plt.show()
+
+    def plotImageTrace(self, filename1,filename2, laplacian, ix=None, perc=99):
+        img = np.fromfile(filename1, dtype=np.float32).reshape(self.pmt.nz, self.pmt.nx)
+        vp = np.fromfile(filename2, dtype=np.float32).reshape(self.pmt.nx,self.pmt.nz).T
+        if laplacian == True:
+            img = self.laplacian_filter(img)
+
+        if ix is None:
+            ix = self.pmt.nx // 2
+        trace = img[:, ix]
+
+        rho = np.zeros([self.pmt.nz,self.pmt.nx],dtype=np.float32)
+        a, b = 0.23, 0.25
+        rho = a * np.power(vp/0.3048,b)*1000 
+        idx_water = np.where(vp <= 1500)
+        rho[idx_water] = 1000.0 
+
+        Z = vp * rho
+
+        R = np.zeros_like(Z)
+        num = Z[1:] - Z[:-1]
+        den = Z[1:] + Z[:-1]
+        R[1:] = num / (den + 1e-10)
+        R_trace = R[:, ix]
+
+        trace = trace/np.max(np.abs(trace))
+        R_trace = R_trace/np.max(np.abs(R_trace))
+
+        plt.figure()
+        plt.plot(trace, self.pmt.z, label=f"Traço migrado (ix={ix})")
+        plt.plot(R_trace, self.pmt.z, label="Refletividade analítica")
+        plt.gca().invert_yaxis()
+        plt.grid(True)
+        plt.ylabel("Profundidade (m)")
+        plt.legend()
         plt.show()
 
     def viewSourceWavelet(self):
