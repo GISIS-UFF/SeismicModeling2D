@@ -1,13 +1,16 @@
 import numpy as np
 import time
+import cupy as cp
 
 from utils import ricker
 from utils import updateWaveEquation
+from utils import updateWaveEquationGPU
 from utils import updateWaveEquationCPML
 from utils import updateWaveEquationVTI
 from utils import updateWaveEquationVTICPML
 from utils import updateWaveEquationTTI
 from utils import AbsorbingBoundary
+from utils import AbsorbingBoundaryGPU
 from utils import updatePsi
 from utils import updateZeta
 
@@ -50,6 +53,16 @@ class wavefield:
         self.current    = np.zeros([self.pmt.nz_abc,self.pmt.nx_abc],dtype=np.float32)
         self.future     = np.zeros([self.pmt.nz_abc,self.pmt.nx_abc],dtype=np.float32)
         self.seismogram = np.zeros([self.pmt.nt,self.pmt.Nrec],dtype=np.float32)
+        if self.pmt.unit == "GPU":
+            self.current = cp.asarray(self.current, dtype=cp.float32)
+            self.future  = cp.asarray(self.future, dtype=cp.float32)
+            self.source = cp.asarray(self.source, dtype=cp.float32)
+            self.seismogram_gpu = cp.zeros((self.pmt.nt, self.pmt.Nrec), dtype=cp.float32)
+            if self.pmt.snap == True:
+                self.snap_times = list(range(0, self.pmt.last_save + 1, self.pmt.step))
+                self.nsnaps = len(self.snap_times)
+                self.snapshots_gpu = cp.zeros((self.nsnaps, self.pmt.nz, self.pmt.nx), dtype=cp.float32)
+                self.snap_idx = 0
         if self.pmt.approximation in ["VTI", "TTI"]:
             # Initialize epsilon and delta models
             self.epsilon = np.zeros([self.pmt.nz,self.pmt.nx],dtype=np.float32)
@@ -76,7 +89,6 @@ class wavefield:
                 self.bot   = np.zeros((self.pmt.nt, 4, self.pmt.nx), dtype=np.float32)
                 self.left  = np.zeros((self.pmt.nt, self.pmt.nz, 4), dtype=np.float32)
                 self.right = np.zeros((self.pmt.nt, self.pmt.nz, 4), dtype=np.float32)
-
         print(f"info: Wavefields initialized: {self.pmt.nx}x{self.pmt.nz}x{self.pmt.nt}")
     
     def loadModels(self):
@@ -149,7 +161,7 @@ class wavefield:
                 print("WARNING: Dispersion or stability conditions not satisfied.")
     
     def createCerjanVector(self):
-        sb = 6. * self.pmt.N_abc
+        sb = 3. * self.pmt.N_abc
         A = np.ones(self.pmt.N_abc)
         for i in range(self.pmt.N_abc):
                 fb = (self.pmt.N_abc - i) / (np.sqrt(2.) * sb)
@@ -164,16 +176,37 @@ class wavefield:
         if k % self.pmt.step != 0:
             return
 
-        snapshot = self.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
+        snapshot = self.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
 
         snapshotFile = (f"{self.pmt.snapshotFolder}{self.pmt.approximation}_shot_{shot+1}_Nx{self.pmt.nx}_Nz{self.pmt.nz}_Nt{self.pmt.nt}_frame_{k}.bin")
         snapshot.tofile(snapshotFile)
         print(f"info: Snapshot saved to {snapshotFile}")
     
+    def store_snapshotGPU(self, k):        
+        if not self.pmt.snap:
+            return
+        if k > self.pmt.last_save:
+            return
+        if k % self.pmt.step != 0:
+            return
+        
+        snapshot = self.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
+        self.snapshots_gpu[self.snap_idx, :, :] = snapshot
+        self.snap_idx += 1
+    
     def save_seismogram(self,shot):        
         self.seismogramFile = f"{self.pmt.seismogramFolder}seismogram_shot_{shot+1}_Nt{self.pmt.nt}_Nrec{self.pmt.Nrec}.bin"
         self.seismogram.tofile(self.seismogramFile)
         print(f"info: Seismogram saved to {self.seismogramFile}")
+
+    def save_snapshotGPU(self,shot):        
+        if not self.pmt.snap:
+            return
+        snapshots_cpu = cp.asnumpy(self.snapshots_gpu[:self.snap_idx,:,:])
+        for i, k in enumerate(self.snap_times[:self.snap_idx]):
+            snapshotFile = (f"{self.pmt.snapshotFolder}{self.pmt.approximation}_shot_{shot+1}"f"_Nx{self.pmt.nx}_Nz{self.pmt.nz}_Nt{self.pmt.nt}_frame_{k}.bin")
+            snapshots_cpu[i].tofile(snapshotFile)
+            print(f"info: Snapshot saved to {snapshotFile}")
 
     def reset_field(self):
         self.current.fill(0)
@@ -188,7 +221,12 @@ class wavefield:
             self.ZetaxFL.fill(0)
             self.ZetazFU.fill(0)
             self.ZetazFD.fill(0)
-    
+        if self.pmt.unit == "GPU":
+            self.seismogram_gpu.fill(0)
+            if self.pmt.snap == True:
+                self.snapshots_gpu.fill(0) 
+                self.snap_idx = 0
+
     def forward_step(self, k):
         if self.pmt.approximation == "acoustic" and self.pmt.ABC == "cerjan":
             self.current[self.sz,self.sx] += self.source[k]
@@ -221,6 +259,13 @@ class wavefield:
         else:
             raise ValueError("ERROR: Unknown approximation. Choose 'acoustic', 'VTI' or 'TTI'. Otherwise, unknown Absorbing Boundary Condition. Choose 'cerjan' or 'CPML'.")
         
+    def forward_stepGPU(self, k):
+        if self.pmt.approximation == "acoustic" and self.pmt.ABC == "cerjan":
+            self.current[self.sz,self.sx] += self.source[k]
+            updateWaveEquationGPU(self.future, self.current, self.vp_exp, self.pmt.nz_abc, self.pmt.nx_abc, self.pmt.dz, self.pmt.dx, self.pmt.dt)
+            self.future,self.current = AbsorbingBoundaryGPU(self.future,self.current,self.pmt.N_abc,self.pmt.nx_abc,self.pmt.nz_abc, self.A)
+
+              
     def solveWaveEquation(self):
         start_time = time.time()
         print(f"info: Solving {self.pmt.approximation} wave equation")
@@ -259,3 +304,48 @@ class wavefield:
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
         print(f"info: Wave equation solved")
 
+    def solveWaveEquationGPU(self):
+        start_time = time.time()
+        print(f"info: Solving {self.pmt.approximation} wave equation")
+        # Expand velocity model and Create absorbing layers
+        self.vp_exp = self.ExpandModel(self.vp)
+        self.vp_exp = cp.asarray(self.vp_exp, dtype=cp.float32)
+        if self.pmt.ABC == "cerjan":
+            self.A = self.createCerjanVector()
+            self.A = cp.asarray(self.A, dtype=cp.float32)
+        elif self.pmt.ABC == "CPML":
+            self.d0, self.f_pico = self.dampening_const()
+        if self.pmt.approximation in ["VTI", "TTI"]:
+            self.epsilon_exp = self.ExpandModel(self.epsilon)
+            self.delta_exp = self.ExpandModel(self.delta)
+            self.epsilon_exp  = cp.asarray(self.epsilon_exp, dtype=cp.float32)
+            self.delta_exp  = cp.asarray(self.delta_exp, dtype=cp.float32)
+            if self.pmt.approximation == "TTI":
+                self.theta_exp = self.ExpandModel(self.theta)
+                self.theta_exp  = cp.asarray(self.theta_exp, dtype=cp.float32)
+        
+        rx = np.int32(self.pmt.rec_x/self.pmt.dx) + self.pmt.N_abc
+        rz = np.int32(self.pmt.rec_z/self.pmt.dz) + self.pmt.N_abc
+        rx = cp.asarray(rx)
+        rz = cp.asarray(rz)
+        for shot in range(self.pmt.Nshot):
+            print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
+
+            self.reset_field()
+
+            # convert acquisition geometry coordinates to grid points
+            self.sx = int(self.pmt.shot_x[shot]/self.pmt.dx) + self.pmt.N_abc
+            self.sz = int(self.pmt.shot_z[shot]/self.pmt.dz) + self.pmt.N_abc           
+            for k in range(self.pmt.nt): 
+                self.forward_stepGPU(k)
+                # Register seismogram and snapshot
+                self.seismogram_gpu[k, :] = self.current[rz, rx]    
+                self.store_snapshotGPU(k)       
+                #swap
+                self.current, self.future = self.future, self.current
+
+            self.seismogram = cp.asnumpy(self.seismogram_gpu)   
+            self.save_seismogram(shot)
+            self.save_snapshotGPU(shot)
+            print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
+        print(f"info: Wave equation solved")

@@ -1,6 +1,9 @@
 import numpy as np
-from numba import jit,prange, njit, cuda
+from numba import jit,prange, njit
 import math
+import cupy as cp
+from CudaKernels import updateWaveEquationKernel
+from CudaKernels import AbsorbingBoundaryCudaKernel
 
 def ricker(f0, t, t_lag):
     pi = np.pi
@@ -88,7 +91,15 @@ def updateWaveEquation(Uf,Uc,vp,nz,nx,dz,dx,dt):
             Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz) + 2 * Uc[j, i] - Uf[j, i]
 
     return Uf
-    
+
+@staticmethod
+def updateWaveEquationGPU(Uf, Uc, vp, nz, nx, dz, dx, dt):
+    total_pixels = nz * nx
+    threads_per_block = 256
+    blocks_per_grid = (total_pixels + threads_per_block - 1) // threads_per_block
+
+    updateWaveEquationKernel((blocks_per_grid,),(threads_per_block,),(Uf,Uc,vp,np.int32(nz),np.int32(nx),np.float32(dz),np.float32(dx),np.float32(dt)))
+ 
 @jit(nopython=True, parallel=True)
 def updateWaveEquationCPML(Uf, Uc, vp, nx_abc, nz_abc, dz, dx, dt, PsixFR, PsixFL, PsizFU, PsizFD, ZetaxFR, ZetaxFL, ZetazFU, ZetazFD, N_abc):
     
@@ -813,21 +824,6 @@ def updateWaveEquationVTICPML(Uf, Uc, dt, dx, dz, vp, epsilon, delta,
 
     return Uf
 
-@jit(parallel=True, nopython=True)
-def AbsorbingBoundary(N_abc, nz_abc, nx_abc, f, A):
-    for y in prange(nz_abc):
-        for x in range(N_abc):
-            f[y, x] *= A[x]
-        for x in range(nx_abc - N_abc, nx_abc):
-            f[y, x] *= A[nx_abc - 1 - x] 
-    for x in prange(nx_abc):
-        for y in range(N_abc):
-            f[y, x] *= A[y]
-        for y in range(nz_abc - N_abc, nz_abc):
-            f[y, x] *= A[nz_abc - 1 - y]  
-
-    return f
-
 @jit(nopython=True,parallel=True)
 def updateWaveEquationTTI(Uf, Uc, nx, nz, dt, dx, dz, vp, epsilon, delta, theta):
     c0 = -205. / 72.
@@ -897,3 +893,27 @@ def updateWaveEquationTTI(Uf, Uc, nx, nz, dt, dx, dz, vp, epsilon, delta, theta)
             Uf[j, i] = 2. * Uc[j, i] - Uf[j, i] + (vp[j, i] * vp[j, i]) * (dt * dt) * ((1.+ 2.*epsilon[j,i])*(np.cos(theta[j,i])*np.cos(theta[j,i])) + (np.sin(theta[j,i])*np.sin(theta[j,i])) + Sd) * pxx + (vp[j, i] * vp[j, i]) * (dt * dt) *((1.+ 2.*epsilon[j,i])*(np.sin(theta[j,i])*np.sin(theta[j,i]))+ (np.cos(theta[j,i])*np.cos(theta[j,i])) + Sd) * pzz - 2. * epsilon[j,i]*(vp[j, i] * vp[j, i]) * (dt * dt) * np.sin(2.*theta[j,i]) * pxz
 
     return Uf
+
+@jit(parallel=True, nopython=True)
+def AbsorbingBoundary(N_abc, nz_abc, nx_abc, f, A):
+    for y in prange(nz_abc):
+        for x in range(N_abc):
+            f[y, x] *= A[x]
+        for x in range(nx_abc - N_abc, nx_abc):
+            f[y, x] *= A[nx_abc - 1 - x] 
+    for x in prange(nx_abc):
+        for y in range(N_abc):
+            f[y, x] *= A[y]
+        for y in range(nz_abc - N_abc, nz_abc):
+            f[y, x] *= A[nz_abc - 1 - y]  
+
+    return f
+
+
+def AbsorbingBoundaryGPU(Uf,Uc,N_abc,nx,nz,A):
+    total_size = nz * nx
+    treads_per_block = 256
+    blocks_per_grid = (total_size + treads_per_block - 1) // treads_per_block
+    AbsorbingBoundaryCudaKernel((blocks_per_grid,), (treads_per_block,), (Uf,Uc,N_abc,nz,nx,A))
+    return Uf,Uc
+

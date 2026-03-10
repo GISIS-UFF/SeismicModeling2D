@@ -13,6 +13,7 @@ class parameters:
             self.parameters = json.load(f)
 
         # Approximation type
+        self.unit = self.parameters["unit"] 
         self.approximation = self.parameters["approximation"]
         self.migration = self.parameters["migration"]
         self.ABC = self.parameters["ABC"]
