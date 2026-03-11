@@ -9,16 +9,16 @@ class model:
         self.vp2 = 2000.0
         self.vp3 = 00.0
 
-        self.epsilon1 = 0.0
-        self.epsilon2 = 0.0
+        self.epsilon1 = 0.3
+        self.epsilon2 = 0.3
         self.epsilon3 = 0.0
 
-        self.delta1 = 0.0
-        self.delta2 = 0.0 
+        self.delta1 = 0.2
+        self.delta2 = 0.2
         self.delta3 = 0.0
 
-        self.theta1 = 0.0
-        self.theta2 = 0.0
+        self.theta1 = 60.0
+        self.theta2 = 60.0
         self.theta3 = 0.0
 
     def create2LayerModel(self,v1,v2,e1,e2,d1,d2,t1,t2):

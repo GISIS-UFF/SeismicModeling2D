@@ -3,8 +3,11 @@ from numba import jit,prange, njit
 import math
 import cupy as cp
 from CudaKernels import updateWaveEquationKernel
+from CudaKernels import updateWaveEquationVTIKernel
+from CudaKernels import updateWaveEquationTTIKernel
 from CudaKernels import AbsorbingBoundaryCudaKernel
 
+#Auxiliar Functions
 def ricker(f0, t, t_lag):
     pi = np.pi
     f = f0 / (3 * np.sqrt(pi)) 
@@ -32,6 +35,7 @@ def Mute(seismogram, shot, rec_x, rec_z, shot_x, shot_z, dt, shift, window = 0.2
                 result[i,rec] = seismogram[i,rec]
     return result
 
+# CPML Auxiliar Functions
 @njit(inline = "always")
 def horizontal_dampening_profiles(N_abc,nx_abc, dx, vp, f_pico, d0, dt, i, j):
     d = 0.
@@ -76,7 +80,163 @@ def vertical_dampening_profiles(N_abc,nz_abc, dz, vp, f_pico, d0, dt, i, j):
        
     return az, bz
 
+@jit(nopython=True, parallel=True)
+def updatePsi(PsixFR, PsixFL, PsizFU, PsizFD, nx_abc, nz_abc, Uc, dx,dz, N_abc, f_pico, d0, dt, vp):
 
+    a1 = 672. / 840.
+    a2 = -168. / 840.
+    a3 = 32. / 840.
+    a4 = -3. / 840.
+
+    for j in prange(4, nz_abc - 4):
+        for i in prange(4, N_abc):
+
+            ax, bx = horizontal_dampening_profiles(N_abc,nx_abc, dx, vp, f_pico, d0, dt, i, j)
+
+            px = (a1 * (Uc[j, i+1] - Uc[j, i-1]) +
+                a2 * (Uc[j, i+2] - Uc[j, i-2]) +
+                a3 * (Uc[j, i+3] - Uc[j, i-3]) +
+                a4 * (Uc[j, i+4] - Uc[j, i-4])) / dx
+            
+            PsixFL[j, i] = ax * PsixFL[j, i] + bx * px
+
+    for j in prange(4, nz_abc - 4):
+        for i in prange(nx_abc - N_abc, nx_abc - 4):
+            idx = i - (nx_abc - N_abc)
+
+            ax, bx = horizontal_dampening_profiles(N_abc,nx_abc, dx, vp, f_pico, d0, dt, i, j)
+
+            px = (a1 * (Uc[j, i+1] - Uc[j, i-1]) +
+                a2 * (Uc[j, i+2] - Uc[j, i-2]) +
+                a3 * (Uc[j, i+3] - Uc[j, i-3]) +
+                a4 * (Uc[j, i+4] - Uc[j, i-4])) / dx
+            
+            PsixFR[j, idx] = ax * PsixFR[j, idx] + bx * px
+
+    for j in prange(4, N_abc):
+        for i in prange(4, nx_abc - 4):
+
+            az,bz = vertical_dampening_profiles(N_abc,nz_abc, dz, vp, f_pico, d0, dt, i, j)
+            
+            pz = (a1 * (Uc[j+1, i] - Uc[j-1, i]) +
+                a2 * (Uc[j+2, i] - Uc[j-2, i]) +
+                a3 * (Uc[j+3, i] - Uc[j-3, i]) +
+                a4 * (Uc[j+4, i] - Uc[j-4, i])) / dz 
+            
+            PsizFU[j, i] = az * PsizFU[j, i] + bz * pz
+
+    for j in prange(nz_abc - N_abc, nz_abc - 4):  
+        jdx = j - (nz_abc - N_abc)
+        for i in prange(4, nx_abc - 4):
+
+            az,bz = vertical_dampening_profiles(N_abc,nz_abc, dz, vp, f_pico, d0, dt, i, j)
+
+            pz = (a1 * (Uc[j+1, i] - Uc[j-1, i]) +
+                a2 * (Uc[j+2, i] - Uc[j-2, i]) +
+                a3 * (Uc[j+3, i] - Uc[j-3, i]) +
+                a4 * (Uc[j+4, i] - Uc[j-4, i])) / dz 
+            
+            PsizFD[jdx, i] = az * PsizFD[jdx, i] + bz * pz
+
+    return PsixFR, PsixFL, PsizFU, PsizFD
+
+@jit(nopython=True, parallel=True)
+def updateZeta(PsixFR, PsixFL, ZetaxFR, ZetaxFL,PsizFU, PsizFD, ZetazFU, ZetazFD, nx_abc, nz_abc, Uc, dx, dz, N_abc, f_pico, d0, dt, vp):
+
+    c0 = -205. / 72.
+    c1 = 8. / 5.
+    c2 = -1. / 5.
+    c3 = 8. / 315.
+    c4 = -1. / 560.
+    a1 = 672. / 840.
+    a2 = -168. / 840.
+    a3 = 32. / 840.
+    a4 = -3. / 840.
+
+    for j in prange(4, nz_abc - 4):
+        for i in prange(4, N_abc):
+            ax, bx = horizontal_dampening_profiles(N_abc,nx_abc, dx, vp, f_pico, d0, dt, i, j)
+
+            pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) +
+                c2 * (Uc[j, i+2] + Uc[j, i-2]) + 
+                c3 * (Uc[j, i+3] + Uc[j, i-3]) +
+                c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
+        
+            psix = (a1 * (PsixFL[j, i+1] - PsixFL[j, i-1]) +
+                    a2 * (PsixFL[j, i+2] - PsixFL[j, i-2]) +
+                    a3 * (PsixFL[j, i+3] - PsixFL[j, i-3]) +
+                    a4 * (PsixFL[j, i+4] - PsixFL[j, i-4])) / dx
+
+            ZetaxFL[j, i] = ax * ZetaxFL[j, i] + bx * (pxx + psix)
+
+    for j in prange(4, nz_abc - 4):
+        for i in prange(nx_abc - N_abc, nx_abc - 4):
+            idx = i - (nx_abc - N_abc) 
+
+            ax, bx = horizontal_dampening_profiles(N_abc,nx_abc, dx, vp, f_pico, d0, dt, i, j)
+
+            pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) +
+                c2 * (Uc[j, i+2] + Uc[j, i-2]) + 
+                c3 * (Uc[j, i+3] + Uc[j, i-3]) +
+                c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
+        
+            psix = (a1 * (PsixFR[j, idx+1] - PsixFR[j, idx-1]) +
+                    a2 * (PsixFR[j, idx+2] - PsixFR[j, idx-2]) +
+                    a3 * (PsixFR[j, idx+3] - PsixFR[j, idx-3]) +
+                    a4 * (PsixFR[j, idx+4] - PsixFR[j, idx-4])) / dx
+
+            ZetaxFR[j, idx] = ax * ZetaxFR[j, idx] + bx * (pxx + psix)
+
+    for j in prange(4, N_abc):
+        for i in prange(4, nx_abc - 4):
+            az,bz = vertical_dampening_profiles(N_abc,nz_abc, dz, vp, f_pico, d0, dt, i, j)
+           
+            pzz = (c0 * Uc[j, i] + c1 * (Uc[j+1, i] + Uc[j-1, i]) +
+                c2 * (Uc[j+2, i] + Uc[j-2, i]) + 
+                c3 * (Uc[j+3, i] + Uc[j-3, i]) +
+                c4 * (Uc[j+4, i] + Uc[j-4, i])) / (dz * dz)               
+            psiz = (a1 * (PsizFU[j+1, i] - PsizFU[j-1, i]) +
+                    a2 * (PsizFU[j+2, i] - PsizFU[j-2, i]) +
+                    a3 * (PsizFU[j+3, i] - PsizFU[j-3, i]) +
+                    a4 * (PsizFU[j+4, i] - PsizFU[j-4, i])) / dz
+            
+            ZetazFU[j, i] = az * ZetazFU[j, i] + bz * (pzz + psiz)
+
+    for j in prange(nz_abc - N_abc, nz_abc - 4):
+        jdx = j - (nz_abc - N_abc) 
+        for i in prange(4, nx_abc - 4):
+            az,bz = vertical_dampening_profiles(N_abc,nz_abc, dz, vp, f_pico, d0, dt, i, j)
+            
+            pzz = (c0 * Uc[j, i] + c1 * (Uc[j+1, i] + Uc[j-1, i]) +
+                c2 * (Uc[j+2, i] + Uc[j-2, i]) + 
+                c3 * (Uc[j+3, i] + Uc[j-3, i]) +
+                c4 * (Uc[j+4, i] + Uc[j-4, i])) / (dz * dz)               
+            psiz = (a1 * (PsizFD[jdx+1, i] - PsizFD[jdx-1, i]) +
+                    a2 * (PsizFD[jdx+2, i] - PsizFD[jdx-2, i]) +
+                    a3 * (PsizFD[jdx+3, i] - PsizFD[jdx-3, i]) +
+                    a4 * (PsizFD[jdx+4, i] - PsizFD[jdx-4, i])) / dz
+            
+            ZetazFD[jdx, i] = az * ZetazFD[jdx, i] + bz * (pzz + psiz) 
+
+    return ZetaxFR, ZetaxFL, ZetazFU, ZetazFD
+
+# Cerjan Apply
+@jit(parallel=True, nopython=True)
+def AbsorbingBoundary(N_abc, nz_abc, nx_abc, f, A):
+    for y in prange(nz_abc):
+        for x in range(N_abc):
+            f[y, x] *= A[x]
+        for x in range(nx_abc - N_abc, nx_abc):
+            f[y, x] *= A[nx_abc - 1 - x] 
+    for x in prange(nx_abc):
+        for y in range(N_abc):
+            f[y, x] *= A[y]
+        for y in range(nz_abc - N_abc, nz_abc):
+            f[y, x] *= A[nz_abc - 1 - y]  
+
+    return f
+
+# WaveEquation every type
 @jit(nopython=True,parallel=True)
 def updateWaveEquation(Uf,Uc,vp,nz,nx,dz,dx,dt):
     c0 = -205. / 72.
@@ -92,14 +252,121 @@ def updateWaveEquation(Uf,Uc,vp,nz,nx,dz,dx,dt):
 
     return Uf
 
-@staticmethod
-def updateWaveEquationGPU(Uf, Uc, vp, nz, nx, dz, dx, dt):
-    total_pixels = nz * nx
-    threads_per_block = 256
-    blocks_per_grid = (total_pixels + threads_per_block - 1) // threads_per_block
+@jit(nopython=True,parallel=True)
+def updateWaveEquationVTI(Uf, Uc, nx, nz, dt, dx, dz, vp, epsilon, delta):
+    c0 = -205. / 72.
+    c1 = 8. / 5.
+    c2 = -1. / 5.
+    c3 = 8. / 315.
+    c4 = -1. / 560.
+    a1 = 672. / 840.
+    a2 = -168. / 840.
+    a3 = 32. / 840.
+    a4 = -3. / 840.
+    for i in prange(4,nx-4):
+        for j in prange(4,nz-4):
+            pxx = (c0 * Uc[j, i] + 
+                   c1 * (Uc[j, i+1] + Uc[j, i-1]) + 
+                   c2 * (Uc[j, i+2] + Uc[j, i-2]) +
+                   c3 * (Uc[j, i+3] + Uc[j, i-3]) +
+                   c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
+            pzz = (c0 * Uc[j, i] + 
+                   c1 * (Uc[j+1, i] + Uc[j-1, i]) + 
+                   c2 * (Uc[j+2, i] + Uc[j-2, i]) + 
+                   c3 * (Uc[j+3, i] + Uc[j-3, i]) + 
+                   c4 * (Uc[j+4, i] + Uc[j-4, i])) / (dz * dz)
+            px = (a1*(Uc[j, i+1] - Uc[j, i-1]) +
+                a2*(Uc[j, i+2] - Uc[j, i-2]) +
+                a3*(Uc[j, i+3] - Uc[j, i-3]) +
+                a4*(Uc[j, i+4] - Uc[j, i-4])) / dx
+            pz = (a1 * (Uc[j+1, i] - Uc[j-1, i]) +
+                a2 * (Uc[j+2, i] - Uc[j-2, i]) +
+                a3 * (Uc[j+3, i] - Uc[j-3, i]) +
+                a4 * (Uc[j+4, i] - Uc[j-4, i])) / dz
+            
+            num = -2.0*(epsilon[j,i]-delta[j,i])*(px*px)*(pz*pz)
+            den = (1.0 + 2.0*epsilon[j,i])*(px*px*px*px) + (pz*pz*pz*pz) + 2.0*(1.0 + delta[j,i])*(px*px)*(pz*pz)
+                
+            if abs(den) < 1e-12:
+                Sd = 0.0
+            else:
+                Sd = num / den
 
-    updateWaveEquationKernel((blocks_per_grid,),(threads_per_block,),(Uf,Uc,vp,np.int32(nz),np.int32(nx),np.float32(dz),np.float32(dx),np.float32(dt)))
- 
+            Uf[j, i] = 2. * Uc[j, i] - Uf[j, i] + (vp[j, i] * vp[j, i]) * (dt * dt) * ((1.+ 2.*epsilon[j,i]) + Sd) * pxx + (vp[j, i] * vp[j, i]) * (dt * dt) *(1. + Sd) * pzz
+
+    return Uf
+
+@jit(nopython=True,parallel=True)
+def updateWaveEquationTTI(Uf, Uc, nx, nz, dt, dx, dz, vp, epsilon, delta, theta):
+    c0 = -205. / 72.
+    c1 = 8. / 5.
+    c2 = -1. / 5.
+    c3 = 8. / 315.
+    c4 = -1. / 560.
+    a1 = 672. / 840.
+    a2 = -168. / 840.
+    a3 = 32. / 840.
+    a4 = -3. / 840.
+    for i in prange(4,nx-4):
+        for j in prange(4,nz-4):
+            pxx = (c0 * Uc[j, i] + 
+                   c1 * (Uc[j, i+1] + Uc[j, i-1]) + 
+                   c2 * (Uc[j, i+2] + Uc[j, i-2]) +
+                   c3 * (Uc[j, i+3] + Uc[j, i-3]) +
+                   c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
+            pzz = (c0 * Uc[j, i] + 
+                   c1 * (Uc[j+1, i] + Uc[j-1, i]) + 
+                   c2 * (Uc[j+2, i] + Uc[j-2, i]) + 
+                   c3 * (Uc[j+3, i] + Uc[j-3, i]) + 
+                   c4 * (Uc[j+4, i] + Uc[j-4, i])) / (dz * dz)
+            pxz = (a1*a1*(Uc[j+1,i+1] - Uc[j-1,i+1] + Uc[j-1,i-1] - Uc[j+1,i-1]) +
+                    a1*a2*(Uc[j+2,i+1] - Uc[j-2,i+1] + Uc[j-2,i-1] - Uc[j+2,i-1]) +
+                    a1*a3*(Uc[j+3,i+1] - Uc[j-3,i+1] + Uc[j-3,i-1] - Uc[j+3,i-1]) +
+                    a1*a4*(Uc[j+4,i+1] - Uc[j-4,i+1] + Uc[j-4,i-1] - Uc[j+4,i-1]) +
+
+                    a2*a1*(Uc[j+1,i+2] - Uc[j-1,i+2] + Uc[j-1,i-2] - Uc[j+1,i-2]) +
+                    a2*a2*(Uc[j+2,i+2] - Uc[j-2,i+2] + Uc[j-2,i-2] - Uc[j+2,i-2]) +
+                    a2*a3*(Uc[j+3,i+2] - Uc[j-3,i+2] + Uc[j-3,i-2] - Uc[j+3,i-2]) +
+                    a2*a4*(Uc[j+4,i+2] - Uc[j-4,i+2] + Uc[j-4,i-2] - Uc[j+4,i-2]) +
+
+                    a3*a1*(Uc[j+1,i+3] - Uc[j-1,i+3] + Uc[j-1,i-3] - Uc[j+1,i-3]) +
+                    a3*a2*(Uc[j+2,i+3] - Uc[j-2,i+3] + Uc[j-2,i-3] - Uc[j+2,i-3]) +
+                    a3*a3*(Uc[j+3,i+3] - Uc[j-3,i+3] + Uc[j-3,i-3] - Uc[j+3,i-3]) +
+                    a3*a4*(Uc[j+4,i+3] - Uc[j-4,i+3] + Uc[j-4,i-3] - Uc[j+4,i-3]) +
+
+                    a4*a1*(Uc[j+1,i+4] - Uc[j-1,i+4] + Uc[j-1,i-4] - Uc[j+1,i-4]) +
+                    a4*a2*(Uc[j+2,i+4] - Uc[j-2,i+4] + Uc[j-2,i-4] - Uc[j+2,i-4]) +
+                    a4*a3*(Uc[j+3,i+4] - Uc[j-3,i+4] + Uc[j-3,i-4] - Uc[j+3,i-4]) +
+                    a4*a4*(Uc[j+4,i+4] - Uc[j-4,i+4] + Uc[j-4,i-4] - Uc[j+4,i-4])) / (dz * dx)
+            px = (a1*(Uc[j, i+1] - Uc[j, i-1]) +
+                a2*(Uc[j, i+2] - Uc[j, i-2]) +
+                a3*(Uc[j, i+3] - Uc[j, i-3]) +
+                a4*(Uc[j, i+4] - Uc[j, i-4])) / dx
+            pz = (a1 * (Uc[j+1, i] - Uc[j-1, i]) +
+                a2 * (Uc[j+2, i] - Uc[j-2, i]) +
+                a3 * (Uc[j+3, i] - Uc[j-3, i]) +
+                a4 * (Uc[j+4, i] - Uc[j-4, i])) / dz
+            
+            norm = np.sqrt(px*px + pz*pz)
+            if norm > 1e-12:
+                mx = px / norm
+                mz = pz / norm
+            else:
+                mx, mz = 0.0, 0.0
+
+            num = -2.0*(epsilon[j,i]-delta[j,i])*((mx*np.cos(theta[j,i]) - mz*np.sin(theta[j,i]))**2)*((mx*np.sin(theta[j,i]) + mz*np.cos(theta[j,i]))**2)
+            den = (1.0 + 2.0*epsilon[j,i])*(((mx*np.cos(theta[j,i]) - mz*np.sin(theta[j,i])))**4) + ((mx*np.sin(theta[j,i]) + mz*np.cos(theta[j,i]))**4) + 2.0*(1.0 + delta[j,i])*((mx*np.cos(theta[j,i]) - mz*np.sin(theta[j,i]))**2)*((mx*np.sin(theta[j,i]) + mz*np.cos(theta[j,i]))**2)
+        #colocar o mais recorrente primeiro
+            if abs(den) < 1e-12:
+                Sd = 0.0
+            else:
+                Sd = num / den
+
+            Uf[j, i] = 2. * Uc[j, i] - Uf[j, i] + (vp[j, i] * vp[j, i]) * (dt * dt) * ((1.+ 2.*epsilon[j,i])*(np.cos(theta[j,i])*np.cos(theta[j,i])) + (np.sin(theta[j,i])*np.sin(theta[j,i])) + Sd) * pxx + (vp[j, i] * vp[j, i]) * (dt * dt) *((1.+ 2.*epsilon[j,i])*(np.sin(theta[j,i])*np.sin(theta[j,i]))+ (np.cos(theta[j,i])*np.cos(theta[j,i])) + Sd) * pzz - 2. * epsilon[j,i]*(vp[j, i] * vp[j, i]) * (dt * dt) * np.sin(2.*theta[j,i]) * pxz
+
+    return Uf
+
+# CPML WaveEquation types
 @jit(nopython=True, parallel=True)
 def updateWaveEquationCPML(Uf, Uc, vp, nx_abc, nz_abc, dz, dx, dt, PsixFR, PsixFL, PsizFU, PsizFD, ZetaxFR, ZetaxFL, ZetazFU, ZetazFD, N_abc):
     
@@ -275,190 +542,6 @@ def updateWaveEquationCPML(Uf, Uc, vp, nx_abc, nz_abc, dz, dx, dt, PsixFR, PsixF
                     a4 * (PsizFD[jdx+4, i] - PsizFD[jdx-4, i])) / dz
             
             Uf[j, i] = (vp[j, i] ** 2) * (dt ** 2) * (pxx + pzz + psix + psiz + ZetaxFR[j, idx] + ZetazFD[jdx, i]) + 2 * Uc[j, i] - Uf[j, i]
-
-    return Uf
-
-@jit(nopython=True, parallel=True)
-def updatePsi(PsixFR, PsixFL, PsizFU, PsizFD, nx_abc, nz_abc, Uc, dx,dz, N_abc, f_pico, d0, dt, vp):
-
-    a1 = 672. / 840.
-    a2 = -168. / 840.
-    a3 = 32. / 840.
-    a4 = -3. / 840.
-
-    for j in prange(4, nz_abc - 4):
-        for i in prange(4, N_abc):
-
-            ax, bx = horizontal_dampening_profiles(N_abc,nx_abc, dx, vp, f_pico, d0, dt, i, j)
-
-            px = (a1 * (Uc[j, i+1] - Uc[j, i-1]) +
-                a2 * (Uc[j, i+2] - Uc[j, i-2]) +
-                a3 * (Uc[j, i+3] - Uc[j, i-3]) +
-                a4 * (Uc[j, i+4] - Uc[j, i-4])) / dx
-            
-            PsixFL[j, i] = ax * PsixFL[j, i] + bx * px
-
-    for j in prange(4, nz_abc - 4):
-        for i in prange(nx_abc - N_abc, nx_abc - 4):
-            idx = i - (nx_abc - N_abc)
-
-            ax, bx = horizontal_dampening_profiles(N_abc,nx_abc, dx, vp, f_pico, d0, dt, i, j)
-
-            px = (a1 * (Uc[j, i+1] - Uc[j, i-1]) +
-                a2 * (Uc[j, i+2] - Uc[j, i-2]) +
-                a3 * (Uc[j, i+3] - Uc[j, i-3]) +
-                a4 * (Uc[j, i+4] - Uc[j, i-4])) / dx
-            
-            PsixFR[j, idx] = ax * PsixFR[j, idx] + bx * px
-
-    for j in prange(4, N_abc):
-        for i in prange(4, nx_abc - 4):
-
-            az,bz = vertical_dampening_profiles(N_abc,nz_abc, dz, vp, f_pico, d0, dt, i, j)
-            
-            pz = (a1 * (Uc[j+1, i] - Uc[j-1, i]) +
-                a2 * (Uc[j+2, i] - Uc[j-2, i]) +
-                a3 * (Uc[j+3, i] - Uc[j-3, i]) +
-                a4 * (Uc[j+4, i] - Uc[j-4, i])) / dz 
-            
-            PsizFU[j, i] = az * PsizFU[j, i] + bz * pz
-
-    for j in prange(nz_abc - N_abc, nz_abc - 4):  
-        jdx = j - (nz_abc - N_abc)
-        for i in prange(4, nx_abc - 4):
-
-            az,bz = vertical_dampening_profiles(N_abc,nz_abc, dz, vp, f_pico, d0, dt, i, j)
-
-            pz = (a1 * (Uc[j+1, i] - Uc[j-1, i]) +
-                a2 * (Uc[j+2, i] - Uc[j-2, i]) +
-                a3 * (Uc[j+3, i] - Uc[j-3, i]) +
-                a4 * (Uc[j+4, i] - Uc[j-4, i])) / dz 
-            
-            PsizFD[jdx, i] = az * PsizFD[jdx, i] + bz * pz
-
-    return PsixFR, PsixFL, PsizFU, PsizFD
-
-@jit(nopython=True, parallel=True)
-def updateZeta(PsixFR, PsixFL, ZetaxFR, ZetaxFL,PsizFU, PsizFD, ZetazFU, ZetazFD, nx_abc, nz_abc, Uc, dx, dz, N_abc, f_pico, d0, dt, vp):
-
-    c0 = -205. / 72.
-    c1 = 8. / 5.
-    c2 = -1. / 5.
-    c3 = 8. / 315.
-    c4 = -1. / 560.
-    a1 = 672. / 840.
-    a2 = -168. / 840.
-    a3 = 32. / 840.
-    a4 = -3. / 840.
-
-    for j in prange(4, nz_abc - 4):
-        for i in prange(4, N_abc):
-            ax, bx = horizontal_dampening_profiles(N_abc,nx_abc, dx, vp, f_pico, d0, dt, i, j)
-
-            pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) +
-                c2 * (Uc[j, i+2] + Uc[j, i-2]) + 
-                c3 * (Uc[j, i+3] + Uc[j, i-3]) +
-                c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
-        
-            psix = (a1 * (PsixFL[j, i+1] - PsixFL[j, i-1]) +
-                    a2 * (PsixFL[j, i+2] - PsixFL[j, i-2]) +
-                    a3 * (PsixFL[j, i+3] - PsixFL[j, i-3]) +
-                    a4 * (PsixFL[j, i+4] - PsixFL[j, i-4])) / dx
-
-            ZetaxFL[j, i] = ax * ZetaxFL[j, i] + bx * (pxx + psix)
-
-    for j in prange(4, nz_abc - 4):
-        for i in prange(nx_abc - N_abc, nx_abc - 4):
-            idx = i - (nx_abc - N_abc) 
-
-            ax, bx = horizontal_dampening_profiles(N_abc,nx_abc, dx, vp, f_pico, d0, dt, i, j)
-
-            pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) +
-                c2 * (Uc[j, i+2] + Uc[j, i-2]) + 
-                c3 * (Uc[j, i+3] + Uc[j, i-3]) +
-                c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
-        
-            psix = (a1 * (PsixFR[j, idx+1] - PsixFR[j, idx-1]) +
-                    a2 * (PsixFR[j, idx+2] - PsixFR[j, idx-2]) +
-                    a3 * (PsixFR[j, idx+3] - PsixFR[j, idx-3]) +
-                    a4 * (PsixFR[j, idx+4] - PsixFR[j, idx-4])) / dx
-
-            ZetaxFR[j, idx] = ax * ZetaxFR[j, idx] + bx * (pxx + psix)
-
-    for j in prange(4, N_abc):
-        for i in prange(4, nx_abc - 4):
-            az,bz = vertical_dampening_profiles(N_abc,nz_abc, dz, vp, f_pico, d0, dt, i, j)
-           
-            pzz = (c0 * Uc[j, i] + c1 * (Uc[j+1, i] + Uc[j-1, i]) +
-                c2 * (Uc[j+2, i] + Uc[j-2, i]) + 
-                c3 * (Uc[j+3, i] + Uc[j-3, i]) +
-                c4 * (Uc[j+4, i] + Uc[j-4, i])) / (dz * dz)               
-            psiz = (a1 * (PsizFU[j+1, i] - PsizFU[j-1, i]) +
-                    a2 * (PsizFU[j+2, i] - PsizFU[j-2, i]) +
-                    a3 * (PsizFU[j+3, i] - PsizFU[j-3, i]) +
-                    a4 * (PsizFU[j+4, i] - PsizFU[j-4, i])) / dz
-            
-            ZetazFU[j, i] = az * ZetazFU[j, i] + bz * (pzz + psiz)
-
-    for j in prange(nz_abc - N_abc, nz_abc - 4):
-        jdx = j - (nz_abc - N_abc) 
-        for i in prange(4, nx_abc - 4):
-            az,bz = vertical_dampening_profiles(N_abc,nz_abc, dz, vp, f_pico, d0, dt, i, j)
-            
-            pzz = (c0 * Uc[j, i] + c1 * (Uc[j+1, i] + Uc[j-1, i]) +
-                c2 * (Uc[j+2, i] + Uc[j-2, i]) + 
-                c3 * (Uc[j+3, i] + Uc[j-3, i]) +
-                c4 * (Uc[j+4, i] + Uc[j-4, i])) / (dz * dz)               
-            psiz = (a1 * (PsizFD[jdx+1, i] - PsizFD[jdx-1, i]) +
-                    a2 * (PsizFD[jdx+2, i] - PsizFD[jdx-2, i]) +
-                    a3 * (PsizFD[jdx+3, i] - PsizFD[jdx-3, i]) +
-                    a4 * (PsizFD[jdx+4, i] - PsizFD[jdx-4, i])) / dz
-            
-            ZetazFD[jdx, i] = az * ZetazFD[jdx, i] + bz * (pzz + psiz) 
-
-    return ZetaxFR, ZetaxFL, ZetazFU, ZetazFD
-
-@jit(nopython=True,parallel=True)
-def updateWaveEquationVTI(Uf, Uc, nx, nz, dt, dx, dz, vp, epsilon, delta):
-    c0 = -205. / 72.
-    c1 = 8. / 5.
-    c2 = -1. / 5.
-    c3 = 8. / 315.
-    c4 = -1. / 560.
-    a1 = 672. / 840.
-    a2 = -168. / 840.
-    a3 = 32. / 840.
-    a4 = -3. / 840.
-    for i in prange(4,nx-4):
-        for j in prange(4,nz-4):
-            pxx = (c0 * Uc[j, i] + 
-                   c1 * (Uc[j, i+1] + Uc[j, i-1]) + 
-                   c2 * (Uc[j, i+2] + Uc[j, i-2]) +
-                   c3 * (Uc[j, i+3] + Uc[j, i-3]) +
-                   c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
-            pzz = (c0 * Uc[j, i] + 
-                   c1 * (Uc[j+1, i] + Uc[j-1, i]) + 
-                   c2 * (Uc[j+2, i] + Uc[j-2, i]) + 
-                   c3 * (Uc[j+3, i] + Uc[j-3, i]) + 
-                   c4 * (Uc[j+4, i] + Uc[j-4, i])) / (dz * dz)
-            px = (a1*(Uc[j, i+1] - Uc[j, i-1]) +
-                a2*(Uc[j, i+2] - Uc[j, i-2]) +
-                a3*(Uc[j, i+3] - Uc[j, i-3]) +
-                a4*(Uc[j, i+4] - Uc[j, i-4])) / dx
-            pz = (a1 * (Uc[j+1, i] - Uc[j-1, i]) +
-                a2 * (Uc[j+2, i] - Uc[j-2, i]) +
-                a3 * (Uc[j+3, i] - Uc[j-3, i]) +
-                a4 * (Uc[j+4, i] - Uc[j-4, i])) / dz
-            
-            num = -2.0*(epsilon[j,i]-delta[j,i])*(px*px)*(pz*pz)
-            den = (1.0 + 2.0*epsilon[j,i])*(px*px*px*px) + (pz*pz*pz*pz) + 2.0*(1.0 + delta[j,i])*(px*px)*(pz*pz)
-                
-            if abs(den) < 1e-12:
-                Sd = 0.0
-            else:
-                Sd = num / den
-
-            Uf[j, i] = 2. * Uc[j, i] - Uf[j, i] + (vp[j, i] * vp[j, i]) * (dt * dt) * ((1.+ 2.*epsilon[j,i]) + Sd) * pxx + (vp[j, i] * vp[j, i]) * (dt * dt) *(1. + Sd) * pzz
 
     return Uf
 
@@ -824,96 +907,40 @@ def updateWaveEquationVTICPML(Uf, Uc, dt, dx, dz, vp, epsilon, delta,
 
     return Uf
 
-@jit(nopython=True,parallel=True)
-def updateWaveEquationTTI(Uf, Uc, nx, nz, dt, dx, dz, vp, epsilon, delta, theta):
-    c0 = -205. / 72.
-    c1 = 8. / 5.
-    c2 = -1. / 5.
-    c3 = 8. / 315.
-    c4 = -1. / 560.
-    a1 = 672. / 840.
-    a2 = -168. / 840.
-    a3 = 32. / 840.
-    a4 = -3. / 840.
-    for i in prange(4,nx-4):
-        for j in prange(4,nz-4):
-            pxx = (c0 * Uc[j, i] + 
-                   c1 * (Uc[j, i+1] + Uc[j, i-1]) + 
-                   c2 * (Uc[j, i+2] + Uc[j, i-2]) +
-                   c3 * (Uc[j, i+3] + Uc[j, i-3]) +
-                   c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
-            pzz = (c0 * Uc[j, i] + 
-                   c1 * (Uc[j+1, i] + Uc[j-1, i]) + 
-                   c2 * (Uc[j+2, i] + Uc[j-2, i]) + 
-                   c3 * (Uc[j+3, i] + Uc[j-3, i]) + 
-                   c4 * (Uc[j+4, i] + Uc[j-4, i])) / (dz * dz)
-            pxz = (a1*a1*(Uc[j+1,i+1] - Uc[j-1,i+1] + Uc[j-1,i-1] - Uc[j+1,i-1]) +
-                    a1*a2*(Uc[j+2,i+1] - Uc[j-2,i+1] + Uc[j-2,i-1] - Uc[j+2,i-1]) +
-                    a1*a3*(Uc[j+3,i+1] - Uc[j-3,i+1] + Uc[j-3,i-1] - Uc[j+3,i-1]) +
-                    a1*a4*(Uc[j+4,i+1] - Uc[j-4,i+1] + Uc[j-4,i-1] - Uc[j+4,i-1]) +
-
-                    a2*a1*(Uc[j+1,i+2] - Uc[j-1,i+2] + Uc[j-1,i-2] - Uc[j+1,i-2]) +
-                    a2*a2*(Uc[j+2,i+2] - Uc[j-2,i+2] + Uc[j-2,i-2] - Uc[j+2,i-2]) +
-                    a2*a3*(Uc[j+3,i+2] - Uc[j-3,i+2] + Uc[j-3,i-2] - Uc[j+3,i-2]) +
-                    a2*a4*(Uc[j+4,i+2] - Uc[j-4,i+2] + Uc[j-4,i-2] - Uc[j+4,i-2]) +
-
-                    a3*a1*(Uc[j+1,i+3] - Uc[j-1,i+3] + Uc[j-1,i-3] - Uc[j+1,i-3]) +
-                    a3*a2*(Uc[j+2,i+3] - Uc[j-2,i+3] + Uc[j-2,i-3] - Uc[j+2,i-3]) +
-                    a3*a3*(Uc[j+3,i+3] - Uc[j-3,i+3] + Uc[j-3,i-3] - Uc[j+3,i-3]) +
-                    a3*a4*(Uc[j+4,i+3] - Uc[j-4,i+3] + Uc[j-4,i-3] - Uc[j+4,i-3]) +
-
-                    a4*a1*(Uc[j+1,i+4] - Uc[j-1,i+4] + Uc[j-1,i-4] - Uc[j+1,i-4]) +
-                    a4*a2*(Uc[j+2,i+4] - Uc[j-2,i+4] + Uc[j-2,i-4] - Uc[j+2,i-4]) +
-                    a4*a3*(Uc[j+3,i+4] - Uc[j-3,i+4] + Uc[j-3,i-4] - Uc[j+3,i-4]) +
-                    a4*a4*(Uc[j+4,i+4] - Uc[j-4,i+4] + Uc[j-4,i-4] - Uc[j+4,i-4])) / (dz * dx)
-            px = (a1*(Uc[j, i+1] - Uc[j, i-1]) +
-                a2*(Uc[j, i+2] - Uc[j, i-2]) +
-                a3*(Uc[j, i+3] - Uc[j, i-3]) +
-                a4*(Uc[j, i+4] - Uc[j, i-4])) / dx
-            pz = (a1 * (Uc[j+1, i] - Uc[j-1, i]) +
-                a2 * (Uc[j+2, i] - Uc[j-2, i]) +
-                a3 * (Uc[j+3, i] - Uc[j-3, i]) +
-                a4 * (Uc[j+4, i] - Uc[j-4, i])) / dz
-            
-            norm = np.sqrt(px*px + pz*pz)
-            if norm > 1e-12:
-                mx = px / norm
-                mz = pz / norm
-            else:
-                mx, mz = 0.0, 0.0
-
-            num = -2.0*(epsilon[j,i]-delta[j,i])*((mx*np.cos(theta[j,i]) - mz*np.sin(theta[j,i]))**2)*((mx*np.sin(theta[j,i]) + mz*np.cos(theta[j,i]))**2)
-            den = (1.0 + 2.0*epsilon[j,i])*(((mx*np.cos(theta[j,i]) - mz*np.sin(theta[j,i])))**4) + ((mx*np.sin(theta[j,i]) + mz*np.cos(theta[j,i]))**4) + 2.0*(1.0 + delta[j,i])*((mx*np.cos(theta[j,i]) - mz*np.sin(theta[j,i]))**2)*((mx*np.sin(theta[j,i]) + mz*np.cos(theta[j,i]))**2)
-        #colocar o mais recorrente primeiro
-            if abs(den) < 1e-12:
-                Sd = 0.0
-            else:
-                Sd = num / den
-
-            Uf[j, i] = 2. * Uc[j, i] - Uf[j, i] + (vp[j, i] * vp[j, i]) * (dt * dt) * ((1.+ 2.*epsilon[j,i])*(np.cos(theta[j,i])*np.cos(theta[j,i])) + (np.sin(theta[j,i])*np.sin(theta[j,i])) + Sd) * pxx + (vp[j, i] * vp[j, i]) * (dt * dt) *((1.+ 2.*epsilon[j,i])*(np.sin(theta[j,i])*np.sin(theta[j,i]))+ (np.cos(theta[j,i])*np.cos(theta[j,i])) + Sd) * pzz - 2. * epsilon[j,i]*(vp[j, i] * vp[j, i]) * (dt * dt) * np.sin(2.*theta[j,i]) * pxz
-
-    return Uf
-
-@jit(parallel=True, nopython=True)
-def AbsorbingBoundary(N_abc, nz_abc, nx_abc, f, A):
-    for y in prange(nz_abc):
-        for x in range(N_abc):
-            f[y, x] *= A[x]
-        for x in range(nx_abc - N_abc, nx_abc):
-            f[y, x] *= A[nx_abc - 1 - x] 
-    for x in prange(nx_abc):
-        for y in range(N_abc):
-            f[y, x] *= A[y]
-        for y in range(nz_abc - N_abc, nz_abc):
-            f[y, x] *= A[nz_abc - 1 - y]  
-
-    return f
-
-
+#GPU Cerjan Apply
 def AbsorbingBoundaryGPU(Uf,Uc,N_abc,nx,nz,A):
     total_size = nz * nx
     treads_per_block = 256
     blocks_per_grid = (total_size + treads_per_block - 1) // treads_per_block
     AbsorbingBoundaryCudaKernel((blocks_per_grid,), (treads_per_block,), (Uf,Uc,N_abc,nz,nx,A))
     return Uf,Uc
+
+#GPU WaveEquation 
+@staticmethod
+def updateWaveEquationGPU(Uf, Uc, vp, nz, nx, dz, dx, dt):
+    total_pixels = nz * nx
+    threads_per_block = 256
+    blocks_per_grid = (total_pixels + threads_per_block - 1) // threads_per_block
+
+    updateWaveEquationKernel((blocks_per_grid,),(threads_per_block,),(Uf,Uc,vp,np.int32(nz),np.int32(nx),np.float32(dz),np.float32(dx),np.float32(dt)))
+
+@staticmethod
+def updateWaveEquationVTIGPU(Uf, Uc, nx, nz, dt, dx, dz, vp, epsilon, delta):
+    total_pixels = nz * nx
+    threads_per_block = 256
+    blocks_per_grid = (total_pixels + threads_per_block - 1) // threads_per_block
+
+    updateWaveEquationVTIKernel((blocks_per_grid,),(threads_per_block,),(Uf,Uc,np.int32(nx),np.int32(nz),np.float32(dt),np.float32(dx),np.float32(dz),vp,epsilon,delta))
+ 
+@staticmethod
+def updateWaveEquationTTIGPU(Uf, Uc, nx, nz, dt, dx, dz, vp, epsilon, delta, theta):
+    total_pixels = nz * nx
+    threads_per_block = 256
+    blocks_per_grid = (total_pixels + threads_per_block - 1) // threads_per_block
+
+    updateWaveEquationTTIKernel((blocks_per_grid,),(threads_per_block,),(Uf,Uc,np.int32(nx),np.int32(nz),np.float32(dt),np.float32(dx),np.float32(dz),vp,epsilon,delta,theta))
+
+
+
+
 

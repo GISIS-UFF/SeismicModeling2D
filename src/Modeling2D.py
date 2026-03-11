@@ -5,10 +5,12 @@ import cupy as cp
 from utils import ricker
 from utils import updateWaveEquation
 from utils import updateWaveEquationGPU
+from utils import updateWaveEquationVTIGPU
 from utils import updateWaveEquationCPML
 from utils import updateWaveEquationVTI
 from utils import updateWaveEquationVTICPML
 from utils import updateWaveEquationTTI
+from utils import updateWaveEquationTTIGPU
 from utils import AbsorbingBoundary
 from utils import AbsorbingBoundaryGPU
 from utils import updatePsi
@@ -56,7 +58,6 @@ class wavefield:
         if self.pmt.unit == "GPU":
             self.current = cp.asarray(self.current, dtype=cp.float32)
             self.future  = cp.asarray(self.future, dtype=cp.float32)
-            self.source = cp.asarray(self.source, dtype=cp.float32)
             self.seismogram_gpu = cp.zeros((self.pmt.nt, self.pmt.Nrec), dtype=cp.float32)
             if self.pmt.snap == True:
                 self.snap_times = list(range(0, self.pmt.last_save + 1, self.pmt.step))
@@ -161,10 +162,10 @@ class wavefield:
                 print("WARNING: Dispersion or stability conditions not satisfied.")
     
     def createCerjanVector(self):
-        sb = 3. * self.pmt.N_abc
+        sb = 6. * self.pmt.N_abc
         A = np.ones(self.pmt.N_abc)
         for i in range(self.pmt.N_abc):
-                fb = (self.pmt.N_abc - i) / (np.sqrt(2.) * sb)
+                fb = (self.pmt.N_abc - i) / (1.4142 * sb)
                 A[i] = np.exp(-fb * fb)
         return A 
     
@@ -263,7 +264,19 @@ class wavefield:
         if self.pmt.approximation == "acoustic" and self.pmt.ABC == "cerjan":
             self.current[self.sz,self.sx] += self.source[k]
             updateWaveEquationGPU(self.future, self.current, self.vp_exp, self.pmt.nz_abc, self.pmt.nx_abc, self.pmt.dz, self.pmt.dx, self.pmt.dt)
-            self.future,self.current = AbsorbingBoundaryGPU(self.future,self.current,self.pmt.N_abc,self.pmt.nx_abc,self.pmt.nz_abc, self.A)
+            # Apply absorbing boundary condition
+            self.future, self.current = AbsorbingBoundaryGPU(self.future,self.current,self.pmt.N_abc,self.pmt.nx_abc,self.pmt.nz_abc, self.A)
+        elif self.pmt.approximation == "VTI" and self.pmt.ABC == "cerjan":
+            self.current[self.sz,self.sx] += self.source[k]
+            updateWaveEquationVTIGPU(self.future, self.current, self.pmt.nx_abc, self.pmt.nz_abc, self.pmt.dt, self.pmt.dx, self.pmt.dz, self.vp_exp, self.epsilon_exp, self.delta_exp)
+            # Apply absorbing boundary condition
+            self.future, self.current = AbsorbingBoundaryGPU(self.future,self.current,self.pmt.N_abc,self.pmt.nx_abc,self.pmt.nz_abc, self.A)
+        elif self.pmt.approximation == "TTI" and self.pmt.ABC == "cerjan":
+            self.current[self.sz,self.sx] += self.source[k]
+            updateWaveEquationTTIGPU(self.future, self.current, self.pmt.nx_abc, self.pmt.nz_abc, self.pmt.dt, self.pmt.dx, self.pmt.dz, self.vp_exp, self.epsilon_exp, self.delta_exp,self.theta_exp)
+            # Apply absorbing boundary condition
+            self.future, self.current = AbsorbingBoundaryGPU(self.future,self.current,self.pmt.N_abc,self.pmt.nx_abc,self.pmt.nz_abc, self.A)
+             
 
               
     def solveWaveEquation(self):
@@ -308,6 +321,7 @@ class wavefield:
         start_time = time.time()
         print(f"info: Solving {self.pmt.approximation} wave equation")
         # Expand velocity model and Create absorbing layers
+        self.source = cp.asarray(self.source, dtype=cp.float32)
         self.vp_exp = self.ExpandModel(self.vp)
         self.vp_exp = cp.asarray(self.vp_exp, dtype=cp.float32)
         if self.pmt.ABC == "cerjan":
