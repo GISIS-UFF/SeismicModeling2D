@@ -5,10 +5,12 @@ import cupy as cp
 from utils import ricker
 from utils import updateWaveEquation
 from utils import updateWaveEquationGPU
+from utils import updateWaveEquationCPMLGPU
 from utils import updateWaveEquationVTIGPU
 from utils import updateWaveEquationCPML
 from utils import updateWaveEquationVTI
 from utils import updateWaveEquationVTICPML
+from utils import updateWaveEquationVTICPMLGPU
 from utils import updateWaveEquationTTI
 from utils import updateWaveEquationTTIGPU
 from utils import AbsorbingBoundary
@@ -16,6 +18,7 @@ from utils import AbsorbingBoundaryGPU
 from utils import updatePsi
 from utils import updatePsiGPU
 from utils import updateZeta
+from utils import updateZetaGPU
 
 class wavefield: 
     def __init__(self, parameters):
@@ -56,15 +59,6 @@ class wavefield:
         self.current    = np.zeros([self.pmt.nz_abc,self.pmt.nx_abc],dtype=np.float32)
         self.future     = np.zeros([self.pmt.nz_abc,self.pmt.nx_abc],dtype=np.float32)
         self.seismogram = np.zeros([self.pmt.nt,self.pmt.Nrec],dtype=np.float32)
-        if self.pmt.unit == "GPU":
-            self.current = cp.asarray(self.current, dtype=cp.float32)
-            self.future  = cp.asarray(self.future, dtype=cp.float32)
-            self.seismogram_gpu = cp.zeros((self.pmt.nt, self.pmt.Nrec), dtype=cp.float32)
-            if self.pmt.snap == True:
-                self.snap_times = list(range(0, self.pmt.last_save + 1, self.pmt.step))
-                self.nsnaps = len(self.snap_times)
-                self.snapshots_gpu = cp.zeros((self.nsnaps, self.pmt.nz, self.pmt.nx), dtype=cp.float32)
-                self.snap_idx = 0
         if self.pmt.approximation in ["VTI", "TTI"]:
             # Initialize epsilon and delta models
             self.epsilon = np.zeros([self.pmt.nz,self.pmt.nx],dtype=np.float32)
@@ -91,6 +85,24 @@ class wavefield:
                 self.bot   = np.zeros((self.pmt.nt, 4, self.pmt.nx), dtype=np.float32)
                 self.left  = np.zeros((self.pmt.nt, self.pmt.nz, 4), dtype=np.float32)
                 self.right = np.zeros((self.pmt.nt, self.pmt.nz, 4), dtype=np.float32)
+        if self.pmt.unit == "GPU":
+            self.current = cp.asarray(self.current, dtype=cp.float32)
+            self.future  = cp.asarray(self.future, dtype=cp.float32)
+            self.seismogram_gpu = cp.zeros((self.pmt.nt, self.pmt.Nrec), dtype=cp.float32)
+            if self.pmt.ABC == "CPML":
+                self.PsixFR      = cp.asarray(self.PsixFR, dtype=cp.float32)
+                self.PsixFL      = cp.asarray(self.PsixFL, dtype=cp.float32)     
+                self.PsizFU      = cp.asarray(self.PsizFU, dtype=cp.float32) 
+                self.PsizFD      = cp.asarray(self.PsizFD, dtype=cp.float32)       
+                self.ZetaxFR     = cp.asarray(self.ZetaxFR, dtype=cp.float32)
+                self.ZetaxFL     = cp.asarray(self.ZetaxFL, dtype=cp.float32)
+                self.ZetazFU     = cp.asarray(self.ZetazFU , dtype=cp.float32)
+                self.ZetazFD     = cp.asarray(self.ZetazFD, dtype=cp.float32)
+            if self.pmt.snap == True:
+                self.snap_times = list(range(0, self.pmt.last_save + 1, self.pmt.step))
+                self.nsnaps = len(self.snap_times)
+                self.snapshots_gpu = cp.zeros((self.nsnaps, self.pmt.nz, self.pmt.nx), dtype=cp.float32)
+                self.snap_idx = 0
         print(f"info: Wavefields initialized: {self.pmt.nx}x{self.pmt.nz}x{self.pmt.nt}")
     
     def loadModels(self):
@@ -277,15 +289,19 @@ class wavefield:
             updateWaveEquationVTIGPU(self.future, self.current, self.pmt.nx_abc, self.pmt.nz_abc, self.pmt.dt, self.pmt.dx, self.pmt.dz, self.vp_exp, self.epsilon_exp, self.delta_exp)
             # Apply absorbing boundary condition
             self.future, self.current = AbsorbingBoundaryGPU(self.future,self.current,self.pmt.N_abc,self.pmt.nx_abc,self.pmt.nz_abc, self.A)
+        elif self.pmt.approximation == "VTI" and self.pmt.ABC == "CPML":
+            self.current[self.sz,self.sx] += self.source[k]
+            updatePsiGPU(self.PsixFR, self.PsixFL,self.PsizFU, self.PsizFD, self.pmt.nx_abc, self.pmt.nz_abc, self.current, self.pmt.dx, self.pmt.dz, self.pmt.N_abc, self.f_pico, self.d0, self.pmt.dt, self.vp_exp)
+            updateZetaGPU(self.PsixFR, self.PsixFL, self.ZetaxFR, self.ZetaxFL,self.PsizFU, self.PsizFD, self.ZetazFU, self.ZetazFD, self.pmt.nx_abc, self.pmt.nz_abc, self.current, self.pmt.dx,self.pmt.dz, self.pmt.N_abc, self.f_pico, self.d0, self.pmt.dt, self.vp_exp)
+            updateWaveEquationVTICPMLGPU(self.future, self.current, self.pmt.dt, self.pmt.dx, self.pmt.dz, self.vp_exp, self.epsilon_exp, self.delta_exp,self.pmt.nx_abc, self.pmt.nz_abc, self.PsixFR, self.PsixFL, self.PsizFU, self.PsizFD, self.ZetaxFR, self.ZetaxFL, self.ZetazFU, self.ZetazFD, self.pmt.N_abc)             
         elif self.pmt.approximation == "TTI" and self.pmt.ABC == "cerjan":
             self.current[self.sz,self.sx] += self.source[k]
             updateWaveEquationTTIGPU(self.future, self.current, self.pmt.nx_abc, self.pmt.nz_abc, self.pmt.dt, self.pmt.dx, self.pmt.dz, self.vp_exp, self.epsilon_exp, self.delta_exp,self.theta_exp)
             # Apply absorbing boundary condition
             self.future, self.current = AbsorbingBoundaryGPU(self.future,self.current,self.pmt.N_abc,self.pmt.nx_abc,self.pmt.nz_abc, self.A)
-
-             
-
-              
+        else:
+            raise ValueError("ERROR: Unknown approximation. Choose 'acoustic', 'VTI' or 'TTI'. Otherwise, unknown Absorbing Boundary Condition. Choose 'cerjan' or 'CPML'.")
+        
     def solveWaveEquation(self):
         start_time = time.time()
         print(f"info: Solving {self.pmt.approximation} wave equation")

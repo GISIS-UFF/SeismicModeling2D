@@ -94,10 +94,10 @@ updatePsiCuda = r'''
 extern "C" __global__
 void updatePsiCuda(float* PsixFR,float* PsixFL, float* PsizFU, float* PsizFD,const int nx_abc,const int nz_abc,const float* Uc,const float dx,const float dz,const int N_abc, const float f_pico, const float d0, const float dt, const float* vp)
 {
-    const float a1 = 672.0f  / 840.0f;
-    const float a2 = -168.0f / 840.0f;
-    const float a3 = 32.0f   / 840.0f;
-    const float a4 = -3.0f   / 840.0f;
+    const float a1 =  4.0f / 5.0f;
+    const float a2 = -1.0f / 5.0f;
+    const float a3 =  4.0f / 105.0f;
+    const float a4 = -1.0f / 280.0f;
     float ax;
     float bx;
     float az;
@@ -112,7 +112,7 @@ void updatePsiCuda(float* PsixFR,float* PsixFL, float* PsizFU, float* PsizFD,con
     int ix = i%nx_abc;
 
     if (ix >= 4 && ix < N_abc && iz >= 4 && iz < nz_abc - 4){
-        int idx = iz * N_abc + ix
+        int idx = iz * N_abc + ix;
         horizontal_dampening_profilesCuda(N_abc,nx_abc,dx,vp,f_pico,d0,dt,ix,iz,&ax,&bx);
 
         float px = (a1*(Uc[i+1] - Uc[i-1]) +
@@ -136,7 +136,7 @@ void updatePsiCuda(float* PsixFR,float* PsixFL, float* PsizFU, float* PsizFD,con
     }
 
     if (ix >= 4 && ix < nx_abc - 4 && iz >= 4 && iz < N_abc){
-        jdx =  iz * nx_abc + ix
+        int jdx =  iz * nx_abc + ix;
         vertical_dampening_profilesCuda(N_abc,nx_abc,nz_abc,dz,vp,f_pico,d0,dt,ix,iz,&az,&bz);
 
         float pz = (a1 * (Uc[i + nx_abc] - Uc[i - nx_abc]) +
@@ -160,17 +160,121 @@ void updatePsiCuda(float* PsixFR,float* PsixFL, float* PsizFU, float* PsizFD,con
     }
 }
 '''
-updatePsiKernel = cp.RawKernel(updatePsiCuda, 'updatePsiCuda')
+updatePsiCode = horizontal_dampening_profilesDevice + vertical_dampening_profilesDevice + updatePsiCuda
+updatePsiKernel = cp.RawKernel(updatePsiCode, 'updatePsiCuda')
+
+updateZetaCuda = r'''
+extern "C" __global__
+void updateZetaCuda(float* PsixFR,float* PsixFL,float*ZetaxFR,float* ZetaxFL,float* PsizFU, float* PsizFD,float* ZetazFU,float* ZetazFD,const int nx_abc,const int nz_abc,const float* Uc,const float dx,const float dz,const int N_abc, const float f_pico, const float d0, const float dt, const float* vp)
+{
+    const float c0 = -1435.0f / 504.0f;
+    const float c1 =  8.0f / 5.0f;
+    const float c2 = -1.0f / 5.0f;
+    const float c3 =  8.0f / 315.0f;
+    const float c4 = -1.0f / 560.0f;
+    const float a1 =  4.0f / 5.0f;
+    const float a2 = -1.0f / 5.0f;
+    const float a3 =  4.0f / 105.0f;
+    const float a4 = -1.0f / 280.0f;
+
+    float ax;
+    float bx;
+    float az;
+    float bz;
+
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int total_size = nz_abc * nx_abc;
+
+    if (i >= total_size) return;
+
+    int iz = i/nx_abc;
+    int ix = i%nx_abc;
+
+    if (ix >= 4 && ix < N_abc && iz >= 4 && iz < nz_abc - 4){
+        int idx = iz * N_abc + ix;
+        horizontal_dampening_profilesCuda(N_abc,nx_abc,dx,vp,f_pico,d0,dt,ix,iz,&ax,&bx);
+
+        float pxx = (c0 * Uc[i]
+            + c1 * (Uc[i + 1] + Uc[i - 1])
+            + c2 * (Uc[i + 2] + Uc[i - 2])
+            + c3 * (Uc[i + 3] + Uc[i - 3])
+            + c4 * (Uc[i + 4] + Uc[i - 4])) / (dx * dx);
+        
+        float psix = (a1 * (PsixFL[idx+1] - PsixFL[idx-1]) +
+            a2 * (PsixFL[idx+2] - PsixFL[idx-2]) +
+            a3 * (PsixFL[idx+3] - PsixFL[idx-3]) +
+            a4 * (PsixFL[idx+4] - PsixFL[idx-4])) / dx;
+
+        ZetaxFL[idx] = ax * ZetaxFL[idx] + bx * (pxx + psix);
+    }
+
+    if (ix >= nx_abc - N_abc && ix < nx_abc - 4 && iz >= 4 && iz < nz_abc - 4){
+        int idx = iz * N_abc + (ix - (nx_abc - N_abc));
+        horizontal_dampening_profilesCuda(N_abc,nx_abc,dx,vp,f_pico,d0,dt,ix,iz,&ax,&bx);
+
+        float pxx = (c0 * Uc[i]
+            + c1 * (Uc[i + 1] + Uc[i - 1])
+            + c2 * (Uc[i + 2] + Uc[i - 2])
+            + c3 * (Uc[i + 3] + Uc[i - 3])
+            + c4 * (Uc[i + 4] + Uc[i - 4])) / (dx * dx);
+        
+        float psix = (a1 * (PsixFR[idx+1] - PsixFR[idx-1]) +
+            a2 * (PsixFR[idx+2] - PsixFR[idx-2]) +
+            a3 * (PsixFR[idx+3] - PsixFR[idx-3]) +
+            a4 * (PsixFR[idx+4] - PsixFR[idx-4])) / dx;
+
+        ZetaxFR[idx] = ax * ZetaxFR[idx] + bx * (pxx + psix);
+    }
+
+    if (ix >= 4 && ix < nx_abc - 4 && iz >= 4 && iz < N_abc){
+        int jdx =  iz * nx_abc + ix;
+        vertical_dampening_profilesCuda(N_abc,nx_abc,nz_abc,dz,vp,f_pico,d0,dt,ix,iz,&az,&bz);
+
+        float pzz = (c0 * Uc[i]
+            + c1 * (Uc[i + nx_abc] + Uc[i - nx_abc])
+            + c2 * (Uc[i + 2*nx_abc] + Uc[i - 2*nx_abc])
+            + c3 * (Uc[i + 3*nx_abc] + Uc[i - 3*nx_abc])
+            + c4 * (Uc[i + 4*nx_abc] + Uc[i - 4*nx_abc])) / (dz * dz);
+
+        float psiz = (a1 * (PsizFU[jdx + nx_abc] - PsizFU[jdx - nx_abc]) +
+            a2 * (PsizFU[jdx + 2*nx_abc] - PsizFU[jdx - 2*nx_abc]) +
+            a3 * (PsizFU[jdx + 3*nx_abc] - PsizFU[jdx - 3*nx_abc]) +
+            a4 * (PsizFU[jdx + 4*nx_abc] - PsizFU[jdx - 4*nx_abc])) / dz;
+
+        ZetazFU[jdx] = az * ZetazFU[jdx] + bz * (pzz + psiz);
+    }
+
+    if (ix >= 4 && ix < nx_abc - 4 && iz >= nz_abc - N_abc && iz < nz_abc - 4){
+        int jdx = (iz - (nz_abc - N_abc)) * nx_abc + ix;
+        vertical_dampening_profilesCuda(N_abc,nx_abc,nz_abc,dz,vp,f_pico,d0,dt,ix,iz,&az,&bz);
+
+        float pzz = (c0 * Uc[i]
+            + c1 * (Uc[i + nx_abc] + Uc[i - nx_abc])
+            + c2 * (Uc[i + 2*nx_abc] + Uc[i - 2*nx_abc])
+            + c3 * (Uc[i + 3*nx_abc] + Uc[i - 3*nx_abc])
+            + c4 * (Uc[i + 4*nx_abc] + Uc[i - 4*nx_abc])) / (dz * dz);
+
+        float psiz = (a1 * (PsizFD[jdx + nx_abc] - PsizFD[jdx - nx_abc]) +
+            a2 * (PsizFD[jdx + 2*nx_abc] - PsizFD[jdx - 2*nx_abc]) +
+            a3 * (PsizFD[jdx + 3*nx_abc] - PsizFD[jdx - 3*nx_abc]) +
+            a4 * (PsizFD[jdx + 4*nx_abc] - PsizFD[jdx - 4*nx_abc])) / dz;
+
+        ZetazFD[jdx] = az * ZetazFD[jdx] + bz * (pzz + psiz);
+    }
+}
+'''
+updateZetaCode = horizontal_dampening_profilesDevice + vertical_dampening_profilesDevice + updateZetaCuda
+updateZetaKernel = cp.RawKernel(updateZetaCode, 'updateZetaCuda')
 
 updateWaveEquationCuda = r'''
 extern "C" __global__
 void updateWaveEquationCuda(float* Uf,const float* Uc,const float* vp,const int nz,const int nx,const float dz,const float dx,const float dt)
 {
-    const float c0 = -205.0f / 72.0f;
-    const float c1 =  8.0f   / 5.0f;
-    const float c2 = -1.0f   / 5.0f;
-    const float c3 =  8.0f   / 315.0f;
-    const float c4 = -1.0f   / 560.0f;
+    const float c0 = -1435.0f / 504.0f;
+    const float c1 =  8.0f / 5.0f;
+    const float c2 = -1.0f / 5.0f;
+    const float c3 =  8.0f / 315.0f;
+    const float c4 = -1.0f / 560.0f;
 
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int total_size = nz * nx;
@@ -205,15 +309,15 @@ updateWaveEquationVTICuda = r'''
 extern "C" __global__
 void updateWaveEquationVTICuda(float* Uf,const float* Uc,const int nx,const int nz,const float dt,const float dx,const float dz,const float* vp,const float* epsilon,const float* delta )
 {
-    const float c0 = -205.0f / 72.0f;
-    const float c1 =  8.0f   / 5.0f;
-    const float c2 = -1.0f   / 5.0f;
-    const float c3 =  8.0f   / 315.0f;
-    const float c4 = -1.0f   / 560.0f;
-    const float a1 = 672.0f  / 840.0f;
-    const float a2 = -168.0f / 840.0f;
-    const float a3 = 32.0f   / 840.0f;
-    const float a4 = -3.0f   / 840.0f;
+    const float c0 = -1435.0f / 504.0f;
+    const float c1 =  8.0f / 5.0f;
+    const float c2 = -1.0f / 5.0f;
+    const float c3 =  8.0f / 315.0f;
+    const float c4 = -1.0f / 560.0f;
+    const float a1 =  4.0f / 5.0f;
+    const float a2 = -1.0f / 5.0f;
+    const float a3 =  4.0f / 105.0f;
+    const float a4 = -1.0f / 280.0f;
     float Sd;
 
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -268,16 +372,16 @@ updateWaveEquationTTICuda = r'''
 extern "C" __global__
 void updateWaveEquationTTICuda(float* Uf,const float* Uc,const int nx,const int nz,const float dt,const float dx,const float dz,const float* vp,const float* epsilon,const float* delta,const float* theta)
 {
-    const float c0 = -205.0f / 72.0f;
-    const float c1 =  8.0f   / 5.0f;
-    const float c2 = -1.0f   / 5.0f;
-    const float c3 =  8.0f   / 315.0f;
-    const float c4 = -1.0f   / 560.0f;
+    const float c0 = -1435.0f / 504.0f;
+    const float c1 =  8.0f / 5.0f;
+    const float c2 = -1.0f / 5.0f;
+    const float c3 =  8.0f / 315.0f;
+    const float c4 = -1.0f / 560.0f;
 
-    const float a1 =  672.0f / 840.0f;
-    const float a2 = -168.0f / 840.0f;
-    const float a3 =   32.0f / 840.0f;
-    const float a4 =   -3.0f / 840.0f;
+    const float a1 =  4.0f / 5.0f;
+    const float a2 = -1.0f / 5.0f;
+    const float a3 =  4.0f / 105.0f;
+    const float a4 = -1.0f / 280.0f;
 
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int total_size = nz * nx;
@@ -362,3 +466,722 @@ void updateWaveEquationTTICuda(float* Uf,const float* Uc,const int nx,const int 
 
 updateWaveEquationTTIKernel = cp.RawKernel(updateWaveEquationTTICuda, 'updateWaveEquationTTICuda')
 
+updateWaveEquationCPMLCuda = r'''
+extern "C" __global__
+void updateWaveEquationCPMLCuda(float* Uf,const float* Uc,const float* vp,const int nx_abc,const int nz_abc,const float dz,const float dx,const float dt,float* PsixFR,float* PsixFL,float* PsizFU,float* PsizFD,float* ZetaxFR,float* ZetaxFL,float* ZetazFU,float* ZetazFD,const int N_abc)
+{
+    const float c0 = -1435.0f / 504.0f;
+    const float c1 =  8.0f / 5.0f;
+    const float c2 = -1.0f / 5.0f;
+    const float c3 =  8.0f / 315.0f;
+    const float c4 = -1.0f / 560.0f;
+
+    const float a1 =  4.0f / 5.0f;
+    const float a2 = -1.0f / 5.0f;
+    const float a3 =  4.0f / 105.0f;
+    const float a4 = -1.0f / 280.0f;
+
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int total_size = nz_abc * nx_abc;
+
+    if (i >= total_size) return;
+
+    int iz = i/nx_abc;
+    int ix = i%nx_abc;
+
+    // Região Interior
+    if (iz >= N_abc && iz < nz_abc - N_abc && ix >= N_abc && ix < nx_abc - N_abc)
+    {
+        float pxx = (c0 * Uc[i]
+            + c1 * (Uc[i + 1] + Uc[i - 1])
+            + c2 * (Uc[i + 2] + Uc[i - 2])
+            + c3 * (Uc[i + 3] + Uc[i - 3])
+            + c4 * (Uc[i + 4] + Uc[i - 4])) / (dx * dx);
+
+        float pzz = (c0 * Uc[i]
+            + c1 * (Uc[i + nx_abc] + Uc[i - nx_abc])
+            + c2 * (Uc[i + 2*nx_abc] + Uc[i - 2*nx_abc])
+            + c3 * (Uc[i + 3*nx_abc] + Uc[i - 3*nx_abc])
+            + c4 * (Uc[i + 4*nx_abc] + Uc[i - 4*nx_abc])) / (dz * dz);
+
+        Uf[i] = (vp[i] * vp[i]) * (dt * dt) * (pxx + pzz) + 2.0f * Uc[i] - Uf[i];
+    }
+
+    // Região Esquerda
+    if (iz >= N_abc && iz < nz_abc - N_abc && ix >= 4 && ix < N_abc)
+    {
+        int idx = iz * N_abc + ix;
+
+        float pxx = (c0 * Uc[i]
+            + c1 * (Uc[i + 1] + Uc[i - 1])
+            + c2 * (Uc[i + 2] + Uc[i - 2])
+            + c3 * (Uc[i + 3] + Uc[i - 3])
+            + c4 * (Uc[i + 4] + Uc[i - 4])) / (dx * dx);
+        
+        float pzz = (c0 * Uc[i]
+            + c1 * (Uc[i + nx_abc] + Uc[i - nx_abc])
+            + c2 * (Uc[i + 2*nx_abc] + Uc[i - 2*nx_abc])
+            + c3 * (Uc[i + 3*nx_abc] + Uc[i - 3*nx_abc])
+            + c4 * (Uc[i + 4*nx_abc] + Uc[i - 4*nx_abc])) / (dz * dz);
+
+        float psix = (a1 * (PsixFL[idx + 1] - PsixFL[idx - 1]) +
+                      a2 * (PsixFL[idx + 2] - PsixFL[idx - 2]) +
+                      a3 * (PsixFL[idx + 3] - PsixFL[idx - 3]) +
+                      a4 * (PsixFL[idx + 4] - PsixFL[idx - 4])) / dx;
+
+        Uf[i] = (vp[i] * vp[i]) * (dt * dt) * (pxx + pzz + psix + ZetaxFL[idx]) + 2.0f * Uc[i] - Uf[i];
+    }
+
+    // Região Direita
+    if (iz >= N_abc && iz < nz_abc - N_abc && ix >= nx_abc - N_abc && ix < nx_abc - 4)
+    {
+        int idx = iz * N_abc + (ix - (nx_abc - N_abc));
+
+        float pxx = (c0 * Uc[i]
+            + c1 * (Uc[i + 1] + Uc[i - 1])
+            + c2 * (Uc[i + 2] + Uc[i - 2])
+            + c3 * (Uc[i + 3] + Uc[i - 3])
+            + c4 * (Uc[i + 4] + Uc[i - 4])) / (dx * dx);
+        
+        float pzz = (c0 * Uc[i]
+            + c1 * (Uc[i + nx_abc] + Uc[i - nx_abc])
+            + c2 * (Uc[i + 2*nx_abc] + Uc[i - 2*nx_abc])
+            + c3 * (Uc[i + 3*nx_abc] + Uc[i - 3*nx_abc])
+            + c4 * (Uc[i + 4*nx_abc] + Uc[i - 4*nx_abc])) / (dz * dz);
+
+        float psix = (a1 * (PsixFR[idx + 1] - PsixFR[idx - 1]) +
+                      a2 * (PsixFR[idx + 2] - PsixFR[idx - 2]) +
+                      a3 * (PsixFR[idx + 3] - PsixFR[idx - 3]) +
+                      a4 * (PsixFR[idx + 4] - PsixFR[idx - 4])) / dx;
+
+        Uf[i] = (vp[i] * vp[i]) * (dt * dt) * (pxx + pzz + psix + ZetaxFR[idx]) + 2.0f * Uc[i] - Uf[i];
+    }
+
+    // Região Superior
+    if (iz >= 4 && iz < N_abc && ix >= N_abc && ix < nx_abc - N_abc)
+    {
+        int jdx = iz * nx_abc + ix;
+    
+        float pxx = (c0 * Uc[i]
+            + c1 * (Uc[i + 1] + Uc[i - 1])
+            + c2 * (Uc[i + 2] + Uc[i - 2])
+            + c3 * (Uc[i + 3] + Uc[i - 3])
+            + c4 * (Uc[i + 4] + Uc[i - 4])) / (dx * dx);
+        
+        float pzz = (c0 * Uc[i]
+            + c1 * (Uc[i + nx_abc] + Uc[i - nx_abc])
+            + c2 * (Uc[i + 2*nx_abc] + Uc[i - 2*nx_abc])
+            + c3 * (Uc[i + 3*nx_abc] + Uc[i - 3*nx_abc])
+            + c4 * (Uc[i + 4*nx_abc] + Uc[i - 4*nx_abc])) / (dz * dz);
+
+        float psiz = (a1 * (PsizFU[jdx + nx_abc]     - PsizFU[jdx - nx_abc]) +
+                      a2 * (PsizFU[jdx + 2 * nx_abc] - PsizFU[jdx - 2 * nx_abc]) +
+                      a3 * (PsizFU[jdx + 3 * nx_abc] - PsizFU[jdx - 3 * nx_abc]) +
+                      a4 * (PsizFU[jdx + 4 * nx_abc] - PsizFU[jdx - 4 * nx_abc])) / dz;
+
+        Uf[i] = (vp[i] * vp[i]) * (dt * dt) * (pxx + pzz + psiz + ZetazFU[jdx]) + 2.0f * Uc[i] - Uf[i];
+    }
+
+    // Região Inferior
+    if (iz >= nz_abc - N_abc && iz < nz_abc - 4 && ix >= N_abc && ix < nx_abc - N_abc)
+    {
+        int jdx = (iz - (nz_abc - N_abc)) * nx_abc + ix;
+    
+        float pxx = (c0 * Uc[i]
+            + c1 * (Uc[i + 1] + Uc[i - 1])
+            + c2 * (Uc[i + 2] + Uc[i - 2])
+            + c3 * (Uc[i + 3] + Uc[i - 3])
+            + c4 * (Uc[i + 4] + Uc[i - 4])) / (dx * dx);
+        
+        float pzz = (c0 * Uc[i]
+            + c1 * (Uc[i + nx_abc] + Uc[i - nx_abc])
+            + c2 * (Uc[i + 2*nx_abc] + Uc[i - 2*nx_abc])
+            + c3 * (Uc[i + 3*nx_abc] + Uc[i - 3*nx_abc])
+            + c4 * (Uc[i + 4*nx_abc] + Uc[i - 4*nx_abc])) / (dz * dz);
+
+        float psiz = (a1 * (PsizFD[jdx + nx_abc]     - PsizFD[jdx - nx_abc]) +
+                      a2 * (PsizFD[jdx + 2 * nx_abc] - PsizFD[jdx - 2 * nx_abc]) +
+                      a3 * (PsizFD[jdx + 3 * nx_abc] - PsizFD[jdx - 3 * nx_abc]) +
+                      a4 * (PsizFD[jdx + 4 * nx_abc] - PsizFD[jdx - 4 * nx_abc])) / dz;
+
+        Uf[i] = (vp[i] * vp[i]) * (dt * dt) * (pxx + pzz + psiz + ZetazFD[jdx]) + 2.0f * Uc[i] - Uf[i];
+    }
+
+    // Quina Superior Esquerda
+    if (ix >= 4 && ix < N_abc && iz >= 4 && iz < N_abc)
+    {
+        int idx = iz * N_abc + ix;
+        int jdx = iz * nx_abc + ix;
+
+        float pxx = (c0 * Uc[i]
+            + c1 * (Uc[i + 1] + Uc[i - 1])
+            + c2 * (Uc[i + 2] + Uc[i - 2])
+            + c3 * (Uc[i + 3] + Uc[i - 3])
+            + c4 * (Uc[i + 4] + Uc[i - 4])) / (dx * dx);
+        
+        float pzz = (c0 * Uc[i]
+            + c1 * (Uc[i + nx_abc] + Uc[i - nx_abc])
+            + c2 * (Uc[i + 2*nx_abc] + Uc[i - 2*nx_abc])
+            + c3 * (Uc[i + 3*nx_abc] + Uc[i - 3*nx_abc])
+            + c4 * (Uc[i + 4*nx_abc] + Uc[i - 4*nx_abc])) / (dz * dz);
+
+        float psix = (a1 * (PsixFL[idx + 1] - PsixFL[idx - 1]) +
+                      a2 * (PsixFL[idx + 2] - PsixFL[idx - 2]) +
+                      a3 * (PsixFL[idx + 3] - PsixFL[idx - 3]) +
+                      a4 * (PsixFL[idx + 4] - PsixFL[idx - 4])) / dx;
+
+        float psiz = (a1 * (PsizFU[jdx + nx_abc]     - PsizFU[jdx - nx_abc]) +
+                      a2 * (PsizFU[jdx + 2 * nx_abc] - PsizFU[jdx - 2 * nx_abc]) +
+                      a3 * (PsizFU[jdx + 3 * nx_abc] - PsizFU[jdx - 3 * nx_abc]) +
+                      a4 * (PsizFU[jdx + 4 * nx_abc] - PsizFU[jdx - 4 * nx_abc])) / dz;
+
+        Uf[i] = (vp[i] * vp[i]) * (dt * dt) * (pxx + pzz + psix + psiz + ZetaxFL[idx] + ZetazFU[jdx]) + 2.0f * Uc[i] - Uf[i];
+    }
+
+    // Quina Superior Direita
+    if (ix >= nx_abc - N_abc && ix < nx_abc - 4 && iz >= 4 && iz < N_abc)
+    {
+        int idx = iz * N_abc + (ix - (nx_abc - N_abc));
+        int jdx = iz * nx_abc + ix;
+    
+        float pxx = (c0 * Uc[i]
+            + c1 * (Uc[i + 1] + Uc[i - 1])
+            + c2 * (Uc[i + 2] + Uc[i - 2])
+            + c3 * (Uc[i + 3] + Uc[i - 3])
+            + c4 * (Uc[i + 4] + Uc[i - 4])) / (dx * dx);
+        
+        float pzz = (c0 * Uc[i]
+            + c1 * (Uc[i + nx_abc] + Uc[i - nx_abc])
+            + c2 * (Uc[i + 2*nx_abc] + Uc[i - 2*nx_abc])
+            + c3 * (Uc[i + 3*nx_abc] + Uc[i - 3*nx_abc])
+            + c4 * (Uc[i + 4*nx_abc] + Uc[i - 4*nx_abc])) / (dz * dz);
+
+        float psix = (a1 * (PsixFR[idx + 1] - PsixFR[idx - 1]) +
+                      a2 * (PsixFR[idx + 2] - PsixFR[idx - 2]) +
+                      a3 * (PsixFR[idx + 3] - PsixFR[idx - 3]) +
+                      a4 * (PsixFR[idx + 4] - PsixFR[idx - 4])) / dx;
+
+        float psiz = (a1 * (PsizFU[jdx + nx_abc]     - PsizFU[jdx - nx_abc]) +
+                      a2 * (PsizFU[jdx + 2 * nx_abc] - PsizFU[jdx - 2 * nx_abc]) +
+                      a3 * (PsizFU[jdx + 3 * nx_abc] - PsizFU[jdx - 3 * nx_abc]) +
+                      a4 * (PsizFU[jdx + 4 * nx_abc] - PsizFU[jdx - 4 * nx_abc])) / dz;
+
+        Uf[i] = (vp[i] * vp[i]) * (dt * dt) * (pxx + pzz + psix + psiz + ZetaxFR[idx] + ZetazFU[jdx]) + 2.0f * Uc[i] - Uf[i];
+    }
+
+    // Quina Inferior Esquerda
+    if (ix >= 4 && ix < N_abc && iz >= nz_abc - N_abc && iz < nz_abc - 4)
+    {
+        int idx = iz * N_abc + ix;
+        int jdx = (iz - (nz_abc - N_abc)) * nx_abc + ix;
+
+        float pxx = (c0 * Uc[i]
+            + c1 * (Uc[i + 1] + Uc[i - 1])
+            + c2 * (Uc[i + 2] + Uc[i - 2])
+            + c3 * (Uc[i + 3] + Uc[i - 3])
+            + c4 * (Uc[i + 4] + Uc[i - 4])) / (dx * dx);
+        
+        float pzz = (c0 * Uc[i]
+            + c1 * (Uc[i + nx_abc] + Uc[i - nx_abc])
+            + c2 * (Uc[i + 2*nx_abc] + Uc[i - 2*nx_abc])
+            + c3 * (Uc[i + 3*nx_abc] + Uc[i - 3*nx_abc])
+            + c4 * (Uc[i + 4*nx_abc] + Uc[i - 4*nx_abc])) / (dz * dz);
+
+        float psix = (a1 * (PsixFL[idx + 1] - PsixFL[idx - 1]) +
+                      a2 * (PsixFL[idx + 2] - PsixFL[idx - 2]) +
+                      a3 * (PsixFL[idx + 3] - PsixFL[idx - 3]) +
+                      a4 * (PsixFL[idx + 4] - PsixFL[idx - 4])) / dx;
+
+        float psiz = (a1 * (PsizFD[jdx + nx_abc]     - PsizFD[jdx - nx_abc]) +
+                      a2 * (PsizFD[jdx + 2 * nx_abc] - PsizFD[jdx - 2 * nx_abc]) +
+                      a3 * (PsizFD[jdx + 3 * nx_abc] - PsizFD[jdx - 3 * nx_abc]) +
+                      a4 * (PsizFD[jdx + 4 * nx_abc] - PsizFD[jdx - 4 * nx_abc])) / dz;
+
+        Uf[i] = (vp[i] * vp[i]) * (dt * dt) * (pxx + pzz + psix + psiz + ZetaxFL[idx] + ZetazFD[jdx]) + 2.0f * Uc[i] - Uf[i];
+    }
+
+    // Quina Inferior Direita
+    if (ix >= nx_abc - N_abc && ix < nx_abc - 4 && iz >= nz_abc - N_abc && iz < nz_abc - 4)
+    {
+        int idx = iz * N_abc + (ix - (nx_abc - N_abc));
+        int jdx = (iz - (nz_abc - N_abc)) * nx_abc + ix;
+
+        float pxx = (c0 * Uc[i]
+            + c1 * (Uc[i + 1] + Uc[i - 1])
+            + c2 * (Uc[i + 2] + Uc[i - 2])
+            + c3 * (Uc[i + 3] + Uc[i - 3])
+            + c4 * (Uc[i + 4] + Uc[i - 4])) / (dx * dx);
+        
+        float pzz = (c0 * Uc[i]
+            + c1 * (Uc[i + nx_abc] + Uc[i - nx_abc])
+            + c2 * (Uc[i + 2*nx_abc] + Uc[i - 2*nx_abc])
+            + c3 * (Uc[i + 3*nx_abc] + Uc[i - 3*nx_abc])
+            + c4 * (Uc[i + 4*nx_abc] + Uc[i - 4*nx_abc])) / (dz * dz);
+
+        float psix = (a1 * (PsixFR[idx + 1] - PsixFR[idx - 1]) +
+                      a2 * (PsixFR[idx + 2] - PsixFR[idx - 2]) +
+                      a3 * (PsixFR[idx + 3] - PsixFR[idx - 3]) +
+                      a4 * (PsixFR[idx + 4] - PsixFR[idx - 4])) / dx;
+
+        float psiz = (a1 * (PsizFD[jdx + nx_abc]     - PsizFD[jdx - nx_abc]) +
+                      a2 * (PsizFD[jdx + 2 * nx_abc] - PsizFD[jdx - 2 * nx_abc]) +
+                      a3 * (PsizFD[jdx + 3 * nx_abc] - PsizFD[jdx - 3 * nx_abc]) +
+                      a4 * (PsizFD[jdx + 4 * nx_abc] - PsizFD[jdx - 4 * nx_abc])) / dz;
+
+        Uf[i] = (vp[i] * vp[i]) * (dt * dt) * (pxx + pzz + psix + psiz + ZetaxFR[idx] + ZetazFD[jdx]) + 2.0f * Uc[i] - Uf[i];
+    }
+}
+'''
+
+updateWaveEquationCPMLKernel = cp.RawKernel(updateWaveEquationCPMLCuda, 'updateWaveEquationCPMLCuda')
+
+
+updateWaveEquationVTICPMLCuda = r'''
+extern "C" __global__
+void updateWaveEquationVTICPMLCuda(float* Uf,const float* Uc,const float* vp,const float* epsilon,const float* delta,const int nx_abc,const int nz_abc,const float dz,const float dx,const float dt,float* PsixFR,float* PsixFL,float* PsizFU,float* PsizFD,float* ZetaxFR,float* ZetaxFL,float* ZetazFU,float* ZetazFD,const int N_abc)
+{
+    const float c0 = -1435.0f / 504.0f;
+    const float c1 =  8.0f / 5.0f;
+    const float c2 = -1.0f / 5.0f;
+    const float c3 =  8.0f / 315.0f;
+    const float c4 = -1.0f / 560.0f;
+    const float a1 =  4.0f / 5.0f;
+    const float a2 = -1.0f / 5.0f;
+    const float a3 =  4.0f / 105.0f;
+    const float a4 = -1.0f / 280.0f;
+    float Sd;
+
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int total_size = nz_abc * nx_abc;
+
+    if (i >= total_size) return;
+
+    int iz = i/nx_abc;
+    int ix = i%nx_abc;
+
+    // Região Interior
+    if (iz >= N_abc && iz < nz_abc - N_abc && ix >= N_abc && ix < nx_abc - N_abc)
+    {
+        float pxx = (c0 * Uc[i]
+            + c1 * (Uc[i + 1] + Uc[i - 1])
+            + c2 * (Uc[i + 2] + Uc[i - 2])
+            + c3 * (Uc[i + 3] + Uc[i - 3])
+            + c4 * (Uc[i + 4] + Uc[i - 4])) / (dx * dx);
+
+        float pzz = (c0 * Uc[i]
+            + c1 * (Uc[i + nx_abc] + Uc[i - nx_abc])
+            + c2 * (Uc[i + 2*nx_abc] + Uc[i - 2*nx_abc])
+            + c3 * (Uc[i + 3*nx_abc] + Uc[i - 3*nx_abc])
+            + c4 * (Uc[i + 4*nx_abc] + Uc[i - 4*nx_abc])) / (dz * dz);
+
+        float px = (a1*(Uc[i+1] - Uc[i-1]) +
+                    a2*(Uc[i+2] - Uc[i-2]) +
+                    a3*(Uc[i+3] - Uc[i-3]) +
+                    a4*(Uc[i+4] - Uc[i-4])) / dx;
+
+        float pz = (a1 * (Uc[i + nx_abc] - Uc[i - nx_abc]) +
+                    a2 * (Uc[i + 2*nx_abc] - Uc[i - 2*nx_abc]) +
+                    a3 * (Uc[i + 3*nx_abc] - Uc[i - 3*nx_abc]) +
+                    a4 * (Uc[i + 4*nx_abc] - Uc[i - 4*nx_abc])) / dz;
+        
+        float num = -2.0f*(epsilon[i]-delta[i])*(px*px)*(pz*pz);
+        float den = (1.0f + 2.0f*epsilon[i])*(px*px*px*px) + (pz*pz*pz*pz) + 2.0f*(1.0f + delta[i])*(px*px)*(pz*pz);
+
+        if (fabsf(den)<1e-12f){
+            Sd = 0.0f;
+        }
+        else{
+            Sd = num / den;
+        }
+
+        Uf[i] = 2.0f * Uc[i] - Uf[i] + (vp[i] * vp[i]) * (dt * dt) * ((1.0f+ 2.0f*epsilon[i]) + Sd) * pxx + (vp[i] * vp[i]) * (dt * dt) *(1.0f + Sd) * pzz;
+    }
+
+    // Região Esquerda
+    if (iz >= N_abc && iz < nz_abc - N_abc && ix >= 4 && ix < N_abc)
+    {
+        int idx = iz * N_abc + ix;
+
+        float pxx = (c0 * Uc[i]
+            + c1 * (Uc[i + 1] + Uc[i - 1])
+            + c2 * (Uc[i + 2] + Uc[i - 2])
+            + c3 * (Uc[i + 3] + Uc[i - 3])
+            + c4 * (Uc[i + 4] + Uc[i - 4])) / (dx * dx);
+        
+        float pzz = (c0 * Uc[i]
+            + c1 * (Uc[i + nx_abc] + Uc[i - nx_abc])
+            + c2 * (Uc[i + 2*nx_abc] + Uc[i - 2*nx_abc])
+            + c3 * (Uc[i + 3*nx_abc] + Uc[i - 3*nx_abc])
+            + c4 * (Uc[i + 4*nx_abc] + Uc[i - 4*nx_abc])) / (dz * dz);
+        
+        float px = (a1*(Uc[i+1] - Uc[i-1]) +
+                    a2*(Uc[i+2] - Uc[i-2]) +
+                    a3*(Uc[i+3] - Uc[i-3]) +
+                    a4*(Uc[i+4] - Uc[i-4])) / dx;
+
+        float pz = (a1 * (Uc[i + nx_abc] - Uc[i - nx_abc]) +
+                    a2 * (Uc[i + 2*nx_abc] - Uc[i - 2*nx_abc]) +
+                    a3 * (Uc[i + 3*nx_abc] - Uc[i - 3*nx_abc]) +
+                    a4 * (Uc[i + 4*nx_abc] - Uc[i - 4*nx_abc])) / dz;
+
+        float psix = (a1 * (PsixFL[idx + 1] - PsixFL[idx - 1]) +
+                      a2 * (PsixFL[idx + 2] - PsixFL[idx - 2]) +
+                      a3 * (PsixFL[idx + 3] - PsixFL[idx - 3]) +
+                      a4 * (PsixFL[idx + 4] - PsixFL[idx - 4])) / dx;
+
+        float num = -2.0f*(epsilon[i]-delta[i])*((px + psix)*(px + psix))*(pz*pz);
+        float den = (1.0f + 2.0f*epsilon[i])*((px + psix)*(px + psix)*(px + psix)*(px + psix)) + (pz*pz*pz*pz) + 2.0f*(1.0f + delta[i])*((px + psix)*(px + psix))*(pz*pz);
+
+        if (fabsf(den)<1e-12f){
+            Sd = 0.0f;
+        }
+        else{
+            Sd = num / den;
+        }
+
+        Uf[i] = 2.0f * Uc[i] - Uf[i] + (vp[i] * vp[i]) * (dt * dt) * ((1.0f+ 2.0f*epsilon[i]) + Sd) * (pxx + psix + ZetaxFL[idx]) + (vp[i] * vp[i]) * (dt * dt) *(1.0f + Sd) * pzz;
+    }
+
+    // Região Direita
+    if (iz >= N_abc && iz < nz_abc - N_abc && ix >= nx_abc - N_abc && ix < nx_abc - 4)
+    {
+        int idx = iz * N_abc + (ix - (nx_abc - N_abc));
+
+        float pxx = (c0 * Uc[i]
+            + c1 * (Uc[i + 1] + Uc[i - 1])
+            + c2 * (Uc[i + 2] + Uc[i - 2])
+            + c3 * (Uc[i + 3] + Uc[i - 3])
+            + c4 * (Uc[i + 4] + Uc[i - 4])) / (dx * dx);
+        
+        float pzz = (c0 * Uc[i]
+            + c1 * (Uc[i + nx_abc] + Uc[i - nx_abc])
+            + c2 * (Uc[i + 2*nx_abc] + Uc[i - 2*nx_abc])
+            + c3 * (Uc[i + 3*nx_abc] + Uc[i - 3*nx_abc])
+            + c4 * (Uc[i + 4*nx_abc] + Uc[i - 4*nx_abc])) / (dz * dz);
+        
+        float px = (a1*(Uc[i+1] - Uc[i-1]) +
+                    a2*(Uc[i+2] - Uc[i-2]) +
+                    a3*(Uc[i+3] - Uc[i-3]) +
+                    a4*(Uc[i+4] - Uc[i-4])) / dx;
+
+        float pz = (a1 * (Uc[i + nx_abc] - Uc[i - nx_abc]) +
+                    a2 * (Uc[i + 2*nx_abc] - Uc[i - 2*nx_abc]) +
+                    a3 * (Uc[i + 3*nx_abc] - Uc[i - 3*nx_abc]) +
+                    a4 * (Uc[i + 4*nx_abc] - Uc[i - 4*nx_abc])) / dz;
+
+        float psix = (a1 * (PsixFR[idx + 1] - PsixFR[idx - 1]) +
+                      a2 * (PsixFR[idx + 2] - PsixFR[idx - 2]) +
+                      a3 * (PsixFR[idx + 3] - PsixFR[idx - 3]) +
+                      a4 * (PsixFR[idx + 4] - PsixFR[idx - 4])) / dx;
+
+        float num = -2.0f*(epsilon[i]-delta[i])*((px + psix)*(px + psix))*(pz*pz);
+        float den = (1.0f + 2.0f*epsilon[i])*((px + psix)*(px + psix)*(px + psix)*(px + psix)) + (pz*pz*pz*pz) + 2.0f*(1.0f + delta[i])*((px + psix)*(px + psix))*(pz*pz);
+
+        if (fabsf(den)<1e-12f){
+            Sd = 0.0f;
+        }
+        else{
+            Sd = num / den;
+        }
+
+        Uf[i] = 2.0f * Uc[i] - Uf[i] + (vp[i] * vp[i]) * (dt * dt) * ((1.0f+ 2.0f*epsilon[i]) + Sd) * (pxx + psix + ZetaxFR[idx]) + (vp[i] * vp[i]) * (dt * dt) *(1.0f + Sd) * pzz;
+    }
+
+    // Região Superior
+    if (iz >= 4 && iz < N_abc && ix >= N_abc && ix < nx_abc - N_abc)
+    {
+        int jdx = iz * nx_abc + ix;
+
+        float pxx = (c0 * Uc[i]
+            + c1 * (Uc[i + 1] + Uc[i - 1])
+            + c2 * (Uc[i + 2] + Uc[i - 2])
+            + c3 * (Uc[i + 3] + Uc[i - 3])
+            + c4 * (Uc[i + 4] + Uc[i - 4])) / (dx * dx);
+        
+        float pzz = (c0 * Uc[i]
+            + c1 * (Uc[i + nx_abc] + Uc[i - nx_abc])
+            + c2 * (Uc[i + 2*nx_abc] + Uc[i - 2*nx_abc])
+            + c3 * (Uc[i + 3*nx_abc] + Uc[i - 3*nx_abc])
+            + c4 * (Uc[i + 4*nx_abc] + Uc[i - 4*nx_abc])) / (dz * dz);
+        
+        float px = (a1*(Uc[i+1] - Uc[i-1]) +
+                    a2*(Uc[i+2] - Uc[i-2]) +
+                    a3*(Uc[i+3] - Uc[i-3]) +
+                    a4*(Uc[i+4] - Uc[i-4])) / dx;
+
+        float pz = (a1 * (Uc[i + nx_abc] - Uc[i - nx_abc]) +
+                    a2 * (Uc[i + 2*nx_abc] - Uc[i - 2*nx_abc]) +
+                    a3 * (Uc[i + 3*nx_abc] - Uc[i - 3*nx_abc]) +
+                    a4 * (Uc[i + 4*nx_abc] - Uc[i - 4*nx_abc])) / dz;
+
+        float psiz = (a1 * (PsizFU[jdx + nx_abc]   - PsizFU[jdx - nx_abc]) +
+                    a2 * (PsizFU[jdx + 2 * nx_abc] - PsizFU[jdx - 2 * nx_abc]) +
+                    a3 * (PsizFU[jdx + 3 * nx_abc] - PsizFU[jdx - 3 * nx_abc]) +
+                    a4 * (PsizFU[jdx + 4 * nx_abc] - PsizFU[jdx - 4 * nx_abc])) / dz;
+
+        float num = -2.0f*(epsilon[i]-delta[i])*(px*px)*((pz + psiz)*(pz + psiz));
+        float den = (1.0f + 2.0f*epsilon[i])*(px*px*px*px) + ((pz + psiz)*(pz + psiz)*(pz + psiz)*(pz + psiz)) + 2.0f*(1.0f + delta[i])*(px*px)*((pz + psiz)*(pz + psiz));
+
+        if (fabsf(den)<1e-12f){
+            Sd = 0.0f;
+        }
+        else{
+            Sd = num / den;
+        }
+
+        Uf[i] = 2.0f * Uc[i] - Uf[i] + (vp[i] * vp[i]) * (dt * dt) * ((1.0f+ 2.0f*epsilon[i]) + Sd) * pxx + (vp[i] * vp[i]) * (dt * dt) *(1.0f + Sd) * (pzz + psiz + ZetazFU[jdx]);
+    }
+
+    // Região Inferior
+    if (iz >= nz_abc - N_abc && iz < nz_abc - 4 && ix >= N_abc && ix < nx_abc - N_abc)
+    {
+        int jdx = (iz - (nz_abc - N_abc)) * nx_abc + ix;
+
+        float pxx = (c0 * Uc[i]
+            + c1 * (Uc[i + 1] + Uc[i - 1])
+            + c2 * (Uc[i + 2] + Uc[i - 2])
+            + c3 * (Uc[i + 3] + Uc[i - 3])
+            + c4 * (Uc[i + 4] + Uc[i - 4])) / (dx * dx);
+        
+        float pzz = (c0 * Uc[i]
+            + c1 * (Uc[i + nx_abc] + Uc[i - nx_abc])
+            + c2 * (Uc[i + 2*nx_abc] + Uc[i - 2*nx_abc])
+            + c3 * (Uc[i + 3*nx_abc] + Uc[i - 3*nx_abc])
+            + c4 * (Uc[i + 4*nx_abc] + Uc[i - 4*nx_abc])) / (dz * dz);
+        
+        float px = (a1*(Uc[i+1] - Uc[i-1]) +
+                    a2*(Uc[i+2] - Uc[i-2]) +
+                    a3*(Uc[i+3] - Uc[i-3]) +
+                    a4*(Uc[i+4] - Uc[i-4])) / dx;
+
+        float pz = (a1 * (Uc[i + nx_abc] - Uc[i - nx_abc]) +
+                    a2 * (Uc[i + 2*nx_abc] - Uc[i - 2*nx_abc]) +
+                    a3 * (Uc[i + 3*nx_abc] - Uc[i - 3*nx_abc]) +
+                    a4 * (Uc[i + 4*nx_abc] - Uc[i - 4*nx_abc])) / dz;
+
+        float psiz = (a1 * (PsizFD[jdx + nx_abc]     - PsizFD[jdx - nx_abc]) +
+                    a2 * (PsizFD[jdx + 2 * nx_abc] - PsizFD[jdx - 2 * nx_abc]) +
+                    a3 * (PsizFD[jdx + 3 * nx_abc] - PsizFD[jdx - 3 * nx_abc]) +
+                    a4 * (PsizFD[jdx + 4 * nx_abc] - PsizFD[jdx - 4 * nx_abc])) / dz;
+
+        float num = -2.0f*(epsilon[i]-delta[i])*(px*px)*((pz + psiz)*(pz + psiz));
+        float den = (1.0f + 2.0f*epsilon[i])*(px*px*px*px) + ((pz + psiz)*(pz + psiz)*(pz + psiz)*(pz + psiz)) + 2.0f*(1.0f + delta[i])*(px*px)*((pz + psiz)*(pz + psiz));
+
+        if (fabsf(den)<1e-12f){
+            Sd = 0.0f;
+        }
+        else{
+            Sd = num / den;
+        }
+
+        Uf[i] = 2.0f * Uc[i] - Uf[i] + (vp[i] * vp[i]) * (dt * dt) * ((1.0f+ 2.0f*epsilon[i]) + Sd) * pxx + (vp[i] * vp[i]) * (dt * dt) *(1.0f + Sd) * (pzz + psiz + ZetazFD[jdx]);
+    }
+
+
+    // Quina Superior Esquerda
+    if (ix >= 4 && ix < N_abc && iz >= 4 && iz < N_abc)
+    {
+        int idx = iz * N_abc + ix;
+        int jdx = iz * nx_abc + ix;
+    
+        float pxx = (c0 * Uc[i]
+            + c1 * (Uc[i + 1] + Uc[i - 1])
+            + c2 * (Uc[i + 2] + Uc[i - 2])
+            + c3 * (Uc[i + 3] + Uc[i - 3])
+            + c4 * (Uc[i + 4] + Uc[i - 4])) / (dx * dx);
+        
+        float pzz = (c0 * Uc[i]
+            + c1 * (Uc[i + nx_abc] + Uc[i - nx_abc])
+            + c2 * (Uc[i + 2*nx_abc] + Uc[i - 2*nx_abc])
+            + c3 * (Uc[i + 3*nx_abc] + Uc[i - 3*nx_abc])
+            + c4 * (Uc[i + 4*nx_abc] + Uc[i - 4*nx_abc])) / (dz * dz);
+        
+        float px = (a1*(Uc[i+1] - Uc[i-1]) +
+                    a2*(Uc[i+2] - Uc[i-2]) +
+                    a3*(Uc[i+3] - Uc[i-3]) +
+                    a4*(Uc[i+4] - Uc[i-4])) / dx;
+
+        float pz = (a1 * (Uc[i + nx_abc] - Uc[i - nx_abc]) +
+                    a2 * (Uc[i + 2*nx_abc] - Uc[i - 2*nx_abc]) +
+                    a3 * (Uc[i + 3*nx_abc] - Uc[i - 3*nx_abc]) +
+                    a4 * (Uc[i + 4*nx_abc] - Uc[i - 4*nx_abc])) / dz;
+
+        float psix = (a1 * (PsixFL[idx + 1] - PsixFL[idx - 1]) +
+                      a2 * (PsixFL[idx + 2] - PsixFL[idx - 2]) +
+                      a3 * (PsixFL[idx + 3] - PsixFL[idx - 3]) +
+                      a4 * (PsixFL[idx + 4] - PsixFL[idx - 4])) / dx;
+
+        float psiz = (a1 * (PsizFU[jdx + nx_abc]     - PsizFU[jdx - nx_abc]) +
+                      a2 * (PsizFU[jdx + 2 * nx_abc] - PsizFU[jdx - 2 * nx_abc]) +
+                      a3 * (PsizFU[jdx + 3 * nx_abc] - PsizFU[jdx - 3 * nx_abc]) +
+                      a4 * (PsizFU[jdx + 4 * nx_abc] - PsizFU[jdx - 4 * nx_abc])) / dz;
+
+        float num = -2.0f*(epsilon[i]-delta[i])*((px + psix)*(px + psix))*((pz + psiz)*(pz + psiz));
+        float den = (1.0f + 2.0f*epsilon[i])*((px + psix)*(px + psix)*(px + psix)*(px + psix)) + ((pz + psiz)*(pz + psiz)*(pz + psiz)*(pz + psiz)) + 2.0f*(1.0f + delta[i])*((px + psix)*(px + psix))*((pz + psiz)*(pz + psiz));
+
+        if (fabsf(den)<1e-12f){
+            Sd = 0.0f;
+        }
+        else{
+            Sd = num / den;
+        }
+
+        Uf[i] = 2.0f * Uc[i] - Uf[i] + (vp[i] * vp[i]) * (dt * dt) * ((1.0f+ 2.0f*epsilon[i]) + Sd) * (pxx + psix + ZetaxFL[idx]) + (vp[i] * vp[i]) * (dt * dt) *(1.0f + Sd) * (pzz + psiz + ZetazFU[jdx]);
+    }
+
+    // Quina Superior Direita
+    if (ix >= nx_abc - N_abc && ix < nx_abc - 4 && iz >= 4 && iz < N_abc)
+    {
+        int idx = iz * N_abc + (ix - (nx_abc - N_abc));
+        int jdx = iz * nx_abc + ix;
+
+        float pxx = (c0 * Uc[i]
+            + c1 * (Uc[i + 1] + Uc[i - 1])
+            + c2 * (Uc[i + 2] + Uc[i - 2])
+            + c3 * (Uc[i + 3] + Uc[i - 3])
+            + c4 * (Uc[i + 4] + Uc[i - 4])) / (dx * dx);
+        
+        float pzz = (c0 * Uc[i]
+            + c1 * (Uc[i + nx_abc] + Uc[i - nx_abc])
+            + c2 * (Uc[i + 2*nx_abc] + Uc[i - 2*nx_abc])
+            + c3 * (Uc[i + 3*nx_abc] + Uc[i - 3*nx_abc])
+            + c4 * (Uc[i + 4*nx_abc] + Uc[i - 4*nx_abc])) / (dz * dz);
+        
+        float px = (a1*(Uc[i+1] - Uc[i-1]) +
+                    a2*(Uc[i+2] - Uc[i-2]) +
+                    a3*(Uc[i+3] - Uc[i-3]) +
+                    a4*(Uc[i+4] - Uc[i-4])) / dx;
+
+        float pz = (a1 * (Uc[i + nx_abc] - Uc[i - nx_abc]) +
+                    a2 * (Uc[i + 2*nx_abc] - Uc[i - 2*nx_abc]) +
+                    a3 * (Uc[i + 3*nx_abc] - Uc[i - 3*nx_abc]) +
+                    a4 * (Uc[i + 4*nx_abc] - Uc[i - 4*nx_abc])) / dz;
+
+        float psix = (a1 * (PsixFR[idx + 1] - PsixFR[idx - 1]) +
+                      a2 * (PsixFR[idx + 2] - PsixFR[idx - 2]) +
+                      a3 * (PsixFR[idx + 3] - PsixFR[idx - 3]) +
+                      a4 * (PsixFR[idx + 4] - PsixFR[idx - 4])) / dx;
+
+        float psiz = (a1 * (PsizFU[jdx + nx_abc]     - PsizFU[jdx - nx_abc]) +
+                      a2 * (PsizFU[jdx + 2 * nx_abc] - PsizFU[jdx - 2 * nx_abc]) +
+                      a3 * (PsizFU[jdx + 3 * nx_abc] - PsizFU[jdx - 3 * nx_abc]) +
+                      a4 * (PsizFU[jdx + 4 * nx_abc] - PsizFU[jdx - 4 * nx_abc])) / dz;
+
+        float num = -2.0f*(epsilon[i]-delta[i])*((px + psix)*(px + psix))*((pz + psiz)*(pz + psiz));
+        float den = (1.0f + 2.0f*epsilon[i])*((px + psix)*(px + psix)*(px + psix)*(px + psix)) + ((pz + psiz)*(pz + psiz)*(pz + psiz)*(pz + psiz)) + 2.0f*(1.0f + delta[i])*((px + psix)*(px + psix))*((pz + psiz)*(pz + psiz));
+
+        if (fabsf(den)<1e-12f){
+            Sd = 0.0f;
+        }
+        else{
+            Sd = num / den;
+        }
+
+        Uf[i] = 2.0f * Uc[i] - Uf[i] + (vp[i] * vp[i]) * (dt * dt) * ((1.0f+ 2.0f*epsilon[i]) + Sd) * (pxx + psix + ZetaxFR[idx]) + (vp[i] * vp[i]) * (dt * dt) *(1.0f + Sd) * (pzz + psiz + ZetazFU[jdx]);
+    }
+
+    // Quina Inferior Esquerda
+    if (ix >= 4 && ix < N_abc && iz >= nz_abc - N_abc && iz < nz_abc - 4)
+    {
+        int idx = iz * N_abc + ix;
+        int jdx = (iz - (nz_abc - N_abc)) * nx_abc + ix;
+    
+        float pxx = (c0 * Uc[i]
+            + c1 * (Uc[i + 1] + Uc[i - 1])
+            + c2 * (Uc[i + 2] + Uc[i - 2])
+            + c3 * (Uc[i + 3] + Uc[i - 3])
+            + c4 * (Uc[i + 4] + Uc[i - 4])) / (dx * dx);
+        
+        float pzz = (c0 * Uc[i]
+            + c1 * (Uc[i + nx_abc] + Uc[i - nx_abc])
+            + c2 * (Uc[i + 2*nx_abc] + Uc[i - 2*nx_abc])
+            + c3 * (Uc[i + 3*nx_abc] + Uc[i - 3*nx_abc])
+            + c4 * (Uc[i + 4*nx_abc] + Uc[i - 4*nx_abc])) / (dz * dz);
+        
+        float px = (a1*(Uc[i+1] - Uc[i-1]) +
+                    a2*(Uc[i+2] - Uc[i-2]) +
+                    a3*(Uc[i+3] - Uc[i-3]) +
+                    a4*(Uc[i+4] - Uc[i-4])) / dx;
+
+        float pz = (a1 * (Uc[i + nx_abc] - Uc[i - nx_abc]) +
+                    a2 * (Uc[i + 2*nx_abc] - Uc[i - 2*nx_abc]) +
+                    a3 * (Uc[i + 3*nx_abc] - Uc[i - 3*nx_abc]) +
+                    a4 * (Uc[i + 4*nx_abc] - Uc[i - 4*nx_abc])) / dz;
+
+        float psix = (a1 * (PsixFL[idx + 1] - PsixFL[idx - 1]) +
+                      a2 * (PsixFL[idx + 2] - PsixFL[idx - 2]) +
+                      a3 * (PsixFL[idx + 3] - PsixFL[idx - 3]) +
+                      a4 * (PsixFL[idx + 4] - PsixFL[idx - 4])) / dx;
+
+        float psiz = (a1 * (PsizFD[jdx + nx_abc]     - PsizFD[jdx - nx_abc]) +
+                      a2 * (PsizFD[jdx + 2 * nx_abc] - PsizFD[jdx - 2 * nx_abc]) +
+                      a3 * (PsizFD[jdx + 3 * nx_abc] - PsizFD[jdx - 3 * nx_abc]) +
+                      a4 * (PsizFD[jdx + 4 * nx_abc] - PsizFD[jdx - 4 * nx_abc])) / dz;
+
+        float num = -2.0f*(epsilon[i]-delta[i])*((px + psix)*(px + psix))*((pz + psiz)*(pz + psiz));
+        float den = (1.0f + 2.0f*epsilon[i])*((px + psix)*(px + psix)*(px + psix)*(px + psix)) + ((pz + psiz)*(pz + psiz)*(pz + psiz)*(pz + psiz)) + 2.0f*(1.0f + delta[i])*((px + psix)*(px + psix))*((pz + psiz)*(pz + psiz));
+
+        if (fabsf(den)<1e-12f){
+            Sd = 0.0f;
+        }
+        else{
+            Sd = num / den;
+        }
+
+        Uf[i] = 2.0f * Uc[i] - Uf[i] + (vp[i] * vp[i]) * (dt * dt) * ((1.0f+ 2.0f*epsilon[i]) + Sd) * (pxx + psix + ZetaxFL[idx]) + (vp[i] * vp[i]) * (dt * dt) *(1.0f + Sd) * (pzz + psiz + ZetazFD[jdx]);
+    }
+
+    // Quina Inferior Direita
+    if (ix >= nx_abc - N_abc && ix < nx_abc - 4 && iz >= nz_abc - N_abc && iz < nz_abc - 4)
+    {
+        int idx = iz * N_abc + (ix - (nx_abc - N_abc));
+        int jdx = (iz - (nz_abc - N_abc)) * nx_abc + ix;
+
+        float pxx = (c0 * Uc[i]
+            + c1 * (Uc[i + 1] + Uc[i - 1])
+            + c2 * (Uc[i + 2] + Uc[i - 2])
+            + c3 * (Uc[i + 3] + Uc[i - 3])
+            + c4 * (Uc[i + 4] + Uc[i - 4])) / (dx * dx);
+        
+        float pzz = (c0 * Uc[i]
+            + c1 * (Uc[i + nx_abc] + Uc[i - nx_abc])
+            + c2 * (Uc[i + 2*nx_abc] + Uc[i - 2*nx_abc])
+            + c3 * (Uc[i + 3*nx_abc] + Uc[i - 3*nx_abc])
+            + c4 * (Uc[i + 4*nx_abc] + Uc[i - 4*nx_abc])) / (dz * dz);
+        
+        float px = (a1*(Uc[i+1] - Uc[i-1]) +
+                    a2*(Uc[i+2] - Uc[i-2]) +
+                    a3*(Uc[i+3] - Uc[i-3]) +
+                    a4*(Uc[i+4] - Uc[i-4])) / dx;
+
+        float pz = (a1 * (Uc[i + nx_abc] - Uc[i - nx_abc]) +
+                    a2 * (Uc[i + 2*nx_abc] - Uc[i - 2*nx_abc]) +
+                    a3 * (Uc[i + 3*nx_abc] - Uc[i - 3*nx_abc]) +
+                    a4 * (Uc[i + 4*nx_abc] - Uc[i - 4*nx_abc])) / dz;
+
+        float psix = (a1 * (PsixFR[idx + 1] - PsixFR[idx - 1]) +
+                      a2 * (PsixFR[idx + 2] - PsixFR[idx - 2]) +
+                      a3 * (PsixFR[idx + 3] - PsixFR[idx - 3]) +
+                      a4 * (PsixFR[idx + 4] - PsixFR[idx - 4])) / dx;
+
+        float psiz = (a1 * (PsizFD[jdx + nx_abc]     - PsizFD[jdx - nx_abc]) +
+                      a2 * (PsizFD[jdx + 2 * nx_abc] - PsizFD[jdx - 2 * nx_abc]) +
+                      a3 * (PsizFD[jdx + 3 * nx_abc] - PsizFD[jdx - 3 * nx_abc]) +
+                      a4 * (PsizFD[jdx + 4 * nx_abc] - PsizFD[jdx - 4 * nx_abc])) / dz;
+
+        float num = -2.0f*(epsilon[i]-delta[i])*((px + psix)*(px + psix))*((pz + psiz)*(pz + psiz));
+        float den = (1.0f + 2.0f*epsilon[i])*((px + psix)*(px + psix)*(px + psix)*(px + psix)) + ((pz + psiz)*(pz + psiz)*(pz + psiz)*(pz + psiz)) + 2.0f*(1.0f + delta[i])*((px + psix)*(px + psix))*((pz + psiz)*(pz + psiz));
+
+        if (fabsf(den)<1e-12f){
+            Sd = 0.0f;
+        }
+        else{
+            Sd = num / den;
+        }
+
+        Uf[i] = 2.0f * Uc[i] - Uf[i] + (vp[i] * vp[i]) * (dt * dt) * ((1.0f+ 2.0f*epsilon[i]) + Sd) * (pxx + psix + ZetaxFR[idx]) + (vp[i] * vp[i]) * (dt * dt) *(1.0f + Sd) * (pzz + psiz + ZetazFD[jdx]);
+    }
+}
+'''
+
+updateWaveEquationVTICPMLKernel = cp.RawKernel(updateWaveEquationVTICPMLCuda, 'updateWaveEquationVTICPMLCuda')

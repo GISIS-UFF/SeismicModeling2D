@@ -7,6 +7,9 @@ from CudaKernels import updateWaveEquationVTIKernel
 from CudaKernels import updateWaveEquationTTIKernel
 from CudaKernels import AbsorbingBoundaryCudaKernel
 from CudaKernels import updatePsiKernel
+from CudaKernels import updateZetaKernel
+from CudaKernels import updateWaveEquationCPMLKernel
+from CudaKernels import updateWaveEquationVTICPMLKernel
 
 #Auxiliar Functions
 def ricker(f0, t, t_lag):
@@ -84,10 +87,11 @@ def vertical_dampening_profiles(N_abc,nz_abc, dz, vp, f_pico, d0, dt, i, j):
 @jit(nopython=True, parallel=True)
 def updatePsi(PsixFR, PsixFL, PsizFU, PsizFD, nx_abc, nz_abc, Uc, dx,dz, N_abc, f_pico, d0, dt, vp):
 
-    a1 = 672. / 840.
-    a2 = -168. / 840.
-    a3 = 32. / 840.
-    a4 = -3. / 840.
+    a1 = 4.0 / 5.0
+    a2 = -1.0 / 5.0
+    a3 = 4.0 / 105.0
+    a4 = -1.0 / 280.0
+
 
     for j in prange(4, nz_abc - 4):
         for i in prange(4, N_abc):
@@ -144,15 +148,17 @@ def updatePsi(PsixFR, PsixFL, PsizFU, PsizFD, nx_abc, nz_abc, Uc, dx,dz, N_abc, 
 @jit(nopython=True, parallel=True)
 def updateZeta(PsixFR, PsixFL, ZetaxFR, ZetaxFL,PsizFU, PsizFD, ZetazFU, ZetazFD, nx_abc, nz_abc, Uc, dx, dz, N_abc, f_pico, d0, dt, vp):
 
-    c0 = -205. / 72.
-    c1 = 8. / 5.
-    c2 = -1. / 5.
-    c3 = 8. / 315.
-    c4 = -1. / 560.
-    a1 = 672. / 840.
-    a2 = -168. / 840.
-    a3 = 32. / 840.
-    a4 = -3. / 840.
+    c0 = -1435.0 / 504.0
+    c1 = 8.0 / 5.0
+    c2 = -1.0 / 5.0
+    c3 = 8.0 / 315.0
+    c4 = -1.0 / 560.0
+
+    a1 = 4.0 / 5.0
+    a2 = -1.0 / 5.0
+    a3 = 4.0 / 105.0
+    a4 = -1.0 / 280.0
+
 
     for j in prange(4, nz_abc - 4):
         for i in prange(4, N_abc):
@@ -234,17 +240,18 @@ def AbsorbingBoundary(N_abc, nz_abc, nx_abc, f, A):
             f[y, x] *= A[y]
         for y in range(nz_abc - N_abc, nz_abc):
             f[y, x] *= A[nz_abc - 1 - y]  
-
+            
     return f
 
 # WaveEquation every type
 @jit(nopython=True,parallel=True)
 def updateWaveEquation(Uf,Uc,vp,nz,nx,dz,dx,dt):
-    c0 = -205. / 72.
-    c1 = 8. / 5.
-    c2 = -1. / 5.
-    c3 = 8. / 315.
-    c4 = -1. / 560.
+    c0 = -1435.0 / 504.0
+    c1 = 8.0 / 5.0
+    c2 = -1.0 / 5.0
+    c3 = 8.0 / 315.0
+    c4 = -1.0 / 560.0
+
     for i in prange(4,nx-4):
         for j in prange(4,nz-4):
             pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) + c2 * (Uc[j, i+2] + Uc[j, i-2]) + c3 * (Uc[j, i+3] + Uc[j, i-3]) +c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
@@ -255,15 +262,17 @@ def updateWaveEquation(Uf,Uc,vp,nz,nx,dz,dx,dt):
 
 @jit(nopython=True,parallel=True)
 def updateWaveEquationVTI(Uf, Uc, nx, nz, dt, dx, dz, vp, epsilon, delta):
-    c0 = -205. / 72.
-    c1 = 8. / 5.
-    c2 = -1. / 5.
-    c3 = 8. / 315.
-    c4 = -1. / 560.
-    a1 = 672. / 840.
-    a2 = -168. / 840.
-    a3 = 32. / 840.
-    a4 = -3. / 840.
+    c0 = -1435.0 / 504.0
+    c1 = 8.0 / 5.0
+    c2 = -1.0 / 5.0
+    c3 = 8.0 / 315.0
+    c4 = -1.0 / 560.0
+
+    a1 = 4.0 / 5.0
+    a2 = -1.0 / 5.0
+    a3 = 4.0 / 105.0
+    a4 = -1.0 / 280.0
+
     for i in prange(4,nx-4):
         for j in prange(4,nz-4):
             pxx = (c0 * Uc[j, i] + 
@@ -299,15 +308,17 @@ def updateWaveEquationVTI(Uf, Uc, nx, nz, dt, dx, dz, vp, epsilon, delta):
 
 @jit(nopython=True,parallel=True)
 def updateWaveEquationTTI(Uf, Uc, nx, nz, dt, dx, dz, vp, epsilon, delta, theta):
-    c0 = -205. / 72.
-    c1 = 8. / 5.
-    c2 = -1. / 5.
-    c3 = 8. / 315.
-    c4 = -1. / 560.
-    a1 = 672. / 840.
-    a2 = -168. / 840.
-    a3 = 32. / 840.
-    a4 = -3. / 840.
+    c0 = -1435.0 / 504.0
+    c1 = 8.0 / 5.0
+    c2 = -1.0 / 5.0
+    c3 = 8.0 / 315.0
+    c4 = -1.0 / 560.0
+
+    a1 = 4.0 / 5.0
+    a2 = -1.0 / 5.0
+    a3 = 4.0 / 105.0
+    a4 = -1.0 / 280.0
+
     for i in prange(4,nx-4):
         for j in prange(4,nz-4):
             pxx = (c0 * Uc[j, i] + 
@@ -370,16 +381,17 @@ def updateWaveEquationTTI(Uf, Uc, nx, nz, dt, dx, dz, vp, epsilon, delta, theta)
 # CPML WaveEquation types
 @jit(nopython=True, parallel=True)
 def updateWaveEquationCPML(Uf, Uc, vp, nx_abc, nz_abc, dz, dx, dt, PsixFR, PsixFL, PsizFU, PsizFD, ZetaxFR, ZetaxFL, ZetazFU, ZetazFD, N_abc):
-    
-    c0 = -205. / 72.
-    c1 = 8. / 5.
-    c2 = -1. / 5.
-    c3 = 8. / 315.
-    c4 = -1. / 560.
-    a1 = 672. / 840.
-    a2 = -168. / 840.
-    a3 = 32. / 840.
-    a4 = -3. / 840.
+    c0 = -1435.0 / 504.0
+    c1 = 8.0 / 5.0
+    c2 = -1.0 / 5.0
+    c3 = 8.0 / 315.0
+    c4 = -1.0 / 560.0
+
+    a1 = 4.0 / 5.0
+    a2 = -1.0 / 5.0
+    a3 = 4.0 / 105.0
+    a4 = -1.0 / 280.0
+
 
     # Região Interior 
     for j in prange(N_abc, nz_abc - N_abc):
@@ -550,15 +562,16 @@ def updateWaveEquationCPML(Uf, Uc, vp, nx_abc, nz_abc, dz, dx, dt, PsixFR, PsixF
 def updateWaveEquationVTICPML(Uf, Uc, dt, dx, dz, vp, epsilon, delta,
                                nx_abc, nz_abc, PsixFR, PsixFL,PsizFU,PsizFD, ZetaxFR, ZetaxFL,ZetazFU, ZetazFD, N_abc):
     
-    c0 = -205. / 72.
-    c1 = 8. / 5.
-    c2 = -1. / 5.
-    c3 = 8. / 315.
-    c4 = -1. / 560.
-    a1 = 672. / 840.
-    a2 = -168. / 840.
-    a3 = 32. / 840.
-    a4 = -3. / 840.
+    c0 = -1435.0 / 504.0
+    c1 = 8.0 / 5.0
+    c2 = -1.0 / 5.0
+    c3 = 8.0 / 315.0
+    c4 = -1.0 / 560.0
+    a1 = 4.0 / 5.0
+    a2 = -1.0 / 5.0
+    a3 = 4.0 / 105.0
+    a4 = -1.0 / 280.0
+
 
     # Região Interior
     for i in prange(N_abc, nx_abc - N_abc):  
@@ -942,14 +955,31 @@ def updateWaveEquationTTIGPU(Uf, Uc, nx, nz, dt, dx, dz, vp, epsilon, delta, the
     updateWaveEquationTTIKernel((blocks_per_grid,),(threads_per_block,),(Uf,Uc,np.int32(nx),np.int32(nz),np.float32(dt),np.float32(dx),np.float32(dz),vp,epsilon,delta,theta))
 
 # CPML Auxiliar Functions
-@staticmethod
-def UpdatePsiGPU(PsixFR, PsixFL, PsizFU, PsizFD, nx_abc, nz_abc, Uc, dx,dz, N_abc, f_pico, d0, dt, vp):
-    total_pixels = nz * nx
+def updatePsiGPU(PsixFR, PsixFL, PsizFU, PsizFD, nx_abc, nz_abc, Uc, dx,dz, N_abc, f_pico, d0, dt, vp):
+    total_pixels = nz_abc * nx_abc
     threads_per_block = 256
     blocks_per_grid = (total_pixels + threads_per_block - 1) // threads_per_block
 
-    updatePsiKernel((blocks_per_grid,),(threads_per_block,),(PsixFR, PsixFL, PsizFU, PsizFD,np.int32(nx_abc),np.int32(nz_abc),Uc,np.float32(dx),np.float32(dz),np.float32(N_abc),np.float32(f_pico),np.float32(d0),np.float32(dt),vp))
+    updatePsiKernel((blocks_per_grid,),(threads_per_block,),(PsixFR, PsixFL, PsizFU, PsizFD,np.int32(nx_abc),np.int32(nz_abc),Uc,np.float32(dx),np.float32(dz),np.int32(N_abc),np.float32(f_pico),np.float32(d0),np.float32(dt),vp))
 
+def updateZetaGPU(PsixFR, PsixFL, ZetaxFR, ZetaxFL,PsizFU, PsizFD, ZetazFU, ZetazFD, nx_abc, nz_abc, Uc, dx, dz, N_abc, f_pico, d0, dt, vp):
+    total_pixels = nz_abc * nx_abc
+    threads_per_block = 256
+    blocks_per_grid = (total_pixels + threads_per_block - 1) // threads_per_block
 
+    updateZetaKernel((blocks_per_grid,),(threads_per_block,),(PsixFR, PsixFL,ZetaxFR, ZetaxFL, PsizFU, PsizFD,ZetazFU, ZetazFD,np.int32(nx_abc),np.int32(nz_abc),Uc,np.float32(dx),np.float32(dz),np.int32(N_abc),np.float32(f_pico),np.float32(d0),np.float32(dt),vp))
 
+# CPML WaveEquation types
+def updateWaveEquationCPMLGPU(Uf, Uc, vp, nx_abc, nz_abc, dz, dx, dt, PsixFR, PsixFL, PsizFU, PsizFD, ZetaxFR, ZetaxFL, ZetazFU, ZetazFD, N_abc):
+    total_pixels = nz_abc * nx_abc
+    threads_per_block = 256
+    blocks_per_grid = (total_pixels + threads_per_block - 1) // threads_per_block
 
+    updateWaveEquationCPMLKernel((blocks_per_grid,),(threads_per_block,),(Uf,Uc,vp,np.int32(nx_abc),np.int32(nz_abc),np.float32(dz),np.float32(dx),np.float32(dt),PsixFR, PsixFL, PsizFU, PsizFD, ZetaxFR, ZetaxFL, ZetazFU, ZetazFD, np.int32(N_abc)))
+
+def updateWaveEquationVTICPMLGPU(Uf, Uc, dt, dx, dz, vp, epsilon, delta,nx_abc, nz_abc, PsixFR, PsixFL, PsizFU, PsizFD,ZetaxFR, ZetaxFL, ZetazFU, ZetazFD, N_abc):
+    total_pixels = nz_abc * nx_abc
+    threads_per_block = 256
+    blocks_per_grid = (total_pixels + threads_per_block - 1) // threads_per_block
+
+    updateWaveEquationVTICPMLKernel((blocks_per_grid,),(threads_per_block,),(Uf, Uc, vp, epsilon, delta,np.int32(nx_abc), np.int32(nz_abc),np.float32(dz), np.float32(dx), np.float32(dt),PsixFR, PsixFL, PsizFU, PsizFD,ZetaxFR, ZetaxFL, ZetazFU, ZetazFD,np.int32(N_abc)))
