@@ -6,6 +6,7 @@ from CudaKernels import updateWaveEquationKernel
 from CudaKernels import updateWaveEquationVTIKernel
 from CudaKernels import updateWaveEquationTTIKernel
 from CudaKernels import AbsorbingBoundaryCudaKernel
+from CudaKernels import updatePsiKernel
 
 #Auxiliar Functions
 def ricker(f0, t, t_lag):
@@ -53,7 +54,7 @@ def horizontal_dampening_profiles(N_abc,nx_abc, dx, vp, f_pico, d0, dt, i, j):
         alpha = np.pi* f_pico * (1. - posicao_relativa**2)
 
     ax = np.exp(-(d + alpha) * dt)
-    if (np.abs((d + alpha)) > 1e-6):
+    if (np.abs((d + alpha)) > 1e-10):
         bx = (d / (d + alpha)) * (ax - 1.)
     
     return ax, bx
@@ -75,7 +76,7 @@ def vertical_dampening_profiles(N_abc,nz_abc, dz, vp, f_pico, d0, dt, i, j):
         alpha = np.pi* f_pico * (1. - posicao_relativa**2)
 
     az = np.exp(-(d + alpha) * dt)
-    if (np.abs((d + alpha)) > 1e-6):
+    if (np.abs((d + alpha)) > 1e-10):
         bz = (d / (d + alpha)) * (az - 1.)
        
     return az, bz
@@ -940,6 +941,14 @@ def updateWaveEquationTTIGPU(Uf, Uc, nx, nz, dt, dx, dz, vp, epsilon, delta, the
 
     updateWaveEquationTTIKernel((blocks_per_grid,),(threads_per_block,),(Uf,Uc,np.int32(nx),np.int32(nz),np.float32(dt),np.float32(dx),np.float32(dz),vp,epsilon,delta,theta))
 
+# CPML Auxiliar Functions
+@staticmethod
+def UpdatePsiGPU(PsixFR, PsixFL, PsizFU, PsizFD, nx_abc, nz_abc, Uc, dx,dz, N_abc, f_pico, d0, dt, vp):
+    total_pixels = nz * nx
+    threads_per_block = 256
+    blocks_per_grid = (total_pixels + threads_per_block - 1) // threads_per_block
+
+    updatePsiKernel((blocks_per_grid,),(threads_per_block,),(PsixFR, PsixFL, PsizFU, PsizFD,np.int32(nx_abc),np.int32(nz_abc),Uc,np.float32(dx),np.float32(dz),np.float32(N_abc),np.float32(f_pico),np.float32(d0),np.float32(dt),vp))
 
 
 

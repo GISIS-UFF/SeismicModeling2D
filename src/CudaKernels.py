@@ -1,5 +1,167 @@
 import cupy as cp
 
+ABC_Cuda = r'''
+extern "C" __global__
+void AbsorbingBoundaryCuda(float* Uf , float* Uc, int N_abc, int nz, int nx, float* A) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int total_size = nz * nx;
+    if (i >= total_size) return;
+
+    // Get 2D coordinates from linear index 'i'
+    int iz = i / nx;
+    int ix = i % nx;
+
+    if (ix < N_abc){
+    Uf[i] =  Uf[i] * A[ix];
+    Uc[i] =  Uc[i] * A[ix];
+    }
+    if (ix >=  nx - N_abc){
+    Uf[i] =  Uf[i] * A[nx - 1 - ix];
+    Uc[i] =  Uc[i] * A[nx - 1 - ix];
+    }
+    if (iz < N_abc){
+    Uf[i] =  Uf[i] * A[iz];
+    Uc[i] =  Uc[i] * A[iz];
+    }
+    if (iz >= nz - N_abc){
+    Uf[i] =  Uf[i] * A[nz - 1 - iz];
+    Uc[i] =  Uc[i] * A[nz - 1 - iz];
+    }
+}
+'''
+AbsorbingBoundaryCudaKernel = cp.RawKernel(ABC_Cuda, 'AbsorbingBoundaryCuda')
+
+horizontal_dampening_profilesDevice = r'''
+__device__ __forceinline__
+void horizontal_dampening_profilesCuda(const int N_abc,const int nx_abc,const float dx,const float* vp,const float f_pico,const float d0,const float dt,const int i,const int j,float* ax,float* bx){
+    float d = 0.0f;
+    float alpha = 0.0f;
+    float points_CPML = 0.0f;
+    float posicao_relativa = 0.0f;
+
+    if (i < N_abc){
+        points_CPML = (N_abc - i - 1.0f) * dx;
+        posicao_relativa = points_CPML / (N_abc * dx);
+        d = d0 / (2.0f * N_abc * dx) * (posicao_relativa * posicao_relativa) * vp[j * nx_abc + i];
+        alpha = 3.1415926535f * f_pico * (1.0f - (posicao_relativa * posicao_relativa));
+    }
+    else if (i >= nx_abc - N_abc){
+        points_CPML = (i - nx_abc + N_abc) * dx;
+        posicao_relativa = points_CPML / (N_abc * dx);
+        d = d0 / (2.0f * N_abc * dx) * (posicao_relativa * posicao_relativa) * vp[j * nx_abc + i];
+        alpha = 3.1415926535f * f_pico * (1.0f - (posicao_relativa * posicao_relativa));
+    }
+
+    *ax = expf(-(d + alpha) * dt);
+
+    *bx = 0.0f;
+    if (fabsf(d + alpha) > 1e-10f){
+        *bx = (d / (d + alpha)) * ((*ax) - 1.0f);
+    }
+}
+'''
+
+vertical_dampening_profilesDevice = r'''
+__device__ __forceinline__
+void vertical_dampening_profilesCuda(const int N_abc,const int nx_abc,const int nz_abc,const float dz,const float* vp,const float f_pico,const float d0,const float dt,const int i,const int j,float* az,float* bz){
+    float d = 0.0f;
+    float alpha = 0.0f;
+    float points_CPML = 0.0f;
+    float posicao_relativa = 0.0f;
+
+    if (j < N_abc){
+        points_CPML = (N_abc - j - 1.0f) * dz;
+        posicao_relativa = points_CPML / (N_abc * dz);
+        d = d0 / (2.0f * N_abc * dz) * (posicao_relativa * posicao_relativa) * vp[j * nx_abc + i];
+        alpha = 3.1415926535f * f_pico * (1.0f - (posicao_relativa * posicao_relativa));
+    }
+    else if (j >= nz_abc - N_abc){
+        points_CPML = (j - nz_abc + N_abc) * dz;
+        posicao_relativa = points_CPML / (N_abc * dz);
+        d = d0 / (2.0f * N_abc * dz) * (posicao_relativa * posicao_relativa) * vp[j * nx_abc + i];
+        alpha = 3.1415926535f * f_pico * (1.0f - (posicao_relativa * posicao_relativa));
+    }
+
+    *az = expf(-(d + alpha) * dt);
+
+    *bz = 0.0f;
+    if (fabsf(d + alpha) > 1e-10f){
+        *bz = (d / (d + alpha)) * ((*az) - 1.0f);
+    }
+}
+'''
+updatePsiCuda = r'''
+extern "C" __global__
+void updatePsiCuda(float* PsixFR,float* PsixFL, float* PsizFU, float* PsizFD,const int nx_abc,const int nz_abc,const float* Uc,const float dx,const float dz,const int N_abc, const float f_pico, const float d0, const float dt, const float* vp)
+{
+    const float a1 = 672.0f  / 840.0f;
+    const float a2 = -168.0f / 840.0f;
+    const float a3 = 32.0f   / 840.0f;
+    const float a4 = -3.0f   / 840.0f;
+    float ax;
+    float bx;
+    float az;
+    float bz;
+
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int total_size = nz_abc * nx_abc;
+
+    if (i >= total_size) return;
+
+    int iz = i/nx_abc;
+    int ix = i%nx_abc;
+
+    if (ix >= 4 && ix < N_abc && iz >= 4 && iz < nz_abc - 4){
+        int idx = iz * N_abc + ix
+        horizontal_dampening_profilesCuda(N_abc,nx_abc,dx,vp,f_pico,d0,dt,ix,iz,&ax,&bx);
+
+        float px = (a1*(Uc[i+1] - Uc[i-1]) +
+                    a2*(Uc[i+2] - Uc[i-2]) +
+                    a3*(Uc[i+3] - Uc[i-3]) +
+                    a4*(Uc[i+4] - Uc[i-4])) / dx;
+
+        PsixFL[idx] = ax * PsixFL[idx] + bx * px;
+    }
+
+    if (ix >= nx_abc - N_abc && ix < nx_abc - 4 && iz >= 4 && iz < nz_abc - 4){
+        int idx = iz * N_abc + (ix - (nx_abc - N_abc));
+        horizontal_dampening_profilesCuda(N_abc,nx_abc,dx,vp,f_pico,d0,dt,ix,iz,&ax,&bx);
+
+        float px = (a1*(Uc[i+1] - Uc[i-1]) +
+                    a2*(Uc[i+2] - Uc[i-2]) +
+                    a3*(Uc[i+3] - Uc[i-3]) +
+                    a4*(Uc[i+4] - Uc[i-4])) / dx;
+
+        PsixFR[idx] = ax * PsixFR[idx] + bx * px;
+    }
+
+    if (ix >= 4 && ix < nx_abc - 4 && iz >= 4 && iz < N_abc){
+        jdx =  iz * nx_abc + ix
+        vertical_dampening_profilesCuda(N_abc,nx_abc,nz_abc,dz,vp,f_pico,d0,dt,ix,iz,&az,&bz);
+
+        float pz = (a1 * (Uc[i + nx_abc] - Uc[i - nx_abc]) +
+                    a2 * (Uc[i + 2*nx_abc] - Uc[i - 2*nx_abc]) +
+                    a3 * (Uc[i + 3*nx_abc] - Uc[i - 3*nx_abc]) +
+                    a4 * (Uc[i + 4*nx_abc] - Uc[i - 4*nx_abc])) / dz;
+
+        PsizFU[jdx] = az * PsizFU[jdx] + bz * pz;
+    }
+
+    if (ix >= 4 && ix < nx_abc - 4 && iz >= nz_abc - N_abc && iz < nz_abc - 4){
+        int jdx = (iz - (nz_abc - N_abc)) * nx_abc + ix;
+        vertical_dampening_profilesCuda(N_abc,nx_abc,nz_abc,dz,vp,f_pico,d0,dt,ix,iz,&az,&bz);
+
+        float pz = (a1 * (Uc[i + nx_abc] - Uc[i - nx_abc]) +
+                    a2 * (Uc[i + 2*nx_abc] - Uc[i - 2*nx_abc]) +
+                    a3 * (Uc[i + 3*nx_abc] - Uc[i - 3*nx_abc]) +
+                    a4 * (Uc[i + 4*nx_abc] - Uc[i - 4*nx_abc])) / dz;
+
+        PsizFD[jdx] = az * PsizFD[jdx] + bz * pz;
+    }
+}
+'''
+updatePsiKernel = cp.RawKernel(updatePsiCuda, 'updatePsiCuda')
+
 updateWaveEquationCuda = r'''
 extern "C" __global__
 void updateWaveEquationCuda(float* Uf,const float* Uc,const float* vp,const int nz,const int nx,const float dz,const float dx,const float dt)
@@ -200,33 +362,3 @@ void updateWaveEquationTTICuda(float* Uf,const float* Uc,const int nx,const int 
 
 updateWaveEquationTTIKernel = cp.RawKernel(updateWaveEquationTTICuda, 'updateWaveEquationTTICuda')
 
-ABC_Cuda = r'''
-extern "C" __global__
-void AbsorbingBoundaryCuda(float* Uf , float* Uc, int N_abc, int nz, int nx, float* A) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    int total_size = nz * nx;
-    if (i >= total_size) return;
-
-    // Get 2D coordinates from linear index 'i'
-    int iz = i / nx;
-    int ix = i % nx;
-
-    if (ix < N_abc){
-    Uf[i] =  Uf[i] * A[ix];
-    Uc[i] =  Uc[i] * A[ix];
-    }
-    if (ix >=  nx - N_abc){
-    Uf[i] =  Uf[i] * A[nx - 1 - ix];
-    Uc[i] =  Uc[i] * A[nx - 1 - ix];
-    }
-    if (iz < N_abc){
-    Uf[i] =  Uf[i] * A[iz];
-    Uc[i] =  Uc[i] * A[iz];
-    }
-    if (iz >= nz - N_abc){
-    Uf[i] =  Uf[i] * A[nz - 1 - iz];
-    Uc[i] =  Uc[i] * A[nz - 1 - iz];
-    }
-}
-'''
-AbsorbingBoundaryCudaKernel = cp.RawKernel(ABC_Cuda, 'AbsorbingBoundaryCuda')
