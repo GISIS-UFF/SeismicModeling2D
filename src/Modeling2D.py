@@ -103,6 +103,16 @@ class wavefield:
                 self.nsnaps = len(self.snap_times)
                 self.snapshots_gpu = cp.zeros((self.nsnaps, self.pmt.nz, self.pmt.nx), dtype=cp.float32)
                 self.snap_idx = 0
+            if self.pmt.migration in ["checkpoint", "SB", "RBC", "onthefly"]:
+                self.migrated_image = cp.zeros((self.pmt.nz, self.pmt.nx), dtype=np.float32)
+                self.currentbck  = cp.zeros([self.pmt.nz_abc,self.pmt.nx_abc],dtype=np.float32)
+                self.futurebck   = cp.zeros([self.pmt.nz_abc,self.pmt.nx_abc],dtype=np.float32)
+            if self.pmt.migration == "SB":
+                self.top   = cp.zeros((self.pmt.nt, 4, self.pmt.nx), dtype=np.float32)
+                self.bot   = cp.zeros((self.pmt.nt, 4, self.pmt.nx), dtype=np.float32)
+                self.left  = cp.zeros((self.pmt.nt, self.pmt.nz, 4), dtype=np.float32)
+                self.right = cp.zeros((self.pmt.nt, self.pmt.nz, 4), dtype=np.float32)
+
         print(f"info: Wavefields initialized: {self.pmt.nx}x{self.pmt.nz}x{self.pmt.nt}")
     
     def loadModels(self):
@@ -134,6 +144,22 @@ class wavefield:
 
         return d0, f_pico
 
+    def compute_skm(self):
+        epsilon_max = np.max(self.epsilon)
+        delta_max = np.max(self.delta)
+        inv_dx = 1.0/self.pmt.dx
+        inv_dz = 1.0/self.pmt.dz
+        num = -2.0*(epsilon_max-delta_max)*(inv_dx*inv_dx)*(inv_dz*inv_dz)
+        den = (1.0 + 2.0*epsilon_max)*(inv_dx*inv_dx*inv_dx*inv_dx) + (inv_dz*inv_dz*inv_dz*inv_dz) + 2.0*(1.0 + delta_max)*(inv_dx*inv_dx)*(inv_dz*inv_dz) 
+        Sk = num / den            
+        return Sk
+
+    def stability_sum(self,coeffs):
+        total = 0.0
+        for m, c in enumerate(coeffs, start=1):
+            total += c * (1.0 - (-1.0)**m)
+        return total
+
     def checkDispersionAndStability(self):
         if self.pmt.approximation == "acoustic":
             vp_min = np.min(self.vp)
@@ -155,15 +181,22 @@ class wavefield:
                 print("WARNING: Dispersion or stability conditions not satisfied.")
         
         elif self.pmt.approximation in ["VTI", "TTI"]:
+
+            vp_max = np.max(self.vp)
             vp_min = np.min(self.vp)
-            vpx = self.vp*np.sqrt(1+2*self.epsilon)
-            vpx_max = np.max(vpx)
-            lambda_min = vp_min / self.pmt.fcut
-            dx_lim = lambda_min / 4.28
-            dt_lim = dx_lim / (4 * vpx_max)
+            epsilon_min = np.min(self.epsilon)
+            delta_min = np.min(self.delta)
+            epsilon_max = np.max(self.epsilon)
+            Sk = self.compute_skm()
+            Sk_min = -(epsilon_min - delta_min)/(2+(epsilon_min + delta_min))
+            coeffs_8th = [8.0/5.0, -1.0/5.0, 8.0/315.0,-1.0/560.0]    
+            A = ((1+2*epsilon_max)+Sk)/(self.pmt.dx * self.pmt.dx) + (1.0 + Sk)/(self.pmt.dz * self.pmt.dz)
+            B = 1.41421/np.sqrt(self.stability_sum(coeffs_8th))
+            dt_lim = B / vp_max * np.sqrt(A)
+            dx_lim = dt_lim * vp_min * np.sqrt(self.stability_sum(coeffs_8th)) * np.sqrt(2+2*epsilon_min + 2*Sk_min) / 1.41421
             print(f"info: Dispersion and stability check")
             print(f"info: Minimum velocity: {vp_min:.2f} m/s")
-            print(f"info: Maximum velocity: {vpx_max:.2f} m/s")
+            print(f"info: Maximum velocity: {vp_max:.2f} m/s")
             print(f"info: Maximum frequency: {self.pmt.fcut:.2f} Hz")
             print(f"info: Current dx: {self.pmt.dx:.2f} m")
             print(f"info: Current dt: {self.pmt.dt:.5f} s")

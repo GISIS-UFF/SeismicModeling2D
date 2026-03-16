@@ -7,9 +7,9 @@ plt = plotting(pmt)
 # plt.viewModel(f"layer2")
 # plt.viewSnapshot(f"../inputs/layer2vp_Nz301_Nx301.bin",f"{pmt.snapshotFolder}{pmt.approximation}_shot_1_Nx{pmt.nx}_Nz{pmt.nz}_Nt{pmt.nt}_frame_2500.bin")
 # plt.movieSnapshot(f"{pmt.approximation}_shot_1_Nx{pmt.nx}_Nz{pmt.nz}_Nt{pmt.nt}_frame_", f"../inputs/layer2vp_Nz301_Nx301.bin", savegif = False)
-plt.viewSeismogram(f"{pmt.seismogramFolder}seismogram_shot_1_Nt{pmt.nt}_Nrec{pmt.Nrec}.bin", perc=95)
+# plt.viewSeismogram(f"{pmt.seismogramFolder}seismogram_shot_1_Nt{pmt.nt}_Nrec{pmt.Nrec}.bin", perc=95)
 # plt.viewSeismogramComparison(95,0,"../outputs/seismograms/VTIseismogram_shot_1_Nt20001_Nrec501.bin", "../outputs/seismograms/VTINewseismogram_shot_1_Nt20001_Nrec501.bin")
-# plt.viewMigratedImage(f"{pmt.migratedimageFolder}migrated_image_{pmt.approximation}_Nx{pmt.nx}_Nz{pmt.nz}.bin",laplacian=True,perc=99)
+plt.viewMigratedImage(f"{pmt.migratedimageFolder}migrated_image_{pmt.approximation}_Nx{pmt.nx}_Nz{pmt.nz}.bin",laplacian=True,perc=99)
 # plt.plotImageTrace(f"{pmt.migratedimageFolder}migrated_image_{pmt.approximation}_Nx{pmt.nx}_Nz{pmt.nz}.bin", f"../inputs/layer2vp_Nz{pmt.nz}_Nx{pmt.nx}.bin", laplacian = True, ix=None, perc=99)
 
 
@@ -31,7 +31,7 @@ plt.viewSeismogram(f"{pmt.seismogramFolder}seismogram_shot_1_Nt{pmt.nt}_Nrec{pmt
 # snap = np.fromfile("../outputs/snapshots/acousticcerjan_shot_1_Nx301_Nz301_Nt8001_frame_2400forward.bin", dtype=np.float32).reshape(nz, nx)
 # snapcheck = np.fromfile("../outputs/snapshots/acousticcerjan_shot_1_Nx301_Nz301_Nt8001_frame_2400checkpoint.bin", dtype=np.float32).reshape(nz, nx)
 # snapSB = np.fromfile("../outputs/snapshots/acousticcerjan_shot_1_Nx301_Nz301_Nt8001_frame_2400SB.bin", dtype=np.float32).reshape(nz, nx)
-# snapRBC = np.fromfile("../outputs/snapshots/acousticcerjan_shot_1_Nx301_Nz301_Nt8001_frame_6800RBC.bin", dtype=np.float32).reshape(nz, nx)
+# snapRBC = np.fromfile("../outputs/snapshots/acousticcerjan_shot_1_Nx301_Nz301_Nt8001_frame_2400RBC.bin", dtype=np.float32).reshape(nz, nx)
 # imgonthefly = np.fromfile("/home/juanmarques/workspace/SeismicModeling2D/outputs/migrated_image/migrated_image_acoustic_Nx301_Nz301onthefly.bin", dtype=np.float32).reshape(nz, nx)
 # img = np.fromfile("../outputs/migrated_image/migrated_image_acoustic_Nx301_Nz301.bin", dtype=np.float32).reshape(nz, nx)
 # diff = imgonthefly - img
@@ -62,11 +62,11 @@ plt.viewSeismogram(f"{pmt.seismogramFolder}seismogram_shot_1_Nt{pmt.nt}_Nrec{pmt
 
 # plt.show()
 
-# diff = snap - snapcheck
+# diff = snap - snapRBC
 
 # plt.figure()
 # plt.plot(snap[:, nx//2], label="validação")
-# plt.plot(snapcheck[:, nx//2], label="check")
+# plt.plot(snapRBC[:, nx//2], label="check")
 # plt.plot(diff[:, nx//2], label="diff")
 # plt.legend()
 
@@ -77,7 +77,7 @@ plt.viewSeismogram(f"{pmt.seismogramFolder}seismogram_shot_1_Nt{pmt.nt}_Nrec{pmt
 # ax.set_title("Validação")
 
 # fig, ax = plt.subplots()
-# im = ax.imshow(snapcheck)
+# im = ax.imshow(snapRBC)
 # cbar = adjustColorBar(fig, ax, im)
 # cbar.set_label("Amplitude")
 # ax.set_title("check")
