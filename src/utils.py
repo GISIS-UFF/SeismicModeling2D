@@ -20,7 +20,7 @@ def ricker(f0, t, t_lag):
     return source
 
 @jit(parallel=True)
-def Mute(seismogram, shot, rec_x, rec_z, shot_x, shot_z, dt, shift, window = 0.2 ,v0=1500): 
+def Mute(seismogram, shot, rec_x, rec_z, shot_x, shot_z, dt, shift, window,v0=1500): 
     result = np.zeros_like(seismogram)
     Nt = seismogram.shape[0]
     Nrec = seismogram.shape[1]  
@@ -31,12 +31,13 @@ def Mute(seismogram, shot, rec_x, rec_z, shot_x, shot_z, dt, shift, window = 0.2
         t2 = t1 + window
         for i in prange(Nt):
             t = (i-1)*dt
-            if t <=t1:
+            if t <t1:
                 result[i,rec] = 0.0
-            elif t>t1 and t<t2:
-                result[i,rec] = (t-t1)/window*seismogram[i,rec]
+            elif t>=t1 and t<t2:
+                result[i,rec] = (t-t1)/(t2-t1) * seismogram[i,rec]
             elif t>=t2:
                 result[i,rec] = seismogram[i,rec]
+            
     return result
 
 # CPML Auxiliar Functions
@@ -86,12 +87,10 @@ def vertical_dampening_profiles(N_abc,nz_abc, dz, vp, f_pico, d0, dt, i, j):
 
 @jit(nopython=True, parallel=True)
 def updatePsi(PsixFR, PsixFL, PsizFU, PsizFD, nx_abc, nz_abc, Uc, dx,dz, N_abc, f_pico, d0, dt, vp):
-
     a1 = 4.0 / 5.0
     a2 = -1.0 / 5.0
     a3 = 4.0 / 105.0
     a4 = -1.0 / 280.0
-
 
     for j in prange(4, nz_abc - 4):
         for i in prange(4, N_abc):
@@ -147,19 +146,15 @@ def updatePsi(PsixFR, PsixFL, PsizFU, PsizFD, nx_abc, nz_abc, Uc, dx,dz, N_abc, 
 
 @jit(nopython=True, parallel=True)
 def updateZeta(PsixFR, PsixFL, ZetaxFR, ZetaxFL,PsizFU, PsizFD, ZetazFU, ZetazFD, nx_abc, nz_abc, Uc, dx, dz, N_abc, f_pico, d0, dt, vp):
-
     c0 = -1435.0 / 504.0
     c1 = 8.0 / 5.0
     c2 = -1.0 / 5.0
     c3 = 8.0 / 315.0
     c4 = -1.0 / 560.0
-
     a1 = 4.0 / 5.0
     a2 = -1.0 / 5.0
     a3 = 4.0 / 105.0
     a4 = -1.0 / 280.0
-
-
     for j in prange(4, nz_abc - 4):
         for i in prange(4, N_abc):
             ax, bx = horizontal_dampening_profiles(N_abc,nx_abc, dx, vp, f_pico, d0, dt, i, j)
@@ -251,7 +246,6 @@ def updateWaveEquation(Uf,Uc,vp,nz,nx,dz,dx,dt):
     c2 = -1.0 / 5.0
     c3 = 8.0 / 315.0
     c4 = -1.0 / 560.0
-
     for i in prange(4,nx-4):
         for j in prange(4,nz-4):
             pxx = (c0 * Uc[j, i] + c1 * (Uc[j, i+1] + Uc[j, i-1]) + c2 * (Uc[j, i+2] + Uc[j, i-2]) + c3 * (Uc[j, i+3] + Uc[j, i-3]) +c4 * (Uc[j, i+4] + Uc[j, i-4])) / (dx * dx)
@@ -313,12 +307,10 @@ def updateWaveEquationTTI(Uf, Uc, nx, nz, dt, dx, dz, vp, epsilon, delta, theta)
     c2 = -1.0 / 5.0
     c3 = 8.0 / 315.0
     c4 = -1.0 / 560.0
-
     a1 = 4.0 / 5.0
     a2 = -1.0 / 5.0
     a3 = 4.0 / 105.0
     a4 = -1.0 / 280.0
-
     for i in prange(4,nx-4):
         for j in prange(4,nz-4):
             pxx = (c0 * Uc[j, i] + 
@@ -386,12 +378,10 @@ def updateWaveEquationCPML(Uf, Uc, vp, nx_abc, nz_abc, dz, dx, dt, PsixFR, PsixF
     c2 = -1.0 / 5.0
     c3 = 8.0 / 315.0
     c4 = -1.0 / 560.0
-
     a1 = 4.0 / 5.0
     a2 = -1.0 / 5.0
     a3 = 4.0 / 105.0
     a4 = -1.0 / 280.0
-
 
     # Região Interior 
     for j in prange(N_abc, nz_abc - N_abc):
@@ -571,7 +561,6 @@ def updateWaveEquationVTICPML(Uf, Uc, dt, dx, dz, vp, epsilon, delta,
     a2 = -1.0 / 5.0
     a3 = 4.0 / 105.0
     a4 = -1.0 / 280.0
-
 
     # Região Interior
     for i in prange(N_abc, nx_abc - N_abc):  

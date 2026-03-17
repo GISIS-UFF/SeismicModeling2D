@@ -85,6 +85,11 @@ class wavefield:
                 self.bot   = np.zeros((self.pmt.nt, 4, self.pmt.nx), dtype=np.float32)
                 self.left  = np.zeros((self.pmt.nt, self.pmt.nz, 4), dtype=np.float32)
                 self.right = np.zeros((self.pmt.nt, self.pmt.nz, 4), dtype=np.float32)
+                if self.pmt.unit == "GPU":
+                    self.top   = cp.zeros((self.pmt.nt, 4, self.pmt.nx), dtype=np.float32)
+                    self.bot   = cp.zeros((self.pmt.nt, 4, self.pmt.nx), dtype=np.float32)
+                    self.left  = cp.zeros((self.pmt.nt, self.pmt.nz, 4), dtype=np.float32)
+                    self.right = cp.zeros((self.pmt.nt, self.pmt.nz, 4), dtype=np.float32)
         if self.pmt.unit == "GPU":
             self.current = cp.asarray(self.current, dtype=cp.float32)
             self.future  = cp.asarray(self.future, dtype=cp.float32)
@@ -107,6 +112,11 @@ class wavefield:
                 self.migrated_image = cp.zeros((self.pmt.nz, self.pmt.nx), dtype=np.float32)
                 self.currentbck  = cp.zeros([self.pmt.nz_abc,self.pmt.nx_abc],dtype=np.float32)
                 self.futurebck   = cp.zeros([self.pmt.nz_abc,self.pmt.nx_abc],dtype=np.float32)
+                if self.pmt.snap == True:
+                    self.img_times = list(range(0, self.pmt.last_save + 1, self.pmt.step))
+                    self.nimg = len(self.snap_times)
+                    self.img_gpu = cp.zeros((self.nsnaps, self.pmt.nz, self.pmt.nx), dtype=cp.float32)
+                    self.img_idx = 0
             if self.pmt.migration == "SB":
                 self.top   = cp.zeros((self.pmt.nt, 4, self.pmt.nx), dtype=np.float32)
                 self.bot   = cp.zeros((self.pmt.nt, 4, self.pmt.nx), dtype=np.float32)
@@ -225,7 +235,7 @@ class wavefield:
 
         snapshot = self.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
 
-        snapshotFile = (f"{self.pmt.snapshotFolder}{self.pmt.approximation}_shot_{shot+1}_Nx{self.pmt.nx}_Nz{self.pmt.nz}_Nt{self.pmt.nt}_frame_{k}.bin")
+        snapshotFile = (f"{self.pmt.snapshotFolder}{self.pmt.approximation}forward_shot_{shot+1}_Nx{self.pmt.nx}_Nz{self.pmt.nz}_Nt{self.pmt.nt}_frame_{k}.bin")
         snapshot.tofile(snapshotFile)
         print(f"info: Snapshot saved to {snapshotFile}")
     
@@ -251,7 +261,7 @@ class wavefield:
             return
         snapshots_cpu = cp.asnumpy(self.snapshots_gpu[:self.snap_idx,:,:])
         for i, k in enumerate(self.snap_times[:self.snap_idx]):
-            snapshotFile = (f"{self.pmt.snapshotFolder}{self.pmt.approximation}_shot_{shot+1}"f"_Nx{self.pmt.nx}_Nz{self.pmt.nz}_Nt{self.pmt.nt}_frame_{k}.bin")
+            snapshotFile = (f"{self.pmt.snapshotFolder}{self.pmt.approximation}forward_shot_{shot+1}"f"_Nx{self.pmt.nx}_Nz{self.pmt.nz}_Nt{self.pmt.nt}_frame_{k}.bin")
             snapshots_cpu[i].tofile(snapshotFile)
             print(f"info: Snapshot saved to {snapshotFile}")
 

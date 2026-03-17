@@ -68,7 +68,7 @@ class plotting:
         plt.colorbar(label='Amplitude')
         plt.title("Seismogram")
         plt.ylabel("Time (s)")
-        plt.show()
+        plt.show(block=True)
 
     def viewModel(self,keyword):
         for filename in sorted(os.listdir(self.pmt.modelFolder)):
@@ -152,7 +152,7 @@ class plotting:
             cbar.set_label("Amplitude")
 
             plt.tight_layout()
-            plt.show()
+            plt.show(block = False)
 
     def movieSnapshot(self, keyword_snap, path_model, interval=200, savegif = False):
         perc = 1e-8
@@ -191,7 +191,46 @@ class plotting:
 
         plt.show()
 
-    def viewMigratedImage(self,filename,laplacian,perc=99):
+    def movieImage(self, keyword_img, path_model,laplacian, interval=200, savegif = False):
+        perc = 1e-17
+        img_files = []
+        for filename in os.listdir(self.pmt.migratedimageFolder):
+            if filename.endswith(".bin") and keyword_img in filename:
+                shot, frame = self.get_shot_frame(filename)
+                img_files.append((shot, frame, filename))
+
+        img_files.sort(key=lambda x: (x[0], x[1]), reverse=True)
+
+        model = np.fromfile(path_model, dtype=np.float32).reshape(self.pmt.nx, self.pmt.nz).T
+
+        fig, ax = plt.subplots(figsize=(10, 5))
+        ax.imshow(model, cmap="jet", aspect="equal", extent=[0, self.pmt.L, self.pmt.D, 0])
+
+        first_file = img_files[0][2]
+        img0 = np.fromfile(os.path.join(self.pmt.migratedimageFolder, first_file),dtype=np.float32).reshape(self.pmt.nz, self.pmt.nx)
+        if laplacian == True:
+            img0 = self.laplacian_filter(img0)
+        im = ax.imshow(img0,cmap="gray",aspect="equal",extent=[0, self.pmt.L, self.pmt.D, 0],vmin=-perc,vmax=perc,alpha=0.4)
+        ax.set_xlabel("Distance (m)")
+        ax.set_ylabel("Depth (m)")
+
+        def update(i):
+            filename = img_files[i][2]
+            image = np.fromfile(os.path.join(self.pmt.migratedimageFolder, filename),dtype=np.float32).reshape(self.pmt.nz, self.pmt.nx)
+            if laplacian == True:
+                image = self.laplacian_filter(image)
+            im.set_data(image)
+            return [im]
+
+        ani = FuncAnimation(fig,update,frames=len(img_files),interval=interval,blit=True)
+
+        if savegif == True:
+            gif_path = os.path.join(self.pmt.migratedimageFolder, "images.gif")
+            ani.save(gif_path, writer="pillow", fps=1000/interval)
+
+        plt.show()
+
+    def viewImage(self,filename,laplacian,perc=99):
         migrated_image = np.fromfile(filename, dtype=np.float32).reshape(self.pmt.nz, self.pmt.nx)
         if laplacian == True:
             migrated_image = self.laplacian_filter(migrated_image)
