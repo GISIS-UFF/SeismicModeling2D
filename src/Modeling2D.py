@@ -113,10 +113,11 @@ class wavefield:
                 self.currentbck  = cp.zeros([self.pmt.nz_abc,self.pmt.nx_abc],dtype=np.float32)
                 self.futurebck   = cp.zeros([self.pmt.nz_abc,self.pmt.nx_abc],dtype=np.float32)
                 if self.pmt.snap == True:
+                    self.snapshots_gpubck = cp.zeros((self.nsnaps, self.pmt.nz, self.pmt.nx), dtype=cp.float32)
+                    self.snap_idxbck = 0
                     self.img_times = list(range(0, self.pmt.last_save + 1, self.pmt.step))
                     self.nimg = len(self.snap_times)
                     self.img_gpu = cp.zeros((self.nsnaps, self.pmt.nz, self.pmt.nx), dtype=cp.float32)
-                    self.img_idx = 0
             if self.pmt.migration == "SB":
                 self.top   = cp.zeros((self.pmt.nt, 4, self.pmt.nx), dtype=np.float32)
                 self.bot   = cp.zeros((self.pmt.nt, 4, self.pmt.nx), dtype=np.float32)

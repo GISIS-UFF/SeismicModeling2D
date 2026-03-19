@@ -80,6 +80,15 @@ class parameters:
         self.gradient =  self.parameters['gradient']
         self.diffractor =  self.parameters['diffractor']
         self.modelfromvp =  self.parameters['modelfromvp']
+        
+        #migration parameters
+        self.t1 = self.parameters['t1']
+        self.t2 = self.parameters['t2']
+        self.t3 = self.parameters['t3']
+        self.t4 = self.parameters['t4']
+        self.sigma = self.parameters['sigma'] 
+        self.dvel = self.parameters['dvel']
+        self.ratio = self.parameters['ratio']
 
     def readAcquisitionGeometry(self):        
         # Read receiver and source coordinates from CSV files

@@ -64,14 +64,15 @@ class migration:
             return
         
         snapshot = self.wf.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
-        self.wf.snapshots_gpu[self.wf.snap_idx, :, :] = snapshot
-        self.wf.snap_idx += 1
+        self.wf.snapshots_gpubck[self.wf.snap_idxbck, :, :] = snapshot
+        self.wf.snap_idxbck += 1
 
     def save_snapshotBCKGPU(self,shot):        
         if not self.pmt.snap:
             return
-        snapshots_cpu = cp.asnumpy(self.wf.snapshots_gpu[:self.snap_idx,:,:])
-        for i, k in enumerate(self.wf.snap_times[:self.snap_idx]):
+        self.snap_times_reversed = self.wf.snap_times[::-1]
+        snapshots_cpu = cp.asnumpy(self.wf.snapshots_gpubck[:self.wf.snap_idxbck,:,:])
+        for i, k in enumerate(self.snap_times_reversed[:self.wf.snap_idxbck]):
             snapshotFile = (f"{self.pmt.snapshotFolder}{self.pmt.approximation}backward_shot_{shot+1}"f"_Nx{self.pmt.nx}_Nz{self.pmt.nz}_Nt{self.pmt.nt}_frame_{k}.bin")
             snapshots_cpu[i].tofile(snapshotFile)
             print(f"info: Snapshot saved to {snapshotFile}")
@@ -105,8 +106,8 @@ class migration:
     def save_imageGPU(self,shot):        
         if not self.pmt.snap:
             return
-        img_cpu = cp.asnumpy(self.wf.img_gpu[:self.img_idx,:,:])
-        for i, k in enumerate(self.wf.img_times[:self.img_idx]):
+        img_cpu = cp.asnumpy(self.wf.img_gpu[:self.wf.img_idx,:,:])
+        for i, k in enumerate(self.wf.img_times[:self.wf.img_idx]):
             imageFile = (f"{self.pmt.migratedimageFolder}{self.pmt.approximation}_shot_{shot+1}"f"_Nx{self.pmt.nx}_Nz{self.pmt.nz}_frame_{k}.bin")
             img_cpu[i].tofile(imageFile)
             print(f"info: Snapshot saved to {imageFile}")
@@ -138,6 +139,7 @@ class migration:
 
     def smooth_model(self,f,sigma):
         s = 1.0 / f
+        s_old =s.copy()
         kernel = self.gaussian_filter2D(sigma)
         ksize = kernel.shape[0]
         half = ksize // 2
@@ -149,7 +151,7 @@ class migration:
                 new_value = 0.0
                 for i in range(ksize):
                     for j in range(ksize):
-                        new_value += (kernel[i, j] * s[z + i - half, x + j - half])
+                        new_value += (kernel[i, j] * s_old[z + i - half, x + j - half])
                 s[z, x] = new_value
 
         for z in range(half):
@@ -376,7 +378,11 @@ class migration:
         if self.pmt.unit == "GPU":
             if self.pmt.snap == True:
                 self.wf.snapshots_gpu.fill(0) 
+                self.wf.snapshots_gpubck.fill(0)
                 self.wf.snap_idx = 0
+                self.wf.snap_idx = 0
+                self.wf.img_gpu.fill(0)
+                self.wf.img_idx = 0
 
     def get_randomvalue(self,velocity, func, par):
         point = np.random.normal(velocity, par*func)    
@@ -437,8 +443,6 @@ class migration:
         f1d = np.linspace(0, 1, self.pmt.N_abc)
         vmax = self.vp_exp.max()
         vmin = self.vp_exp.min()
-        dvel = 1000
-        ratio = 200
         boundary_x = self.pmt.N_abc * self.pmt.dx
         boundary_z = self.pmt.N_abc * self.pmt.dz
         L_abc = (self.pmt.nx_abc * self.pmt.dx) - self.pmt.dx
@@ -452,32 +456,32 @@ class migration:
             [boundary_x, boundary_z]])
         for i in range(self.pmt.nz):
             for j in range(self.pmt.N_abc):
-                self.vp_exp[self.pmt.N_abc+i,j] = self.get_randomvalue(self.vp_exp[self.pmt.N_abc+i,self.pmt.N_abc], f1d[self.pmt.N_abc-j-1], dvel) 
-                self.vp_exp[self.pmt.N_abc+i,self.pmt.nx_abc-j-1] = self.get_randomvalue(self.vp_exp[self.pmt.N_abc+i,self.pmt.nx_abc-self.pmt.N_abc], f1d[self.pmt.N_abc-j-1], dvel)
+                self.vp_exp[self.pmt.N_abc+i,j] = self.get_randomvalue(self.vp_exp[self.pmt.N_abc+i,self.pmt.N_abc], f1d[self.pmt.N_abc-j-1], self.pmt.dvel) 
+                self.vp_exp[self.pmt.N_abc+i,self.pmt.nx_abc-j-1] = self.get_randomvalue(self.vp_exp[self.pmt.N_abc+i,self.pmt.nx_abc-self.pmt.N_abc], f1d[self.pmt.N_abc-j-1], self.pmt.dvel)
 
         for i in range(self.pmt.N_abc):
             for j in range(self.pmt.nx):
-                self.vp_exp[i,self.pmt.N_abc+j] = self.get_randomvalue(self.vp_exp[self.pmt.N_abc,self.pmt.N_abc+j], f1d[self.pmt.N_abc-i-1], dvel)
-                self.vp_exp[self.pmt.nz_abc-i-1,self.pmt.N_abc+j] = self.get_randomvalue(self.vp_exp[self.pmt.nz_abc-self.pmt.N_abc,self.pmt.N_abc+j], f1d[self.pmt.N_abc-i-1], dvel)
+                self.vp_exp[i,self.pmt.N_abc+j] = self.get_randomvalue(self.vp_exp[self.pmt.N_abc,self.pmt.N_abc+j], f1d[self.pmt.N_abc-i-1], self.pmt.dvel)
+                self.vp_exp[self.pmt.nz_abc-i-1,self.pmt.N_abc+j] = self.get_randomvalue(self.vp_exp[self.pmt.nz_abc-self.pmt.N_abc,self.pmt.N_abc+j], f1d[self.pmt.N_abc-i-1], self.pmt.dvel)
 
         for i in range(self.pmt.N_abc):
             for j in range(i,self.pmt.N_abc):
-                self.vp_exp[j,i] = self.get_randomvalue(self.vp_exp[self.pmt.N_abc,self.pmt.N_abc], f1d[self.pmt.N_abc-i-1], dvel)
-                self.vp_exp[i,j] = self.get_randomvalue(self.vp_exp[self.pmt.N_abc,self.pmt.N_abc], f1d[self.pmt.N_abc-i-1], dvel)
+                self.vp_exp[j,i] = self.get_randomvalue(self.vp_exp[self.pmt.N_abc,self.pmt.N_abc], f1d[self.pmt.N_abc-i-1], self.pmt.dvel)
+                self.vp_exp[i,j] = self.get_randomvalue(self.vp_exp[self.pmt.N_abc,self.pmt.N_abc], f1d[self.pmt.N_abc-i-1], self.pmt.dvel)
 
-                self.vp_exp[j,self.pmt.nx_abc-i-1] = self.get_randomvalue(self.vp_exp[self.pmt.N_abc,self.pmt.nx_abc-self.pmt.N_abc], f1d[self.pmt.N_abc-i-1], dvel)
-                self.vp_exp[i,self.pmt.nx_abc-j-1] = self.get_randomvalue(self.vp_exp[self.pmt.N_abc,self.pmt.nx_abc-self.pmt.N_abc], f1d[self.pmt.N_abc-i-1], dvel)
+                self.vp_exp[j,self.pmt.nx_abc-i-1] = self.get_randomvalue(self.vp_exp[self.pmt.N_abc,self.pmt.nx_abc-self.pmt.N_abc], f1d[self.pmt.N_abc-i-1], self.pmt.dvel)
+                self.vp_exp[i,self.pmt.nx_abc-j-1] = self.get_randomvalue(self.vp_exp[self.pmt.N_abc,self.pmt.nx_abc-self.pmt.N_abc], f1d[self.pmt.N_abc-i-1], self.pmt.dvel)
 
-                self.vp_exp[self.pmt.nz_abc-j-1,i] = self.get_randomvalue(self.vp_exp[self.pmt.nz_abc-self.pmt.N_abc,self.pmt.N_abc], f1d[self.pmt.N_abc-i-1], dvel)
-                self.vp_exp[self.pmt.nz_abc-i-1,j] = self.get_randomvalue(self.vp_exp[self.pmt.nz_abc-self.pmt.N_abc,self.pmt.N_abc], f1d[self.pmt.N_abc-i-1], dvel)
+                self.vp_exp[self.pmt.nz_abc-j-1,i] = self.get_randomvalue(self.vp_exp[self.pmt.nz_abc-self.pmt.N_abc,self.pmt.N_abc], f1d[self.pmt.N_abc-i-1], self.pmt.dvel)
+                self.vp_exp[self.pmt.nz_abc-i-1,j] = self.get_randomvalue(self.vp_exp[self.pmt.nz_abc-self.pmt.N_abc,self.pmt.N_abc], f1d[self.pmt.N_abc-i-1], self.pmt.dvel)
 
-                self.vp_exp[self.pmt.nz_abc-j-1,self.pmt.nx_abc-i-1] = self.get_randomvalue(self.vp_exp[self.pmt.nz_abc-self.pmt.N_abc,self.pmt.nx_abc-self.pmt.N_abc], f1d[self.pmt.N_abc-i-1], dvel)
-                self.vp_exp[self.pmt.nz_abc-i-1,self.pmt.nx_abc-j-1] = self.get_randomvalue(self.vp_exp[self.pmt.nz_abc-self.pmt.N_abc,self.pmt.nx_abc-self.pmt.N_abc], f1d[self.pmt.N_abc-i-1], dvel)
+                self.vp_exp[self.pmt.nz_abc-j-1,self.pmt.nx_abc-i-1] = self.get_randomvalue(self.vp_exp[self.pmt.nz_abc-self.pmt.N_abc,self.pmt.nx_abc-self.pmt.N_abc], f1d[self.pmt.N_abc-i-1], self.pmt.dvel)
+                self.vp_exp[self.pmt.nz_abc-i-1,self.pmt.nx_abc-j-1] = self.get_randomvalue(self.vp_exp[self.pmt.nz_abc-self.pmt.N_abc,self.pmt.nx_abc-self.pmt.N_abc], f1d[self.pmt.N_abc-i-1], self.pmt.dvel)
 
-        self.vp_exp[np.where(self.vp_exp > vmax + dvel)] = vmax + dvel
-        self.vp_exp[np.where(self.vp_exp < vmin - dvel)] = vmin - dvel
+        self.vp_exp[np.where(self.vp_exp > vmax + self.pmt.dvel)] = vmax + self.pmt.dvel
+        self.vp_exp[np.where(self.vp_exp < vmin - self.pmt.dvel)] = vmin - self.pmt.dvel
 
-        points = self.poisson_disk_sampling(L_abc, D_abc, ratio)
+        points = self.poisson_disk_sampling(L_abc, D_abc, self.pmt.ratio)
 
         points = np.array(points)
 
@@ -495,19 +499,19 @@ class migration:
             xc = points[index, 0]  
             zc = points[index, 1] 
 
-            r = np.random.uniform(0.1*ratio, ratio)
-            A = np.random.uniform(0.5*dvel, dvel)
+            r = np.random.uniform(0.1*self.pmt.ratio, self.pmt.ratio)
+            A = np.random.uniform(0.5*self.pmt.dvel, self.pmt.dvel)
 
             factor = np.random.choice([-1,1])
 
             self.vp_exp = self.vp_exp + factor*A*np.exp(-0.5*(((x - xc) / r)**2 + ((z - zc) / r)**2))
             
-        self.vp_exp[np.where(self.vp_exp > vmax + dvel)] = vmax + dvel
-        self.vp_exp[np.where(self.vp_exp < vmin - dvel)] = vmin - dvel
+        self.vp_exp[np.where(self.vp_exp > vmax + self.pmt.dvel)] = vmax + self.pmt.dvel
+        self.vp_exp[np.where(self.vp_exp < vmin - self.pmt.dvel)] = vmin - self.pmt.dvel
 
         import matplotlib.pyplot as plt
         fig, ax = plt.subplots(figsize=(10, 5))
-        im = ax.imshow(self.vp_exp, aspect = "auto", cmap = "jet", vmax = vmax + dvel, vmin = vmin - dvel, extent = [0, L_abc, D_abc, 0])
+        im = ax.imshow(self.vp_exp, aspect = "auto", cmap = "jet", vmax = vmax + self.pmt.dvel, vmin = vmin - self.pmt.dvel, extent = [0, L_abc, D_abc, 0])
         plt.plot(rectangle[:,0], rectangle[:,1], "--k")
         cbar = self.adjustColorBar(fig, ax, im)
         cbar.set_label("Amplitude")
@@ -519,7 +523,7 @@ class migration:
         start_time = time.time()
         print(f"info: Solving backward acoustic wave equation")
         # Expand velocity model and Create absorbing layers
-        self.vp = self.smooth_model(self.wf.vp, 9)
+        self.vp = self.smooth_model(self.wf.vp, self.pmt.sigma)
         self.vp_exp = self.wf.ExpandModel(self.vp)
         if self.pmt.ABC == "cerjan":
             self.A = self.wf.createCerjanVector()
@@ -546,7 +550,7 @@ class migration:
 
             # Top muting
             seismogram = self.loadSeismogram(shot)
-            self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt, shift = 0.8,window = 0.3,v0=1500)
+            self.muted_seismogram = Mute(seismogram,self.pmt.t1,self.pmt.t2,self.pmt.t3,self.pmt.t4,self.pmt.dt) 
             self.migrated_partial = np.zeros_like(self.wf.migrated_image)
             self.ilum = np.zeros_like(self.wf.migrated_image)
             for k in range(self.pmt.nt):
@@ -573,7 +577,7 @@ class migration:
         start_time = time.time()
         print(f"info: Solving backward acoustic wave equation")
         # Expand velocity model and Create absorbing layers
-        self.vp = self.smooth_model(self.wf.vp, 9)
+        self.vp = self.smooth_model(self.wf.vp, self.pmt.sigma)
         self.vp_exp = self.wf.ExpandModel(self.vp)
         if self.pmt.ABC == "cerjan":
             self.A = self.wf.createCerjanVector()
@@ -598,7 +602,7 @@ class migration:
 
             # Top muting
             seismogram = self.loadSeismogram(shot)
-            self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt, shift = 0.75,window = 0.25,v0=1500)
+            self.muted_seismogram = Mute(seismogram,self.pmt.t1,self.pmt.t2,self.pmt.t3,self.pmt.t4,self.pmt.dt) 
             self.migrated_partial = np.zeros_like(self.wf.migrated_image)
             self.ilum = np.zeros_like(self.wf.migrated_image)
             self.build_ckpts_steps()
@@ -631,7 +635,7 @@ class migration:
         start_time = time.time()
         print(f"info: Solving backward acoustic wave equation")
         # Expand velocity model and Create absorbing layers
-        self.vp = self.smooth_model(self.wf.vp, 9)
+        self.vp = self.smooth_model(self.wf.vp, self.pmt.sigma)
         self.vp_exp = self.wf.ExpandModel(self.vp)
         if self.pmt.ABC == "cerjan":
             self.A = self.wf.createCerjanVector()
@@ -656,12 +660,12 @@ class migration:
 
             # Top muting
             seismogram = self.loadSeismogram(shot)
-            self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt, shift = 0.75,window = 0.25,v0=1500)
+            self.muted_seismogram = Mute(seismogram,self.pmt.t1,self.pmt.t2,self.pmt.t3,self.pmt.t4,self.pmt.dt)  
             self.migrated_partial = np.zeros_like(self.wf.migrated_image)
             self.ilum = np.zeros_like(self.wf.migrated_image)
             for k in range(self.pmt.nt):
-                self.save_boundaries(k)
                 self.forward_step(k)
+                self.save_boundaries(k)
                 self.wf.save_snapshot(shot, k)
                 self.ilum += self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]  
                 #swap
@@ -687,7 +691,7 @@ class migration:
         start_time = time.time()
         print(f"info: Solving backward acoustic wave equation")
         # Expand velocity model and Create absorbing layers
-        self.vp = self.smooth_model(self.wf.vp, 9)
+        self.vp = self.smooth_model(self.wf.vp, self.pmt.sigma)
         vp_exp_base = self.wf.ExpandModel(self.vp)
         if self.pmt.ABC == "cerjan":
             self.A = self.wf.createCerjanVector()
@@ -714,7 +718,7 @@ class migration:
 
             # Top muting
             seismogram = self.loadSeismogram(shot)
-            self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt, shift = 0.75,window = 0.25,v0=1500)
+            self.muted_seismogram = Mute(seismogram,self.pmt.t1,self.pmt.t2,self.pmt.t3,self.pmt.t4,self.pmt.dt)  
             self.migrated_partial = np.zeros_like(self.wf.migrated_image)
             self.ilum = np.zeros_like(self.wf.migrated_image)
             for k in range(self.pmt.nt):
@@ -745,7 +749,7 @@ class migration:
         start_time = time.time()
         print(f"info: Solving backward acoustic wave equation")
         # Expand velocity model and Create absorbing layers
-        self.vp = self.smooth_model(self.wf.vp, 9)
+        self.vp = self.smooth_model(self.wf.vp, self.pmt.sigma)
         self.vp_exp = self.wf.ExpandModel(self.vp)
         self.vp_exp = cp.asarray(self.vp_exp, dtype=cp.float32)
         if self.pmt.ABC == "cerjan":
@@ -778,7 +782,7 @@ class migration:
 
             # Top muting
             seismogram = self.loadSeismogram(shot)
-            self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt, shift = 0.75,window = 0.25,v0=1500)
+            self.muted_seismogram = Mute(seismogram,self.pmt.t1,self.pmt.t2,self.pmt.t3,self.pmt.t4,self.pmt.dt)  
             self.muted_seismogram = cp.asarray(self.muted_seismogram,dtype=cp.float32)
             self.migrated_partial = cp.zeros_like(self.wf.migrated_image)
             self.ilum = cp.zeros_like(self.wf.migrated_image)
@@ -810,7 +814,7 @@ class migration:
         start_time = time.time()
         print(f"info: Solving backward acoustic wave equation")
         # Expand velocity model and Create absorbing layers
-        self.vp = self.smooth_model(self.wf.vp, 9)
+        self.vp = self.smooth_model(self.wf.vp, self.pmt.sigma)
         self.vp_exp = self.wf.ExpandModel(self.vp)
         self.vp_exp = cp.asarray(self.vp_exp, dtype=cp.float32)
         if self.pmt.ABC == "cerjan":
@@ -842,7 +846,7 @@ class migration:
 
             # Top muting
             seismogram = self.loadSeismogram(shot)
-            self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt, shift = 0.75,window = 0.25,v0=1500)
+            self.muted_seismogram = Mute(seismogram,self.pmt.t1,self.pmt.t2,self.pmt.t3,self.pmt.t4,self.pmt.dt)  
             self.muted_seismogram = cp.asarray(self.muted_seismogram,dtype=cp.float32)
             self.migrated_partial = cp.zeros_like(self.wf.migrated_image)
             self.ilum = cp.zeros_like(self.wf.migrated_image)
@@ -880,7 +884,7 @@ class migration:
         start_time = time.time()
         print(f"info: Solving backward acoustic wave equation")
         # Expand velocity model and Create absorbing layers
-        self.vp = self.smooth_model(self.wf.vp, 9)
+        self.vp = self.smooth_model(self.wf.vp, self.pmt.sigma)
         self.vp_exp = self.wf.ExpandModel(self.vp)
         self.vp_exp = cp.asarray(self.vp_exp, dtype=cp.float32)
         if self.pmt.ABC == "cerjan":
@@ -912,13 +916,13 @@ class migration:
 
             # Top muting
             seismogram = self.loadSeismogram(shot)
-            self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt, shift = 0.75 ,window = 0.25,v0=1500)
+            self.muted_seismogram = Mute(seismogram, self.pmt.t1, self.pmt.t2, self.pmt.t3, self.pmt.t4, self.pmt.dt)
             self.muted_seismogram = cp.asarray(self.muted_seismogram,dtype=cp.float32)
             self.migrated_partial = cp.zeros_like(self.wf.migrated_image)
             self.ilum = cp.zeros_like(self.wf.migrated_image)
             for k in range(self.pmt.nt):
-                self.save_boundaries(k)
                 self.forward_stepGPU(k)
+                self.save_boundaries(k)
                 self.wf.store_snapshotGPU(k)
                 self.ilum += self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] 
                 #swap
@@ -948,7 +952,7 @@ class migration:
         start_time = time.time()
         print(f"info: Solving backward acoustic wave equation")
         # Expand velocity model and Create absorbing layers
-        self.vp = self.smooth_model(self.wf.vp, 9)
+        self.vp = self.smooth_model(self.wf.vp, self.pmt.sigma)
         vp_exp_base = self.wf.ExpandModel(self.vp)
         if self.pmt.ABC == "cerjan":
             self.A = self.wf.createCerjanVector()
@@ -982,7 +986,7 @@ class migration:
 
             # Top muting
             seismogram = self.loadSeismogram(shot)
-            self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt, shift = 0.75,window = 0.25,v0=1500)
+            self.muted_seismogram = Mute(seismogram,self.pmt.t1,self.pmt.t2,self.pmt.t3,self.pmt.t4,self.pmt.dt)  
             self.muted_seismogram = cp.asarray(self.muted_seismogram,dtype=cp.float32)
             self.migrated_partial = cp.zeros_like(self.wf.migrated_image)
             self.ilum = cp.zeros_like(self.wf.migrated_image)
