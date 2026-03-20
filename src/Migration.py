@@ -524,6 +524,10 @@ class migration:
         print(f"info: Solving backward acoustic wave equation")
         # Expand velocity model and Create absorbing layers
         self.vp = self.smooth_model(self.wf.vp, self.pmt.sigma)
+        import matplotlib.pyplot as plt
+        plt.figure()
+        plt.imshow(self.vp)
+        plt.show()
         self.vp_exp = self.wf.ExpandModel(self.vp)
         if self.pmt.ABC == "cerjan":
             self.A = self.wf.createCerjanVector()
@@ -550,7 +554,7 @@ class migration:
 
             # Top muting
             seismogram = self.loadSeismogram(shot)
-            self.muted_seismogram = Mute(seismogram,self.pmt.t1,self.pmt.t2,self.pmt.t3,self.pmt.t4,self.pmt.dt) 
+            self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt, self.pmt.shift,self.pmt.window,self.pmt.v0) 
             self.migrated_partial = np.zeros_like(self.wf.migrated_image)
             self.ilum = np.zeros_like(self.wf.migrated_image)
             for k in range(self.pmt.nt):
@@ -602,7 +606,7 @@ class migration:
 
             # Top muting
             seismogram = self.loadSeismogram(shot)
-            self.muted_seismogram = Mute(seismogram,self.pmt.t1,self.pmt.t2,self.pmt.t3,self.pmt.t4,self.pmt.dt) 
+            self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt, self.pmt.shift,self.pmt.window,self.pmt.v0) 
             self.migrated_partial = np.zeros_like(self.wf.migrated_image)
             self.ilum = np.zeros_like(self.wf.migrated_image)
             self.build_ckpts_steps()
@@ -660,7 +664,7 @@ class migration:
 
             # Top muting
             seismogram = self.loadSeismogram(shot)
-            self.muted_seismogram = Mute(seismogram,self.pmt.t1,self.pmt.t2,self.pmt.t3,self.pmt.t4,self.pmt.dt)  
+            self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt, self.pmt.shift,self.pmt.window,self.pmt.v0)  
             self.migrated_partial = np.zeros_like(self.wf.migrated_image)
             self.ilum = np.zeros_like(self.wf.migrated_image)
             for k in range(self.pmt.nt):
@@ -718,7 +722,7 @@ class migration:
 
             # Top muting
             seismogram = self.loadSeismogram(shot)
-            self.muted_seismogram = Mute(seismogram,self.pmt.t1,self.pmt.t2,self.pmt.t3,self.pmt.t4,self.pmt.dt)  
+            self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt, self.pmt.shift,self.pmt.window,self.pmt.v0)  
             self.migrated_partial = np.zeros_like(self.wf.migrated_image)
             self.ilum = np.zeros_like(self.wf.migrated_image)
             for k in range(self.pmt.nt):
@@ -749,8 +753,8 @@ class migration:
         start_time = time.time()
         print(f"info: Solving backward acoustic wave equation")
         # Expand velocity model and Create absorbing layers
-        self.vp = self.smooth_model(self.wf.vp, self.pmt.sigma)
-        self.vp_exp = self.wf.ExpandModel(self.vp)
+        # self.vp = self.smooth_model(self.wf.vp, self.pmt.sigma)
+        self.vp_exp = self.wf.ExpandModel(self.wf.vp)
         self.vp_exp = cp.asarray(self.vp_exp, dtype=cp.float32)
         if self.pmt.ABC == "cerjan":
             self.A = self.wf.createCerjanVector()
@@ -782,7 +786,7 @@ class migration:
 
             # Top muting
             seismogram = self.loadSeismogram(shot)
-            self.muted_seismogram = Mute(seismogram,self.pmt.t1,self.pmt.t2,self.pmt.t3,self.pmt.t4,self.pmt.dt)  
+            self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt, self.pmt.shift,self.pmt.window,self.pmt.v0) 
             self.muted_seismogram = cp.asarray(self.muted_seismogram,dtype=cp.float32)
             self.migrated_partial = cp.zeros_like(self.wf.migrated_image)
             self.ilum = cp.zeros_like(self.wf.migrated_image)
@@ -846,7 +850,7 @@ class migration:
 
             # Top muting
             seismogram = self.loadSeismogram(shot)
-            self.muted_seismogram = Mute(seismogram,self.pmt.t1,self.pmt.t2,self.pmt.t3,self.pmt.t4,self.pmt.dt)  
+            self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt, self.pmt.shift,self.pmt.window,self.pmt.v0)  
             self.muted_seismogram = cp.asarray(self.muted_seismogram,dtype=cp.float32)
             self.migrated_partial = cp.zeros_like(self.wf.migrated_image)
             self.ilum = cp.zeros_like(self.wf.migrated_image)
@@ -916,7 +920,7 @@ class migration:
 
             # Top muting
             seismogram = self.loadSeismogram(shot)
-            self.muted_seismogram = Mute(seismogram, self.pmt.t1, self.pmt.t2, self.pmt.t3, self.pmt.t4, self.pmt.dt)
+            self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt, self.pmt.shift,self.pmt.window,self.pmt.v0)
             self.muted_seismogram = cp.asarray(self.muted_seismogram,dtype=cp.float32)
             self.migrated_partial = cp.zeros_like(self.wf.migrated_image)
             self.ilum = cp.zeros_like(self.wf.migrated_image)
@@ -986,7 +990,7 @@ class migration:
 
             # Top muting
             seismogram = self.loadSeismogram(shot)
-            self.muted_seismogram = Mute(seismogram,self.pmt.t1,self.pmt.t2,self.pmt.t3,self.pmt.t4,self.pmt.dt)  
+            self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt, self.pmt.shift,self.pmt.window,self.pmt.v0)  
             self.muted_seismogram = cp.asarray(self.muted_seismogram,dtype=cp.float32)
             self.migrated_partial = cp.zeros_like(self.wf.migrated_image)
             self.ilum = cp.zeros_like(self.wf.migrated_image)

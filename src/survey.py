@@ -82,10 +82,9 @@ class parameters:
         self.modelfromvp =  self.parameters['modelfromvp']
         
         #migration parameters
-        self.t1 = self.parameters['t1']
-        self.t2 = self.parameters['t2']
-        self.t3 = self.parameters['t3']
-        self.t4 = self.parameters['t4']
+        self.shift = self.parameters['shift']
+        self.window = self.parameters['window']
+        self.v0 = self.parameters['v0']
         self.sigma = self.parameters['sigma'] 
         self.dvel = self.parameters['dvel']
         self.ratio = self.parameters['ratio']

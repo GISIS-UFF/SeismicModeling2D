@@ -20,25 +20,25 @@ def ricker(f0, t, t_lag):
     return source
 
 @jit(parallel=True)
-def Mute(v,t1,t2,t3,t4,dt): 
-    saida = np.zeros_like(v)
-    aux1 = int(t1/dt+1)
-    aux4 = int(t4/dt+1)
-    tmax = (len(v)-1)*dt
-    for i in range(aux1,aux4):
-        t = (i-1)*dt
-        if t<=t1:
-            saida[i] = 0
-        elif t>t1 and t<t2:
-            saida[i] = (t-t1)/(t2-t1)
-        elif t>=t2 and t<t3:
-            saida[i] = 1
-        elif t>=t3 and t<t4 and t4<tmax and t3<tmax:
-            saida[i] = (t4-t)/(t4-t3)
-        elif t>t4 and t4<tmax and t3<tmax:
-            saida[i] = 0
-        
-    return (saida*v)
+def Mute(seismogram, shot, rec_x, rec_z, shot_x, shot_z, dt, shift, window,v0=1500): 
+    result = np.zeros_like(seismogram)
+    Nt = seismogram.shape[0]
+    Nrec = seismogram.shape[1]  
+    dist = np.sqrt((rec_z - shot_z[shot])**2 + (rec_x - shot_x[shot])**2)
+    traveltimes = dist/v0
+    for rec in prange(Nrec):
+        t1 = traveltimes[rec] + shift
+        t2 = t1 + window
+        for i in prange(Nt):
+            t = (i-1)*dt
+            if t <t1:
+                result[i,rec] = 0.0
+            elif t>=t1 and t<t2:
+                result[i,rec] = (t-t1)/(t2-t1) * seismogram[i,rec]
+            elif t>=t2:
+                result[i,rec] = seismogram[i,rec]
+            
+    return result
 
 # CPML Auxiliar Functions
 @njit(inline = "always")
