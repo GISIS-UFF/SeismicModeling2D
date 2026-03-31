@@ -77,7 +77,7 @@ class parameters:
         # Synthetic models 
         self.layer2 =  self.parameters['layer2']
         self.layer3 =  self.parameters['layer3']
-        self.gradient =  self.parameters['gradient']
+        self.gradientmodel =  self.parameters['gradientmodel']
         self.diffractor =  self.parameters['diffractor']
         self.modelfromvp =  self.parameters['modelfromvp']
         
@@ -88,6 +88,10 @@ class parameters:
         self.sigma = self.parameters['sigma'] 
         self.dvel = self.parameters['dvel']
         self.ratio = self.parameters['ratio']
+
+        #FWI parameters
+        self.iter = self.parameters['iteration']
+        self.gradient = self.parameters['gradient']
 
     def readAcquisitionGeometry(self):        
         # Read receiver and source coordinates from CSV files

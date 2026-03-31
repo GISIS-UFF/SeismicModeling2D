@@ -40,6 +40,57 @@ def Mute(seismogram, shot, rec_x, rec_z, shot_x, shot_z, dt, shift, window,v0=15
             
     return result
 
+def gaussian_kernel(x, z, sigma):
+    fator = 1. / (2.*np.pi*sigma*sigma)
+    expoente = -(x * x + z * z)/(2.*sigma*sigma)
+    return fator * np.exp(expoente)
+
+def gaussian_filter2D(sigma):
+    kernel_size = np.ceil(2 * sigma + 1).astype(int)
+    if kernel_size % 2 == 0:
+        kernel_size += 1
+
+    kernel2d = np.zeros((kernel_size, kernel_size), dtype=np.float32)
+    total = 0.0
+
+    for lin in range(kernel_size):
+        for col in range(kernel_size):
+            x = lin - kernel_size // 2
+            y = col - kernel_size // 2
+            val = gaussian_kernel(x, y, sigma)
+            kernel2d[lin, col] = val
+            total += val
+
+    kernel2d /= total
+
+    return kernel2d
+
+def smooth_model(f,sigma):
+    s = 1.0 / f
+    s_old =s.copy()
+    kernel = gaussian_filter2D(sigma)
+    ksize = kernel.shape[0]
+    half = ksize // 2
+
+    nz, nx = np.shape(s)
+
+    for z in range(half, nz - half):
+        for x in range(half, nx - half):
+            new_value = 0.0
+            for i in range(ksize):
+                for j in range(ksize):
+                    new_value += (kernel[i, j] * s_old[z + i - half, x + j - half])
+            s[z, x] = new_value
+
+    for z in range(half):
+        s[z, :] = s[half, :]
+        s[nz - 1 - z, :] = s[nz - 1 - half, :]
+    for x in range(half):
+        s[:, x] = s[:, half]
+        s[:, nx - 1 - x] = s[:, nx - 1 - half]
+
+    return (1.0 / s)
+
 # CPML Auxiliar Functions
 @njit(inline = "always")
 def horizontal_dampening_profiles(N_abc,nx_abc, dx, vp, f_pico, d0, dt, i, j):

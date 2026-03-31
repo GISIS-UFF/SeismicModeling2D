@@ -171,7 +171,7 @@ class model:
             self.create3LayerModel(self.vp1,self.vp2,self.vp3,self.epsilon1,self.epsilon2,self.epsilon3,self.delta1,self.delta2,self.delta3,self.theta1,self.theta2,self.theta3)
         elif self.pmt.diffractor == True:
             self.createDiffractorModel(self.vp1,self.vp2,self.epsilon1,self.epsilon2,self.delta1,self.delta2,self.theta1,self.theta2)
-        elif self.pmt.gradient == True:
+        elif self.pmt.gradientmodel == True:
             self.createGradientModel(self.vp1,self.epsilon1,self.delta1,self.theta1)
         elif self.pmt.modelfromvp == True:
             self.createModelFromVp()

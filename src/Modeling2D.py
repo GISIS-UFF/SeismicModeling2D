@@ -252,6 +252,12 @@ class wavefield:
         self.snapshots_gpu[self.snap_idx, :, :] = snapshot
         self.snap_idx += 1
     
+    def store_seismogram(self,k,rz,rx):
+        if self.pmt.unit == "CPU":
+            self.seismogram[k, :] = self.current[rz, rx] 
+        else:
+            self.seismogram_gpu[k, :] = self.current[rz, rx]
+
     def save_seismogram(self,shot):        
         self.seismogramFile = f"{self.pmt.seismogramFolder}seismogram_shot_{shot+1}_Nt{self.pmt.nt}_Nrec{self.pmt.Nrec}.bin"
         self.seismogram.tofile(self.seismogramFile)
@@ -375,7 +381,7 @@ class wavefield:
             for k in range(self.pmt.nt): 
                 self.forward_step(k)
                 # Register seismogram and snapshot
-                self.seismogram[k, :] = self.current[rz, rx]
+                self.store_seismogram(k,rz,rx)
                 self.save_snapshot(shot, k)       
                 #swap
                 self.current, self.future = self.future, self.current
@@ -420,7 +426,7 @@ class wavefield:
             for k in range(self.pmt.nt): 
                 self.forward_stepGPU(k)
                 # Register seismogram and snapshot
-                self.seismogram_gpu[k, :] = self.current[rz, rx]    
+                self.store_seismogram(k,rz,rx)    
                 self.store_snapshotGPU(k)       
                 #swap
                 self.current, self.future = self.future, self.current
