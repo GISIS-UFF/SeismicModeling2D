@@ -90,8 +90,8 @@ class parameters:
         self.ratio = self.parameters['ratio']
 
         #FWI parameters
-        self.iter = self.parameters['iteration']
-        self.gradient = self.parameters['gradient']
+        self.niter = self.parameters['niter']
+        self.fwi = self.parameters['fwi']
 
     def readAcquisitionGeometry(self):        
         # Read receiver and source coordinates from CSV files

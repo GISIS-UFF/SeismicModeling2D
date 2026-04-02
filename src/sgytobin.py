@@ -3,10 +3,10 @@ import matplotlib.pyplot as plt
 import segyio as sgy
 import os
 
-keyword = "bp2007"
+keyword = "vp_marmousi-ii"
 
 for filename in sorted(os.listdir("../inputs/")):
-    if keyword in filename and filename.endswith(".sgy"):
+    if keyword in filename and filename.endswith(".segy"):
         path = os.path.join("../inputs/", filename)
         with sgy.open(path, ignore_geometry=True) as segyfile:
             data = np.array(segyfile.trace.raw[:]).T
