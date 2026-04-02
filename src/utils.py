@@ -40,21 +40,23 @@ def Mute(seismogram, shot, rec_x, rec_z, shot_x, shot_z, dt, shift, window,v0=15
             
     return result
 
+@jit(nopython=True)
 def gaussian_kernel(x, z, sigma):
     fator = 1. / (2.*np.pi*sigma*sigma)
     expoente = -(x * x + z * z)/(2.*sigma*sigma)
     return fator * np.exp(expoente)
 
+@jit(nopython=True, parallel=True)
 def gaussian_filter2D(sigma):
-    kernel_size = np.ceil(2 * sigma + 1).astype(int)
+    kernel_size = int(np.ceil(2 * sigma + 1))
     if kernel_size % 2 == 0:
         kernel_size += 1
 
     kernel2d = np.zeros((kernel_size, kernel_size), dtype=np.float32)
     total = 0.0
 
-    for lin in range(kernel_size):
-        for col in range(kernel_size):
+    for lin in prange(kernel_size):
+        for col in prange(kernel_size):
             x = lin - kernel_size // 2
             y = col - kernel_size // 2
             val = gaussian_kernel(x, y, sigma)
@@ -65,20 +67,21 @@ def gaussian_filter2D(sigma):
 
     return kernel2d
 
+@jit(nopython=True, parallel=True)
 def smooth_model(f,sigma):
     s = 1.0 / f
-    s_old =s.copy()
+    s_old = s.copy()
     kernel = gaussian_filter2D(sigma)
     ksize = kernel.shape[0]
     half = ksize // 2
 
     nz, nx = np.shape(s)
 
-    for z in range(half, nz - half):
-        for x in range(half, nx - half):
+    for z in prange(half, nz - half):
+        for x in prange(half, nx - half):
             new_value = 0.0
-            for i in range(ksize):
-                for j in range(ksize):
+            for i in prange(ksize):
+                for j in prange(ksize):
                     new_value += (kernel[i, j] * s_old[z + i - half, x + j - half])
             s[z, x] = new_value
 

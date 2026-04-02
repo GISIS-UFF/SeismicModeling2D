@@ -35,7 +35,7 @@ class migration:
         cax = divider.append_axes("right", size="5%", pad=0.05)
         cbar = fig.colorbar(im,cax=cax)
         return cbar
-    
+
     def loadSeismogram(self, shot):
         if self.pmt.fwi  == True:
             seismogramFile = f"{self.pmt.seismogramFolder}residual_shot_{shot+1}_Nt{self.pmt.nt}_Nrec{self.pmt.Nrec}.bin"
@@ -118,6 +118,9 @@ class migration:
     def load_checkpoint(self, shot, k):
         checkpointFile = (f"{self.pmt.checkpointFolder}{self.pmt.approximation}{self.pmt.ABC}_shot_{shot+1}_Nx{self.pmt.nx}_Nz{self.pmt.nz}_Nt{self.pmt.nt}_frame_{k}.bin")
         with open(checkpointFile, "rb") as file:
+            if self.pmt.unit == "GPU":
+                self.wf.current = cp.asnumpy(self.wf.current)
+                self.wf.future = cp.asnumpy(self.wf.future)
             count = self.pmt.nx_abc * self.pmt.nz_abc
             self.wf.current = np.fromfile(file, np.float32, count).reshape(self.pmt.nz_abc, self.pmt.nx_abc)
             self.wf.future  = np.fromfile(file, np.float32, count).reshape(self.pmt.nz_abc, self.pmt.nx_abc)
@@ -139,6 +142,10 @@ class migration:
         with open(checkpointFile, "wb") as file:
             for field in save:
                 field.astype(np.float32).tofile(file)
+                                
+        if self.pmt.unit == "GPU":
+            self.wf.current = cp.asnumpy(self.wf.current)
+            self.wf.future = cp.asnumpy(self.wf.future)
 
         print(f"info: Checkpoint saved to {checkpointFile}")
 
