@@ -9,8 +9,11 @@ wf = wavefield(pmt)
 wf.createSourceWavelet()
 wf.initializeWavefields()
 wf.loadModels()
+wf.checkDispersionAndStability()
+wf.SolveBackwardWaveEquation()
 
 mig = migration(wf,pmt)
+mig.initializeMigrationfields()
 
 fwi = fwi(pmt, wf, mig)
 

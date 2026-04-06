@@ -10,4 +10,5 @@ wf.initializeWavefields()
 wf.loadModels()
 
 mig = migration(wf,pmt)
+mig.initializeMigrationfields()
 mig.SolveBackwardWaveEquation()       

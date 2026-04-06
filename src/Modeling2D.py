@@ -76,20 +76,6 @@ class wavefield:
             self.ZetaxFL     = np.zeros([self.pmt.nz_abc, self.pmt.N_abc+4], dtype=np.float32)
             self.ZetazFU     = np.zeros([self.pmt.N_abc+4, self.pmt.nx_abc], dtype=np.float32)
             self.ZetazFD     = np.zeros([self.pmt.N_abc+4, self.pmt.nx_abc], dtype=np.float32)
-        if self.pmt.migration in ["checkpoint", "SB", "RBC", "onthefly"]:
-            self.migrated_image = np.zeros((self.pmt.nz, self.pmt.nx), dtype=np.float32)
-            self.currentbck  = np.zeros([self.pmt.nz_abc,self.pmt.nx_abc],dtype=np.float32)
-            self.futurebck   = np.zeros([self.pmt.nz_abc,self.pmt.nx_abc],dtype=np.float32)
-            if self.pmt.migration == "SB":
-                self.top   = np.zeros((self.pmt.nt, 4, self.pmt.nx), dtype=np.float32)
-                self.bot   = np.zeros((self.pmt.nt, 4, self.pmt.nx), dtype=np.float32)
-                self.left  = np.zeros((self.pmt.nt, self.pmt.nz, 4), dtype=np.float32)
-                self.right = np.zeros((self.pmt.nt, self.pmt.nz, 4), dtype=np.float32)
-                if self.pmt.unit == "GPU":
-                    self.top   = cp.zeros((self.pmt.nt, 4, self.pmt.nx), dtype=np.float32)
-                    self.bot   = cp.zeros((self.pmt.nt, 4, self.pmt.nx), dtype=np.float32)
-                    self.left  = cp.zeros((self.pmt.nt, self.pmt.nz, 4), dtype=np.float32)
-                    self.right = cp.zeros((self.pmt.nt, self.pmt.nz, 4), dtype=np.float32)
         if self.pmt.unit == "GPU":
             self.current = cp.asarray(self.current, dtype=cp.float32)
             self.future  = cp.asarray(self.future, dtype=cp.float32)
@@ -108,22 +94,6 @@ class wavefield:
                 self.nsnaps = len(self.snap_times)
                 self.snapshots_gpu = cp.zeros((self.nsnaps, self.pmt.nz, self.pmt.nx), dtype=cp.float32)
                 self.snap_idx = 0
-            if self.pmt.migration in ["checkpoint", "SB", "RBC", "onthefly"]:
-                self.migrated_image = cp.zeros((self.pmt.nz, self.pmt.nx), dtype=np.float32)
-                self.currentbck  = cp.zeros([self.pmt.nz_abc,self.pmt.nx_abc],dtype=np.float32)
-                self.futurebck   = cp.zeros([self.pmt.nz_abc,self.pmt.nx_abc],dtype=np.float32)
-                if self.pmt.snap == True:
-                    self.snapshots_gpubck = cp.zeros((self.nsnaps, self.pmt.nz, self.pmt.nx), dtype=cp.float32)
-                    self.snap_idxbck = 0
-                    self.img_times = list(range(0, self.pmt.last_save + 1, self.pmt.step))
-                    self.nimg = len(self.snap_times)
-                    self.img_gpu = cp.zeros((self.nsnaps, self.pmt.nz, self.pmt.nx), dtype=cp.float32)
-            if self.pmt.migration == "SB":
-                self.top   = cp.zeros((self.pmt.nt, 4, self.pmt.nx), dtype=np.float32)
-                self.bot   = cp.zeros((self.pmt.nt, 4, self.pmt.nx), dtype=np.float32)
-                self.left  = cp.zeros((self.pmt.nt, self.pmt.nz, 4), dtype=np.float32)
-                self.right = cp.zeros((self.pmt.nt, self.pmt.nz, 4), dtype=np.float32)
-
         print(f"info: Wavefields initialized: {self.pmt.nx}x{self.pmt.nz}x{self.pmt.nt}")
     
     def loadModels(self):
@@ -258,8 +228,11 @@ class wavefield:
         else:
             self.seismogram_gpu[k, :] = self.current[rz, rx]
 
-    def save_seismogram(self,shot):        
-        self.seismogramFile = f"{self.pmt.seismogramFolder}seismogram_shot_{shot+1}_Nt{self.pmt.nt}_Nrec{self.pmt.Nrec}.bin"
+    def save_seismogram(self,shot):     
+        if self.pmt.fwi == True:
+             self.seismogramFile = f"{self.pmt.seismogramFolder}seismogram_obs_shot_{shot+1}_Nt{self.pmt.nt}_Nrec{self.pmt.Nrec}.bin"
+        else:
+            self.seismogramFile = f"{self.pmt.seismogramFolder}seismogram_shot_{shot+1}_Nt{self.pmt.nt}_Nrec{self.pmt.Nrec}.bin"
         self.seismogram.tofile(self.seismogramFile)
         print(f"info: Seismogram saved to {self.seismogramFile}")
 
@@ -436,3 +409,13 @@ class wavefield:
             self.save_snapshotGPU(shot)
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
         print(f"info: Wave equation solved")
+    
+
+    def SolveBackwardWaveEquation(self):
+        if pmt.unit == "CPU":
+            wf.solveWaveEquation()
+        elif pmt.unit == "GPU":
+            wf.solveWaveEquationGPU()
+        else:
+            raise ValueError("Unknown migration method. Choose 'CPU' or 'GPU'.")
+        print(f"info: Migration solved")

@@ -11,28 +11,44 @@ class fwi:
 
     def objective_function(self, m):
         X = 0.0
+        self.wf.vp = m 
+        self.wf.vp_exp = self.ExpandModel(self.wf.vp)
+        if self.pmt.ABC == "cerjan":
+            self.A = self.wf.createCerjanVector()
+        elif self.pmt.ABC == "CPML":
+            self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
+        if self.pmt.approximation in ["VTI", "TTI"]:
+            self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
+            self.wf.delta_exp = self.wf.ExpandModel(self.delta)
+            if self.pmt.approximation == "TTI":
+                self.wf.theta_exp = self.wf.ExpandModel(self.theta)
+        
         rx = np.int32(self.pmt.rec_x/self.pmt.dx) + self.pmt.N_abc
         rz = np.int32(self.pmt.rec_z/self.pmt.dz) + self.pmt.N_abc
-        self.wf.vp = m 
-        self.wf.vp_exp = self.wf.ExpandModel(self.wf.vp)
-        self.wf.A = self.wf.createCerjanVector()
-        self.wf.solveWaveEquation()
         for shot in range(self.pmt.Nshot):
-            dcal = self.loadCalcSeismogram(shot)
-            dobs =  self.loadObsSeismogram(shot)
-            residual = dcal - dobs
-            # import matplotlib.pyplot as plt
-            # plt.figure()
-            # plt.imshow(residual, aspect='auto',label = "residual" )
-            # plt.figure()
-            # plt.imshow(dcal,aspect='auto',label = "dcal")
-            # plt.figure()
-            # plt.imshow(dobs,aspect='auto',label = "dobs")
-            # plt.show()
-            self.save_residual(shot,residual)
-        for r in range(self.pmt.Nrec):
-            for t in range(self.pmt.nt):
-                X += 0.5 * (residual[t, r])*(residual[t, r])
+            dobs = self.loadObsSeismogram(shot)
+            self.wf.reset_field()
+
+            # convert acquisition geometry coordinates to grid points
+            self.wf.sx = int(self.pmt.shot_x[shot]/self.pmt.dx) + self.pmt.N_abc
+            self.wf.sz = int(self.pmt.shot_z[shot]/self.pmt.dz) + self.pmt.N_abc           
+            for k in range(self.pmt.nt): 
+                self.wf.forward_step(k)
+                # Register seismogram and snapshot
+                self.wf.store_seismogram(k,rz,rx)      
+                #swap
+                self.wf.current, self.wf.future = self.wf.future, self.wf.current
+
+                residual = self.wf.seismogram - dobs
+                # import matplotlib.pyplot as plt
+                # plt.figure()
+                # plt.imshow(residual, aspect='auto',label = "residual" )
+                # plt.figure()
+                # plt.imshow(dcal,aspect='auto',label = "dcal")
+                # plt.figure()
+                # plt.imshow(dobs,aspect='auto',label = "dobs")
+                # plt.show()
+                X += 0.5 * (residual)*(residual)
         return X
 
     def calculate_gradient(self, m):
@@ -46,26 +62,10 @@ class fwi:
         grad = grad / np.max(np.abs(grad))
         return grad
 
-    def linesearch(self,m,p,g,f):
-        alpha = 1.0
-        c1 = 1e-4
-        c2 = 0.9
-        max_iter = 5
-        fx = f
-        for _ in range(max_iter):
-            m_new = m + alpha * p
-            f_new = self.objective_function(m_new)
-            g_new = self.calculate_gradient(m_new)
+    def quadratic_interpolation(self):
 
-            armijo = f_new <= fx + c1 * alpha * np.sum(g * p)
-            curvature = abs(np.sum(g_new * p)) <= c2 * abs(np.sum(g * p))
 
-            if armijo and curvature:
-                return alpha
-
-            alpha *= 0.5
-
-        return alpha
+        return 
 
     def loadGradient(self):
         gradientFile = f"{self.pmt.migratedimageFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
@@ -76,16 +76,6 @@ class fwi:
         seismogramFile = f"{self.pmt.seismogramFolder}seismogram_obs_shot_{shot+1}_Nt{self.pmt.nt}_Nrec{self.pmt.Nrec}.bin"
         seismogram = np.fromfile(seismogramFile, dtype=np.float32).reshape(self.pmt.nt,self.pmt.Nrec) 
         return seismogram
-    
-    def loadCalcSeismogram(self,shot):
-        seismogramFile = f"{self.pmt.seismogramFolder}seismogram_shot_{shot+1}_Nt{self.pmt.nt}_Nrec{self.pmt.Nrec}.bin"
-        seismogram = np.fromfile(seismogramFile, dtype=np.float32).reshape(self.pmt.nt,self.pmt.Nrec) 
-        return seismogram
-    
-    def save_residual(self,shot,residual):        
-        self.seismogramFile = f"{self.pmt.seismogramFolder}residual_shot_{shot+1}_Nt{self.pmt.nt}_Nrec{self.pmt.Nrec}.bin"
-        residual.tofile(self.seismogramFile)
-        print(f"info: Residuo saved to {self.seismogramFile}")
 
     def solveFullWaveformInversion(self):
         start_time = time.time()
