@@ -1,5 +1,5 @@
 {
-    "unit": "CPU",
+    "unit": "GPU",
     "approximation": "acoustic",
     "migration": "onthefly",
     "ABC": "cerjan",

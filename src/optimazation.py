@@ -4,10 +4,17 @@ import matplotlib.pyplot as plt
 def f(x):
     return (1.0 - x[0])**2 + 100.0 * (x[1] - x[0]**2)**2
 
-def grad(f, x, dh):
-    px = (f([x[0] + dh, x[1]]) - f([x[0] - dh, x[1]]))/ (2.0 * dh)
-    pz = (f([x[0], x[1] + dh]) - f([x[0], x[1] - dh]))/ (2.0 * dh)
-    return np.array([px, pz], dtype=np.float32)
+# def grad(f, x, dh):
+#     px = (f([x[0] + dh, x[1]]) - f([x[0] - dh, x[1]]))/ (2.0 * dh)
+#     pz = (f([x[0], x[1] + dh]) - f([x[0], x[1] - dh]))/ (2.0 * dh)
+#     return np.array([px, pz], dtype=np.float32)
+
+def grad(x):
+    x1 = x[0]
+    x2 = x[1]
+    gx1 = -2.0 * (1.0 - x1) - 400.0 * x1 * (x2 - x1*x1)
+    gx2 = 200.0 * (x2 - x1*x1)
+    return np.array([gx1, gx2], dtype=np.float64)
 
 def updateHessian(H, rho, s, y):
     I = np.eye(2, dtype=np.float32)
@@ -25,7 +32,7 @@ def line_search(f, x, p, g, dh):
     for _ in range(max):
         x_new = x + alpha * p
         f_new = f(x_new)
-        g_new = grad(f, x_new, dh)
+        g_new = grad(x_new)
 
         armijo = f_new <= fx + c1 * alpha * g.T @ p
         curvature = abs(g_new.T @ p) <= c2 * abs(g.T @ p)
@@ -40,17 +47,17 @@ def line_search(f, x, p, g, dh):
 H = np.eye(2, dtype=np.float32)
 ni = 50
 dh = 1e-6
-x0 = -0.5
-z0 =  0.5
+x0 = -1.5
+z0 = -1.5
 x = np.array([x0, z0], dtype=np.float32)
 history = []
 for _ in range(ni):
-    g = grad(f, x, dh)
+    g = grad(x)
     history.append((x[0], x[1]))
     p = -H @ g
     alpha = line_search(f,x,p,g,dh)
     x_new = x + alpha * p
-    g_new = grad(f, x_new, dh)
+    g_new = grad(x_new)
     s = (x_new - x).reshape(2, 1)
     y = (g_new - g).reshape(2, 1)
     ys = (y.T @ s)[0,0]

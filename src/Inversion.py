@@ -52,22 +52,79 @@ class fwi:
             X += 0.5 * np.sum(self.residual * self.residual)
         return X
 
+    def objective_functionGPU(self, m):
+        X = 0.0
+        self.wf.vp = m      
+        self.wf.source = cp.asarray(self.wf.source, dtype=cp.float32)
+        self.wf.vp_exp = self.wf.ExpandModel(self.wf.vp)
+        self.wf.vp_exp = cp.asarray(self.wf.vp_exp, dtype=cp.float32)
+        if self.pmt.ABC == "cerjan":
+            self.wf.A = self.wf.createCerjanVector()
+            self.wf.A = cp.asarray(self.wf.A, dtype=cp.float32)
+        elif self.pmt.ABC == "CPML":
+            self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
+        if self.pmt.approximation in ["VTI", "TTI"]:
+            self.wf.epsilon_exp = self.wf.ExpandModel(self.wf.epsilon)
+            self.wf.delta_exp = self.wf.ExpandModel(self.wf.delta)
+            self.wf.epsilon_exp  = cp.asarray(self.wf.epsilon_exp, dtype=cp.float32)
+            self.wf.delta_exp  = cp.asarray(self.wf.delta_exp, dtype=cp.float32)
+            if self.pmt.approximation == "TTI":
+                self.wf.theta_exp = self.wf.ExpandModel(self.wf.theta)
+                self.wf.theta_exp  = cp.asarray(self.wf.theta_exp, dtype=cp.float32)
+        
+        rx = np.int32(self.pmt.rec_x/self.pmt.dx) + self.pmt.N_abc
+        rz = np.int32(self.pmt.rec_z/self.pmt.dz) + self.pmt.N_abc
+        rx = cp.asarray(rx)
+        rz = cp.asarray(rz)
+        for shot in range(self.pmt.Nshot):
+            dobs = self.loadObsSeismogram(shot)
+            self.wf.reset_field()
+
+            # convert acquisition geometry coordinates to grid points
+            self.wf.sx = int(self.pmt.shot_x[shot]/self.pmt.dx) + self.pmt.N_abc
+            self.wf.sz = int(self.pmt.shot_z[shot]/self.pmt.dz) + self.pmt.N_abc           
+            for k in range(self.pmt.nt): 
+                self.wf.forward_stepGPU(k)
+                # Register seismogram and snapshot
+                self.wf.store_seismogram(k,rz,rx)      
+                #swap
+                self.wf.current, self.wf.future = self.wf.future, self.wf.current
+
+            self.residual = self.wf.seismogram - dobs
+            self.save_residual(shot,self.residual)
+            # import matplotlib.pyplot as plt
+            # plt.figure()
+            # plt.imshow(residual, aspect='auto',label = "residual" )
+            # plt.figure()
+            # plt.imshow(dcal,aspect='auto',label = "dcal")
+            # plt.figure()
+            # plt.imshow(dobs,aspect='auto',label = "dobs")
+            # plt.show()
+            X += 0.5 * np.sum(self.residual * self.residual)
+        return X
+
     def calculate_gradient(self, m):
         grad = np.zeros_like(self.wf.vp)
         self.wf.vp = m
         self.mig.SolveBackwardWaveEquation()
         grad = self.loadGradient()
-        grad = grad / np.max(np.abs(grad))
         return grad
 
     def cubic_interpolation(self,m,p, max):
         alpha_initial = 0.0
-        X_initial = self.objective_function(m + alpha_initial * p)
+        if self.pmt.unit == "CPU":
+            X_initial = self.objective_function(m + alpha_initial * p)
+        else:
+            X_initial = self.objective_functionGPU(m + alpha_initial * p)
+
         g_initial = self.calculate_gradient(m + alpha_initial * p)
         dX_initial = np.sum(g_initial * p)
 
         alpha_current = 1.0
-        X_current = self.objective_function(m + alpha_current * p)
+        if self.pmt.unit == "CPU":
+            X_current = self.objective_function(m + alpha_current * p)
+        else:
+            X_current = self.objective_functionGPU(m + alpha_current * p)
         g_current = self.calculate_gradient(m + alpha_current * p)
         dX_current = np.sum(g_current * p)
 
@@ -78,7 +135,10 @@ class fwi:
             d2 = np.sign(alpha_current - alpha_initial) * np.sqrt(d1*d1 - dX_initial*dX_current)
             alpha_new = alpha_current - (alpha_current - alpha_initial)*(dX_current + d2 + d1)/(dX_current - dX_initial + 2.0 *d2)
 
-            X_new = self.objective_function(m + alpha_new * p)
+            if self.pmt.unit == "CPU":
+                X_new = self.objective_function(m + alpha_new * p)
+            else:
+                X_new = self.objective_functionGPU(m + alpha_new * p)
             g_new = self.calculate_gradient(m + alpha_new * p)
             dX_new = np.sum(g_new * p)
 
@@ -131,7 +191,11 @@ class fwi:
             print(f"info: FWI iteration {itr + 1}/{self.pmt.niter}")
 
             # Gradiente e função objetivo no modelo atual
-            fx = self.objective_function(m)
+            if self.pmt.unit == "CPU":
+                self.objective_function(m)
+            else:
+                self.objective_functionGPU(m)
+            
             g = self.calculate_gradient(m)
             
             # Salvar gradiente da iteração atual
