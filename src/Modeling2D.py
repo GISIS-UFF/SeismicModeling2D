@@ -411,11 +411,11 @@ class wavefield:
         print(f"info: Wave equation solved")
     
 
-    def SolveBackwardWaveEquation(self):
-        if pmt.unit == "CPU":
-            wf.solveWaveEquation()
-        elif pmt.unit == "GPU":
-            wf.solveWaveEquationGPU()
+    def SolveWaveEquation(self):
+        if self.pmt.unit == "CPU":
+            self.solveWaveEquation()
+        elif self.pmt.unit == "GPU":
+            self.solveWaveEquationGPU()
         else:
             raise ValueError("Unknown migration method. Choose 'CPU' or 'GPU'.")
         print(f"info: Migration solved")
