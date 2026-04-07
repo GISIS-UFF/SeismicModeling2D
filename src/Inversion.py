@@ -49,7 +49,7 @@ class fwi:
             # plt.figure()
             # plt.imshow(dobs,aspect='auto',label = "dobs")
             # plt.show()
-            X += 0.5 * np.sum(self.residual * self.residual)
+            X += np.sum(self.residual * self.residual)
         return X
 
     def objective_functionGPU(self, m):
@@ -100,7 +100,7 @@ class fwi:
             # plt.figure()
             # plt.imshow(dobs,aspect='auto',label = "dobs")
             # plt.show()
-            X += 0.5 * np.sum(self.residual * self.residual)
+            X += np.sum(self.residual * self.residual)
         return X
 
     def calculate_gradient(self, m):
@@ -109,52 +109,28 @@ class fwi:
         self.mig.SolveBackwardWaveEquation()
         grad = self.loadGradient()
         return grad
+    
+
 
     def cubic_interpolation(self,m,p, max):
-        alpha_initial = 0.0
+        vmin = np.min(self.m0)
+        vmax = np.max(self.m0)
+        dm = (vmin*vmin) - (vmax*vmax)
+        alpha0 = 0.0 * dm
+        alpha1 = 0.02 * dm
+        alpha2 = 0.05 * dm
         if self.pmt.unit == "CPU":
-            X_initial = self.objective_function(m + alpha_initial * p)
+            X0 = self.objective_function(m + alpha0 * p)
+            X1 = self.objective_function(m + alpha1 * p)
+            X2 = self.objective_function(m + alpha2 * p)
         else:
-            X_initial = self.objective_functionGPU(m + alpha_initial * p)
+            X0 = self.objective_functionGPU(m + alpha0 * p)
+            X1 = self.objective_functionGPU(m + alpha1 * p)
+            X2 = self.objective_functionGPU(m + alpha2 * p)
+        
 
-        g_initial = self.calculate_gradient(m + alpha_initial * p)
-        dX_initial = np.sum(g_initial * p)
 
-        alpha_current = 1.0
-        if self.pmt.unit == "CPU":
-            X_current = self.objective_function(m + alpha_current * p)
-        else:
-            X_current = self.objective_functionGPU(m + alpha_current * p)
-        g_current = self.calculate_gradient(m + alpha_current * p)
-        dX_current = np.sum(g_current * p)
-
-        c1 = 1e-4
-        c2 = 0.9
-        for _ in range(max):
-            d1 = dX_initial + dX_current - 3*(X_initial - X_current)/(alpha_initial - alpha_current)
-            d2 = np.sign(alpha_current - alpha_initial) * np.sqrt(d1*d1 - dX_initial*dX_current)
-            alpha_new = alpha_current - (alpha_current - alpha_initial)*(dX_current + d2 + d1)/(dX_current - dX_initial + 2.0 *d2)
-
-            if self.pmt.unit == "CPU":
-                X_new = self.objective_function(m + alpha_new * p)
-            else:
-                X_new = self.objective_functionGPU(m + alpha_new * p)
-            g_new = self.calculate_gradient(m + alpha_new * p)
-            dX_new = np.sum(g_new * p)
-
-            armijo = X_new <= X_initial + c1 * alpha_new * dX_initial
-            curvature = abs(dX_new) <= c2 * abs(dX_initial)
-
-            if armijo and curvature:
-                return alpha_new
-
-            alpha_initial = alpha_current
-            X_initial = X_current
-            dX_initial = dX_current
-
-            alpha_current = alpha_new
-            X_current = X_new
-            dX_current = dX_new
+            
 
         return alpha_current
 
@@ -179,7 +155,8 @@ class fwi:
         print("info: Solving Full Waveform Inversion")
 
         # Modelo inicial
-        m = smooth_model(self.wf.vp, self.pmt.sigma).copy()
+        self.m0 = smooth_model(self.wf.vp, self.pmt.sigma).copy()
+        m = self.m0
         final_model_file = (f"{self.pmt.modelFolder}fwi_vp_smooth_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
         m.astype(np.float32).tofile(final_model_file)
         import matplotlib.pyplot as plt
