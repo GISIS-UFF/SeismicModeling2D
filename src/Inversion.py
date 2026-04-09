@@ -43,13 +43,13 @@ class fwi:
             self.save_residual(shot,self.residual)
             # import matplotlib.pyplot as plt
             # plt.figure()
-            # plt.imshow(residual, aspect='auto',label = "residual" )
+            # plt.imshow(self.residual, aspect='auto',label = "residual" )
             # plt.figure()
-            # plt.imshow(dcal,aspect='auto',label = "dcal")
+            # plt.imshow(self.wf.seismogram,aspect='auto',label = "dcal")
             # plt.figure()
             # plt.imshow(dobs,aspect='auto',label = "dobs")
             # plt.show()
-            X += np.sum(self.residual * self.residual)
+            X += 0.5 * np.sum(self.residual * self.residual)
         return X
 
     def objective_functionGPU(self, m):
@@ -89,18 +89,19 @@ class fwi:
                 self.wf.store_seismogram(k,rz,rx)      
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
-
-            self.residual = self.wf.seismogram - dobs
+           
+            self.seismogram = cp.asnumpy(self.wf.seismogram_gpu)
+            self.residual = self.seismogram - dobs
             self.save_residual(shot,self.residual)
             # import matplotlib.pyplot as plt
             # plt.figure()
-            # plt.imshow(residual, aspect='auto',label = "residual" )
+            # plt.imshow(self.residual, aspect='auto',label = "residual" )
             # plt.figure()
-            # plt.imshow(dcal,aspect='auto',label = "dcal")
+            # plt.imshow(self.seismogram,aspect='auto',label = "dcal")
             # plt.figure()
             # plt.imshow(dobs,aspect='auto',label = "dobs")
             # plt.show()
-            X += np.sum(self.residual * self.residual)
+            X += 0.5 * np.sum(self.residual * self.residual)
         return X
 
     def calculate_gradient(self, m):
@@ -110,14 +111,12 @@ class fwi:
         grad = self.loadGradient()
         return grad
     
-
-
-    def cubic_interpolation(self,m,p, max):
-        vmin = np.min(self.m0)
-        vmax = np.max(self.m0)
-        dm = (vmin*vmin) - (vmax*vmax)
+    def stepsearch(self,m,p):
+        vmax = np.max(np.abs(self.m0)) 
+        vmin = np.min(np.abs(self.m0))
+        dm = (1.0/(vmin*vmin))-(1.0/(vmax*vmax))
         alpha0 = 0.0 * dm
-        alpha1 = 0.02 * dm
+        alpha1 = 0.01 * dm
         alpha2 = 0.05 * dm
         if self.pmt.unit == "CPU":
             X0 = self.objective_function(m + alpha0 * p)
@@ -128,11 +127,13 @@ class fwi:
             X1 = self.objective_functionGPU(m + alpha1 * p)
             X2 = self.objective_functionGPU(m + alpha2 * p)
         
+        
+        num = (alpha1*alpha1 - alpha2*alpha2)*X0 + (alpha2*alpha2 - alpha0*alpha0)*X1 + (alpha0*alpha0 - alpha1*alpha1)*X2   
+        den = (alpha1 - alpha2)*X0 + (alpha2 - alpha0)*X1 + (alpha0 - alpha1)*X2
 
+        alpha_new = 0.5*(num / den)
 
-            
-
-        return alpha_current
+        return alpha_new
 
     def loadGradient(self):
         gradientFile = f"{self.pmt.migratedimageFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
@@ -159,13 +160,13 @@ class fwi:
         m = self.m0
         final_model_file = (f"{self.pmt.modelFolder}fwi_vp_smooth_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
         m.astype(np.float32).tofile(final_model_file)
-        import matplotlib.pyplot as plt
-        plt.figure()
-        plt.imshow(m)
-        plt.show()
+        # import matplotlib.pyplot as plt
+        # plt.figure()
+        # plt.imshow(m)
+        # plt.show()
 
         for itr in range(self.pmt.niter):
-            print(f"info: FWI iteration {itr + 1}/{self.pmt.niter}")
+            print(f"\033[31minfo: FWI iteration {itr + 1}/{self.pmt.niter}\033[0m")
 
             # Gradiente e função objetivo no modelo atual
             if self.pmt.unit == "CPU":
@@ -184,7 +185,8 @@ class fwi:
             p = -g
 
             # Line search
-            alpha = self.cubic_interpolation(m,p, 1)
+            alpha = self.stepsearch(m,p)
+            print("alpha=",alpha)
 
             # Atualização do modelo
             m = m + alpha * p

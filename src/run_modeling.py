@@ -9,10 +9,7 @@ wavefield.createSourceWavelet()
 wavefield.initializeWavefields()
 wavefield.loadModels()
 wavefield.checkDispersionAndStability()
-if pmt.unit == "CPU":
-    wavefield.solveWaveEquation()
-else:
-    wavefield.solveWaveEquationGPU()
+wavefield.SolveWaveEquation()
 
 
 
