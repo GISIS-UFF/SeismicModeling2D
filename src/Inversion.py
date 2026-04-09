@@ -49,7 +49,7 @@ class fwi:
             # plt.figure()
             # plt.imshow(dobs,aspect='auto',label = "dobs")
             # plt.show()
-            X += 0.5 * np.sum(self.residual * self.residual)
+            X += 0.5 * np.sum(self.residual * self.residual)*self.pmt.dt
         return X
 
     def objective_functionGPU(self, m):
@@ -101,7 +101,7 @@ class fwi:
             # plt.figure()
             # plt.imshow(dobs,aspect='auto',label = "dobs")
             # plt.show()
-            X += 0.5 * np.sum(self.residual * self.residual)
+            X += 0.5 * np.sum(self.residual * self.residual)*self.pmt.dt
         return X
 
     def calculate_gradient(self, m):
@@ -111,30 +111,56 @@ class fwi:
         grad = self.loadGradient()
         return grad
     
-    def stepsearch(self,m,p):
-        vmax = np.max(np.abs(self.m0)) 
-        vmin = np.min(np.abs(self.m0))
-        dm = (1.0/(vmin*vmin))-(1.0/(vmax*vmax))
-        alpha0 = 0.0 * dm
-        alpha1 = 0.01 * dm
-        alpha2 = 0.05 * dm
+    def stepsearch(self, m, p):
+        vmax = np.max(np.abs(m))
+
+        alpha0 = 0.0
+        alpha1 = 0.001 * vmax * vmax
+        alpha2 = 0.005 * vmax * vmax
+
+        m0 = m + alpha0 * p
+        m1 = m + alpha1 * p
+        m2 = m + alpha2 * p
+
         if self.pmt.unit == "CPU":
-            X0 = self.objective_function(m + alpha0 * p)
-            X1 = self.objective_function(m + alpha1 * p)
-            X2 = self.objective_function(m + alpha2 * p)
+            X0 = self.objective_function(m0)
+            X1 = self.objective_function(m1)
+            X2 = self.objective_function(m2)
         else:
-            X0 = self.objective_functionGPU(m + alpha0 * p)
-            X1 = self.objective_functionGPU(m + alpha1 * p)
-            X2 = self.objective_functionGPU(m + alpha2 * p)
-        
-        
-        num = (alpha1*alpha1 - alpha2*alpha2)*X0 + (alpha2*alpha2 - alpha0*alpha0)*X1 + (alpha0*alpha0 - alpha1*alpha1)*X2   
+            X0 = self.objective_functionGPU(m0)
+            X1 = self.objective_functionGPU(m1)
+            X2 = self.objective_functionGPU(m2)
+
+        print("X0 =", X0)
+        print("X1 =", X1)
+        print("X2 =", X2)
+
+        if (not np.isfinite(X0)) or (not np.isfinite(X1)) or (not np.isfinite(X2)):
+            print("warning: funcao objetivo invalida")
+            return alpha1
+
+        if not (X1 <= X0 and X1 <= X2):
+            print("warning: pontos nao sao validos para interpolacao parabolica")
+            return alpha1
+
+        num = (alpha1*alpha1 - alpha2*alpha2)*X0 + (alpha2*alpha2 - alpha0*alpha0)*X1 + (alpha0*alpha0 - alpha1*alpha1)*X2
         den = (alpha1 - alpha2)*X0 + (alpha2 - alpha0)*X1 + (alpha0 - alpha1)*X2
 
-        alpha_new = 0.5*(num / den)
+        print("num =", num)
+        print("den =", den)
+
+        if den == 0.0 or not np.isfinite(den):
+            print("warning: denominador invalido")
+            return alpha1
+
+        alpha_new = 0.5 * (num / den)
+
+        if (not np.isfinite(alpha_new)) or (alpha_new <= alpha0) or (alpha_new >= alpha2):
+            print("warning: alpha_new fora da faixa, usando alpha1")
+            return alpha1
 
         return alpha_new
-
+    
     def loadGradient(self):
         gradientFile = f"{self.pmt.migratedimageFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
         grad = np.fromfile(gradientFile, dtype=np.float32).reshape(self.pmt.nz, self.pmt.nx)
@@ -156,8 +182,8 @@ class fwi:
         print("info: Solving Full Waveform Inversion")
 
         # Modelo inicial
-        self.m0 = smooth_model(self.wf.vp, self.pmt.sigma).copy()
-        m = self.m0
+        # self.m0 = smooth_model(self.wf.vp, self.pmt.sigma).copy()
+        m = self.wf.vp
         final_model_file = (f"{self.pmt.modelFolder}fwi_vp_smooth_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
         m.astype(np.float32).tofile(final_model_file)
         # import matplotlib.pyplot as plt
@@ -175,6 +201,7 @@ class fwi:
                 self.objective_functionGPU(m)
             
             g = self.calculate_gradient(m)
+            g = g/np.max(np.abs(g))
             
             # Salvar gradiente da iteração atual
             gradient_file = (f"{self.pmt.migratedimageFolder}gradient_fwi_iter_{itr+1}_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
