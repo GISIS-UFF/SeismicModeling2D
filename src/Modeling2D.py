@@ -27,7 +27,7 @@ class wavefield:
     def createSourceWavelet(self):
         # Create Ricker wavelet
         self.source = ricker(self.pmt.fcut, self.pmt.t, self.pmt.tlag)
-        self.source = self.source * (self.pmt.dt * self.pmt.dt)/(self.pmt.dx*self.pmt.dz)
+        self.source = self.source * 1/(self.pmt.dx*self.pmt.dz) 
         print(f"info: Ricker Source wavelet created: {self.pmt.nt} samples")
         
     def ImportModel(self, filename):
@@ -298,27 +298,27 @@ class wavefield:
         
     def forward_stepGPU(self, k):
         if self.pmt.approximation == "acoustic" and self.pmt.ABC == "cerjan":
-            self.current[self.sz,self.sx] += self.source[k]
+            self.current[self.sz,self.sx] += self.source[k] * (self.vp_exp[self.sz, self.sx]**2) * (self.pmt.dt**2) /(self.pmt.dx*self.pmt.dz)
             updateWaveEquationGPU(self.future, self.current, self.vp_exp, self.pmt.nz_abc, self.pmt.nx_abc, self.pmt.dz, self.pmt.dx, self.pmt.dt)
             # Apply absorbing boundary condition
             self.future, self.current = AbsorbingBoundaryGPU(self.future,self.current,self.pmt.N_abc,self.pmt.nx_abc,self.pmt.nz_abc, self.A)
         elif self.pmt.approximation == "acoustic" and self.pmt.ABC == "CPML":
-            self.current[self.sz,self.sx] += self.source[k]
+            self.current[self.sz,self.sx] += self.source[k] * (self.vp_exp[self.sz, self.sx]**2) * (self.pmt.dt**2)
             updatePsiGPU(self.PsixFR, self.PsixFL,self.PsizFU, self.PsizFD, self.pmt.nx_abc, self.pmt.nz_abc, self.current, self.pmt.dx, self.pmt.dz, self.pmt.N_abc, self.f_pico, self.d0, self.pmt.dt, self.vp_exp)
             updateZetaGPU(self.PsixFR, self.PsixFL, self.ZetaxFR, self.ZetaxFL,self.PsizFU, self.PsizFD, self.ZetazFU, self.ZetazFD, self.pmt.nx_abc, self.pmt.nz_abc, self.current, self.pmt.dx,self.pmt.dz, self.pmt.N_abc, self.f_pico, self.d0, self.pmt.dt, self.vp_exp)
             updateWaveEquationCPMLGPU(self.future, self.current, self.vp_exp, self.pmt.nx_abc, self.pmt.nz_abc, self.pmt.dz, self.pmt.dx, self.pmt.dt, self.PsixFR, self.PsixFL, self.PsizFU, self.PsizFD, self.ZetaxFR, self.ZetaxFL, self.ZetazFU, self.ZetazFD, self.pmt.N_abc)             
         elif self.pmt.approximation == "VTI" and self.pmt.ABC == "cerjan":
-            self.current[self.sz,self.sx] += self.source[k]
+            self.current[self.sz,self.sx] += self.source[k] * (self.vp_exp[self.sz, self.sx]**2) * (self.pmt.dt**2)
             updateWaveEquationVTIGPU(self.future, self.current, self.pmt.nx_abc, self.pmt.nz_abc, self.pmt.dt, self.pmt.dx, self.pmt.dz, self.vp_exp, self.epsilon_exp, self.delta_exp)
             # Apply absorbing boundary condition
             self.future, self.current = AbsorbingBoundaryGPU(self.future,self.current,self.pmt.N_abc,self.pmt.nx_abc,self.pmt.nz_abc, self.A)
         elif self.pmt.approximation == "VTI" and self.pmt.ABC == "CPML":
-            self.current[self.sz,self.sx] += self.source[k]
+            self.current[self.sz,self.sx] += self.source[k] * (self.vp_exp[self.sz, self.sx]**2) * (self.pmt.dt**2)
             updatePsiGPU(self.PsixFR, self.PsixFL,self.PsizFU, self.PsizFD, self.pmt.nx_abc, self.pmt.nz_abc, self.current, self.pmt.dx, self.pmt.dz, self.pmt.N_abc, self.f_pico, self.d0, self.pmt.dt, self.vp_exp)
             updateZetaGPU(self.PsixFR, self.PsixFL, self.ZetaxFR, self.ZetaxFL,self.PsizFU, self.PsizFD, self.ZetazFU, self.ZetazFD, self.pmt.nx_abc, self.pmt.nz_abc, self.current, self.pmt.dx,self.pmt.dz, self.pmt.N_abc, self.f_pico, self.d0, self.pmt.dt, self.vp_exp)
             updateWaveEquationVTICPMLGPU(self.future, self.current, self.pmt.dt, self.pmt.dx, self.pmt.dz, self.vp_exp, self.epsilon_exp, self.delta_exp,self.pmt.nx_abc, self.pmt.nz_abc, self.PsixFR, self.PsixFL, self.PsizFU, self.PsizFD, self.ZetaxFR, self.ZetaxFL, self.ZetazFU, self.ZetazFD, self.pmt.N_abc)             
         elif self.pmt.approximation == "TTI" and self.pmt.ABC == "cerjan":
-            self.current[self.sz,self.sx] += self.source[k]
+            self.current[self.sz,self.sx] += self.source[k] * (self.vp_exp[self.sz, self.sx]**2) * (self.pmt.dt**2)
             updateWaveEquationTTIGPU(self.future, self.current, self.pmt.nx_abc, self.pmt.nz_abc, self.pmt.dt, self.pmt.dx, self.pmt.dz, self.vp_exp, self.epsilon_exp, self.delta_exp,self.theta_exp)
             # Apply absorbing boundary condition
             self.future, self.current = AbsorbingBoundaryGPU(self.future,self.current,self.pmt.N_abc,self.pmt.nx_abc,self.pmt.nz_abc, self.A)

@@ -557,7 +557,7 @@ class migration:
         self.rx = np.int32(self.pmt.rec_x/self.pmt.dx) + self.pmt.N_abc
         self.rz = np.int32(self.pmt.rec_z/self.pmt.dz) + self.pmt.N_abc
         save_field = np.zeros([self.pmt.nt,self.pmt.nz,self.pmt.nx],dtype=np.float32)
-        self.stop = int(self.pmt.tlag/self.pmt.dt)
+        self.stop = int(2*self.pmt.tlag/self.pmt.dt)
         for shot in range(self.pmt.Nshot):
             print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
 
@@ -625,7 +625,7 @@ class migration:
         
         self.rx = np.int32(self.pmt.rec_x/self.pmt.dx) + self.pmt.N_abc
         self.rz = np.int32(self.pmt.rec_z/self.pmt.dz) + self.pmt.N_abc
-        self.stop = int(self.pmt.tlag/self.pmt.dt)
+        self.stop = int(2*self.pmt.tlag/self.pmt.dt)
         for shot in range(self.pmt.Nshot):
             print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
             self.reset_field()
@@ -698,7 +698,7 @@ class migration:
 
         self.rx = np.int32(self.pmt.rec_x/self.pmt.dx) + self.pmt.N_abc
         self.rz = np.int32(self.pmt.rec_z/self.pmt.dz) + self.pmt.N_abc
-        self.stop = int(self.pmt.tlag/self.pmt.dt)
+        self.stop = int(2*self.pmt.tlag/self.pmt.dt)
         for shot in range(self.pmt.Nshot):
             print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
             self.reset_field()
@@ -769,7 +769,7 @@ class migration:
 
         self.rx = np.int32(self.pmt.rec_x/self.pmt.dx) + self.pmt.N_abc
         self.rz = np.int32(self.pmt.rec_z/self.pmt.dz) + self.pmt.N_abc
-        self.stop = int(self.pmt.tlag/self.pmt.dt)
+        self.stop = int(2*self.pmt.tlag/self.pmt.dt)
         for shot in range(self.pmt.Nshot):
             print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
             self.reset_field()
@@ -850,7 +850,7 @@ class migration:
         self.rx = cp.asarray(self.rx)
         self.rz = cp.asarray(self.rz)
         save_field = cp.zeros([self.pmt.nt,self.pmt.nz,self.pmt.nx],dtype=np.float32)
-        self.stop = int(self.pmt.tlag/self.pmt.dt)
+        self.stop = int(2*self.pmt.tlag/self.pmt.dt)
         for shot in range(self.pmt.Nshot):
             print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
             self.reset_field()
@@ -886,7 +886,7 @@ class migration:
                 #swap
                 self.currentbck, self.futurebck = self.futurebck, self.currentbck
 
-            self.migrated_image += self.migrated_partial 
+            self.migrated_image += self.migrated_partial / (self.ilum)
             self.wf.save_snapshotGPU(shot)
             self.save_snapshotBCKGPU(shot)
             self.save_imageGPU(shot)
@@ -928,7 +928,7 @@ class migration:
         self.rz = np.int32(self.pmt.rec_z/self.pmt.dz) + self.pmt.N_abc
         self.rx = cp.asarray(self.rx)
         self.rz = cp.asarray(self.rz)
-        self.stop = int(self.pmt.tlag/self.pmt.dt)
+        self.stop = int(2*self.pmt.tlag/self.pmt.dt)
         for shot in range(self.pmt.Nshot):
             print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
             self.reset_field()
@@ -1013,7 +1013,7 @@ class migration:
         self.rz = np.int32(self.pmt.rec_z/self.pmt.dz) + self.pmt.N_abc
         self.rx = cp.asarray(self.rx)
         self.rz = cp.asarray(self.rz)
-        self.stop = int(self.pmt.tlag/self.pmt.dt)
+        self.stop = int(2*self.pmt.tlag/self.pmt.dt)
         for shot in range(self.pmt.Nshot):
             print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
             self.reset_field()
@@ -1094,7 +1094,7 @@ class migration:
         self.rz = np.int32(self.pmt.rec_z/self.pmt.dz) + self.pmt.N_abc
         self.rx = cp.asarray(self.rx)
         self.rz = cp.asarray(self.rz)
-        self.stop = int(self.pmt.tlag/self.pmt.dt)
+        self.stop = int(2*self.pmt.tlag/self.pmt.dt)
         for shot in range(self.pmt.Nshot):
             print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
             self.reset_field()

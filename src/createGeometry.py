@@ -13,9 +13,9 @@ sIdx = np.arange(Nsource)
 # receivers
 rx_init = 0
 rx_end = 2000
-Nrec = 170
+Nrec = 200
 rx = np.linspace(rx_init,rx_end,Nrec)
-rz = 2000*np.ones(len(rx))
+rz = 50*np.ones(len(rx))
 rIdx = np.arange(Nrec)
 
 plt.figure()

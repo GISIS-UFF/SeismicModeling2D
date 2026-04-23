@@ -9,7 +9,7 @@ class fwi:
         self.wf = wavefield
         self.mig = migration
 
-    def objective_function(self, m):
+    def objective_function(self, m,save_residual):
         X = 0.0
         self.wf.vp = m 
         self.wf.vp_exp = self.wf.ExpandModel(self.wf.vp)
@@ -39,20 +39,13 @@ class fwi:
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
 
-            self.residual = self.wf.seismogram - dobs
-            self.save_residual(shot,self.residual)
-            # import matplotlib.pyplot as plt
-            # plt.figure()
-            # plt.imshow(self.residual, aspect='auto',label = "residual" )
-            # plt.figure()
-            # plt.imshow(self.wf.seismogram,aspect='auto',label = "dcal")
-            # plt.figure()
-            # plt.imshow(dobs,aspect='auto',label = "dobs")
-            # plt.show()
-            X += 0.5 * np.sum(self.residual * self.residual)*self.pmt.dt
+            residual = dobs - self.wf.seismogram 
+            if save_residual==True:
+                self.save_residual(shot,residual)
+            X += 0.5 * np.sum(residual * residual)
         return X
 
-    def objective_functionGPU(self, m):
+    def objective_functionGPU(self, m, save_residual):
         X = 0.0
         self.wf.vp = m      
         self.wf.source = cp.asarray(self.wf.source, dtype=cp.float32)
@@ -91,75 +84,72 @@ class fwi:
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
            
             self.seismogram = cp.asnumpy(self.wf.seismogram_gpu)
-            self.residual = self.seismogram - dobs
-            self.save_residual(shot,self.residual)
-            # import matplotlib.pyplot as plt
-            # plt.figure()
-            # plt.imshow(self.residual, aspect='auto',label = "residual" )
-            # plt.figure()
-            # plt.imshow(self.seismogram,aspect='auto',label = "dcal")
-            # plt.figure()
-            # plt.imshow(dobs,aspect='auto',label = "dobs")
-            # plt.show()
-            X += 0.5 * np.sum(self.residual * self.residual)*self.pmt.dt
+            residual = dobs - self.seismogram
+            if save_residual==True:
+                self.save_residual(shot,residual) 
+            X += 0.5 * np.sum(residual * residual)
         return X
 
     def calculate_gradient(self, m):
-        grad = np.zeros_like(self.wf.vp)
+        grad = np.zeros_like(m)
         self.wf.vp = m
         self.mig.SolveBackwardWaveEquation()
         grad = self.loadGradient()
         return grad
     
-    def stepsearch(self, m, p):
-        vmax = np.max(np.abs(m))
+    # def stepsearch(self, m, p, g, X0):
+    #     vmax = np.max(m)
+    #     alpha = 0.01*vmax
+    #     c1 = 1e-4
+    #     gTp = np.sum(g * p)
+    #     for _ in range(10):
+    #         m_new = m + alpha * p
 
-        alpha0 = 0.0
-        alpha1 = 0.001 * vmax * vmax
-        alpha2 = 0.005 * vmax * vmax
+    #         if self.pmt.unit == "CPU":
+    #             X_new = self.objective_function(m_new,save_residual = False)
+    #         else:
+    #             X_new = self.objective_functionGPU(m_new,save_residual = False)
+                
+    #         print("gTp",gTp)
+    #         print("X0",X0)    
+    #         print("X_new",X_new)
+    #         print("alpha",alpha)
+    #         print(X0 + c1 * alpha * gTp)
+            
+    #         if X_new <= X0 + c1 * alpha * gTp:
+    #             return alpha
 
-        m0 = m + alpha0 * p
-        m1 = m + alpha1 * p
-        m2 = m + alpha2 * p
+    #         alpha *= 0.5
+
+    #     return alpha
+
+    def stepsearch(self, m, p, X0):
+        a0 = 0.0
+        a1 = 0.02*(np.max(self.m0) - np.min(self.m0))
+        a2 = 0.05*(np.max(self.m0) - np.min(self.m0))
+
+        m1 = m + a1 * p
+        m2 = m + a2 * p
 
         if self.pmt.unit == "CPU":
-            X0 = self.objective_function(m0)
-            X1 = self.objective_function(m1)
-            X2 = self.objective_function(m2)
+            X1 = self.objective_function(m1,save_residual = False)
+            X2 = self.objective_function(m2,save_residual = False)
         else:
-            X0 = self.objective_functionGPU(m0)
-            X1 = self.objective_functionGPU(m1)
-            X2 = self.objective_functionGPU(m2)
+            X1 = self.objective_functionGPU(m1,save_residual = False)
+            X2 = self.objective_functionGPU(m2,save_residual = False)
 
+        num = (a1*a1 - a2*a2)*X0 + (a2*a2 - a0*a0)*X1 + (a0*a0 - a1*a1)*X2 
+        den = (a1 - a2)*X0 + (a2 - a0)*X1 + (a0 - a1)*X2
+ 
+        print("a1 =", a1, "a2 =", a2)
         print("X0 =", X0)
         print("X1 =", X1)
         print("X2 =", X2)
-
-        if (not np.isfinite(X0)) or (not np.isfinite(X1)) or (not np.isfinite(X2)):
-            print("warning: funcao objetivo invalida")
-            return alpha1
-
-        if not (X1 <= X0 and X1 <= X2):
-            print("warning: pontos nao sao validos para interpolacao parabolica")
-            return alpha1
-
-        num = (alpha1*alpha1 - alpha2*alpha2)*X0 + (alpha2*alpha2 - alpha0*alpha0)*X1 + (alpha0*alpha0 - alpha1*alpha1)*X2
-        den = (alpha1 - alpha2)*X0 + (alpha2 - alpha0)*X1 + (alpha0 - alpha1)*X2
-
         print("num =", num)
         print("den =", den)
+        alpha = 0.5*(num / den)
 
-        if den == 0.0 or not np.isfinite(den):
-            print("warning: denominador invalido")
-            return alpha1
-
-        alpha_new = 0.5 * (num / den)
-
-        if (not np.isfinite(alpha_new)) or (alpha_new <= alpha0) or (alpha_new >= alpha2):
-            print("warning: alpha_new fora da faixa, usando alpha1")
-            return alpha1
-
-        return alpha_new
+        return alpha
     
     def loadGradient(self):
         gradientFile = f"{self.pmt.migratedimageFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
@@ -173,58 +163,57 @@ class fwi:
 
     def save_residual(self,shot,residual):        
         self.seismogramFile = f"{self.pmt.seismogramFolder}residual_shot_{shot+1}_Nt{self.pmt.nt}_Nrec{self.pmt.Nrec}.bin"
-        self.residual.tofile(self.seismogramFile)
         residual.tofile(self.seismogramFile)
         print(f"info: Residuo saved to {self.seismogramFile}")
 
     def solveFullWaveformInversion(self):
         start_time = time.time()
         print("info: Solving Full Waveform Inversion")
-
+        
         # Modelo inicial
-        # self.m0 = smooth_model(self.wf.vp, self.pmt.sigma).copy()
-        m = self.wf.vp
+        self.m0 = smooth_model(self.wf.vp, self.pmt.sigma).copy()
+        m = self.m0
         final_model_file = (f"{self.pmt.modelFolder}fwi_vp_smooth_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
         m.astype(np.float32).tofile(final_model_file)
-        # import matplotlib.pyplot as plt
-        # plt.figure()
-        # plt.imshow(m)
-        # plt.show()
+        import matplotlib.pyplot as plt
+        plt.figure()
+        plt.imshow(m)
+        plt.show()
 
         for itr in range(self.pmt.niter):
             print(f"\033[31minfo: FWI iteration {itr + 1}/{self.pmt.niter}\033[0m")
 
             # Gradiente e função objetivo no modelo atual
             if self.pmt.unit == "CPU":
-                self.objective_function(m)
+                X =self.objective_function(m, save_residual = True)
             else:
-                self.objective_functionGPU(m)
+                X =self.objective_functionGPU(m, save_residual = True)
             
             g = self.calculate_gradient(m)
             g = g/np.max(np.abs(g))
             
             # Salvar gradiente da iteração atual
             gradient_file = (f"{self.pmt.migratedimageFolder}gradient_fwi_iter_{itr+1}_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
-            g.astype(np.float32).tofile(gradient_file)
+            (g).astype(np.float32).tofile(gradient_file)
             print(f"info: Gradient saved to {gradient_file}")
 
             # Direção de busca: steepest descent
             p = -g
+            # p = -g/np.max(np.abs(g)) 
 
             # Line search
-            alpha = self.stepsearch(m,p)
+            alpha = self.stepsearch(m, p, X)
             print("alpha=",alpha)
 
             # Atualização do modelo
             m = m + alpha * p
 
+            model_file = (f"{self.pmt.modelFolder}fwi_vp_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}_itr{itr+1}.bin")
+            m.astype(np.float32).tofile(model_file)
+            print(f"info: Model of {itr+1} iteration saved to {model_file}")
+
         # Atualiza modelo final
         self.wf.vp = m.copy()
-
-        # Salvar modelo final
-        final_model_file = (f"{self.pmt.modelFolder}fwi_vp_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
-        self.wf.vp.astype(np.float32).tofile(final_model_file)
-        print(f"info: Final model saved to {final_model_file}")
 
         end_time = time.time()
         print(f"\ninfo: FWI finished in {end_time - start_time:.2f} s")

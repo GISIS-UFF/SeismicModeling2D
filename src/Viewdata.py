@@ -75,6 +75,7 @@ class plotting:
             if keyword in filename and filename.endswith(".bin"):
                 path = os.path.join(self.pmt.modelFolder, filename)
                 model = np.fromfile(path, dtype=np.float32).reshape(self.pmt.nz,self.pmt.nx)
+                # model = np.fromfile(path, dtype=np.float32).reshape(self.pmt.nx,self.pmt.nz).T
                 fig, ax = plt.subplots(figsize=(10, 5))
                 im = ax.imshow(model, aspect='equal', cmap='jet', extent=[0, self.pmt.L, self.pmt.D, 0])
                 ax.plot(self.pmt.rec_x, self.pmt.rec_z, 'bv', markersize=2, label='Receivers')
