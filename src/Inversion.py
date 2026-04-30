@@ -9,43 +9,7 @@ class fwi:
         self.wf = wavefield
         self.mig = migration
 
-    def objective_function(self, m,save_residual):
-        X = 0.0
-        self.wf.vp = m 
-        self.wf.vp_exp = self.wf.ExpandModel(self.wf.vp)
-        if self.pmt.ABC == "cerjan":
-            self.wf.A = self.wf.createCerjanVector()
-        elif self.pmt.ABC == "CPML":
-            self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
-        if self.pmt.approximation in ["VTI", "TTI"]:
-            self.wf.epsilon_exp = self.wf.ExpandModel(self.wf.epsilon)
-            self.wf.delta_exp = self.wf.ExpandModel(self.wf.delta)
-            if self.pmt.approximation == "TTI":
-                self.wf.theta_exp = self.wf.ExpandModel(self.wf.theta)
-        
-        rx = np.int32(self.pmt.rec_x/self.pmt.dx) + self.pmt.N_abc
-        rz = np.int32(self.pmt.rec_z/self.pmt.dz) + self.pmt.N_abc
-        for shot in range(self.pmt.Nshot):
-            dobs = self.loadObsSeismogram(shot)
-            self.wf.reset_field()
-
-            # convert acquisition geometry coordinates to grid points
-            self.wf.sx = int(self.pmt.shot_x[shot]/self.pmt.dx) + self.pmt.N_abc
-            self.wf.sz = int(self.pmt.shot_z[shot]/self.pmt.dz) + self.pmt.N_abc           
-            for k in range(self.pmt.nt): 
-                self.wf.forward_step(k)
-                # Register seismogram and snapshot
-                self.wf.store_seismogram(k,rz,rx)      
-                #swap
-                self.wf.current, self.wf.future = self.wf.future, self.wf.current
-
-            residual = dobs - self.wf.seismogram 
-            if save_residual==True:
-                self.save_residual(shot,residual)
-            X += 0.5 * np.sum(residual * residual)
-        return X
-
-    def objective_functionGPU(self, m, save_residual):
+    def objective_function(self, m, save_residual):
         X = 0.0
         self.wf.vp = m      
         self.wf.source = cp.asarray(self.wf.source, dtype=cp.float32)
@@ -97,59 +61,93 @@ class fwi:
         grad = self.loadGradient()
         return grad
     
-    # def stepsearch(self, m, p, g, X0):
-    #     vmax = np.max(m)
-    #     alpha = 0.01*vmax
-    #     c1 = 1e-4
-    #     gTp = np.sum(g * p)
-    #     for _ in range(10):
-    #         m_new = m + alpha * p
+    def two_loop_recursion(self,g,s_store,y_store):
+        q = g.copy()
+        alpha = np.zeros(len(s_store))
+        beta = np.zeros(len(s_store))
 
-    #         if self.pmt.unit == "CPU":
-    #             X_new = self.objective_function(m_new,save_residual = False)
-    #         else:
-    #             X_new = self.objective_functionGPU(m_new,save_residual = False)
-                
-    #         print("gTp",gTp)
-    #         print("X0",X0)    
-    #         print("X_new",X_new)
-    #         print("alpha",alpha)
-    #         print(X0 + c1 * alpha * gTp)
-            
-    #         if X_new <= X0 + c1 * alpha * gTp:
-    #             return alpha
+        for i in reversed(range(len(s_store))):
+            s = s_store[i]
+            y = y_store[i]
+            sy = np.sum(s * y)
+            rho = 1.0 / sy
+            alpha[i] = rho * np.sum(s * q)
+            q = q - alpha[i] * y
 
-    #         alpha *= 0.5
+        if len(s_store) > 0:
+            s_last = s_store[-1]
+            y_last = y_store[-1]
 
-    #     return alpha
+            sy = np.sum(s_last * y_last)
+            yy = np.sum(y_last * y_last)
 
-    def stepsearch(self, m, p, X0):
-        a0 = 0.0
-        a1 = 0.02*(np.max(self.m0) - np.min(self.m0))
-        a2 = 0.05*(np.max(self.m0) - np.min(self.m0))
+            gamma = sy / yy
 
-        m1 = m + a1 * p
-        m2 = m + a2 * p
-
-        if self.pmt.unit == "CPU":
-            X1 = self.objective_function(m1,save_residual = False)
-            X2 = self.objective_function(m2,save_residual = False)
         else:
-            X1 = self.objective_functionGPU(m1,save_residual = False)
-            X2 = self.objective_functionGPU(m2,save_residual = False)
-
-        num = (a1*a1 - a2*a2)*X0 + (a2*a2 - a0*a0)*X1 + (a0*a0 - a1*a1)*X2 
-        den = (a1 - a2)*X0 + (a2 - a0)*X1 + (a0 - a1)*X2
+            gamma = 1.0
  
-        print("a1 =", a1, "a2 =", a2)
-        print("X0 =", X0)
-        print("X1 =", X1)
-        print("X2 =", X2)
-        print("num =", num)
-        print("den =", den)
-        alpha = 0.5*(num / den)
+        r = gamma * q
 
-        return alpha
+        for i in range(len(s_store)):
+            s = s_store[i]
+            y = y_store[i]
+            sy = np.sum(s * y)
+            rho = 1.0 / sy
+            beta[i] = rho * np.sum(y * r)
+            r = r + s * (alpha[i] - beta[i])
+
+        return r
+    
+    def step_length(self, m, p, g, X0):
+        c1 = 1e-4
+        c2 = 0.9
+        gTp0 = np.sum(g * p)
+        alpha = 0.01 * np.max(m)
+        lo = 0.0
+        hi = None
+        best_alpha = 0.0
+        best_X = X0
+        for _ in range(10):
+            m_new = m + alpha * p
+            X_new = self.objective_function(m_new, save_residual=True)
+            g_new = self.calculate_gradient(m_new)
+            gTp_new = np.sum(g_new * p)
+            armijo = X_new <= X0 + c1 * alpha * gTp0
+            curvature = abs(gTp_new) <= c2 * abs(gTp0)
+
+            print("alpha =", alpha)
+            print("X0 =", X0)
+            print("X_new =", X_new)
+            print("gTp0 =", gTp0)
+            print("gTp_new =", gTp_new)
+            print("Armijo =", armijo)
+            print("Curvature =", curvature)
+            print("lo =", lo, "hi =", hi)
+            print()
+
+            if np.isfinite(X_new) and X_new < best_X:
+                best_X = X_new
+                best_alpha = alpha
+
+            if armijo and curvature:
+                return alpha
+
+            if not armijo:
+                hi = alpha
+
+            else:
+                if gTp_new < 0.0:
+                    lo = alpha
+                else:
+                    hi = alpha
+
+            if hi is None:
+                alpha *= 2.0
+            else:
+                alpha = 0.5 * (lo + hi)
+
+        print("warning: Wolfe não satisfeito. Retornando melhor alpha que reduziu X.")
+        return best_alpha
     
     def loadGradient(self):
         gradientFile = f"{self.pmt.migratedimageFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
@@ -175,38 +173,46 @@ class fwi:
         m = self.m0
         final_model_file = (f"{self.pmt.modelFolder}fwi_vp_smooth_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
         m.astype(np.float32).tofile(final_model_file)
-        import matplotlib.pyplot as plt
-        plt.figure()
-        plt.imshow(m)
-        plt.show()
+        # import matplotlib.pyplot as plt
+        # plt.figure()
+        # plt.imshow(m)
+        # plt.show()
 
+        s_store = []
+        y_store = []
         for itr in range(self.pmt.niter):
             print(f"\033[31minfo: FWI iteration {itr + 1}/{self.pmt.niter}\033[0m")
 
             # Gradiente e função objetivo no modelo atual
-            if self.pmt.unit == "CPU":
-                X =self.objective_function(m, save_residual = True)
-            else:
-                X =self.objective_functionGPU(m, save_residual = True)
-            
+            X = self.objective_function(m, save_residual = True)
             g = self.calculate_gradient(m)
-            g = g/np.max(np.abs(g))
+            # g = g/np.max(np.abs(g))
             
             # Salvar gradiente da iteração atual
             gradient_file = (f"{self.pmt.migratedimageFolder}gradient_fwi_iter_{itr+1}_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
             (g).astype(np.float32).tofile(gradient_file)
             print(f"info: Gradient saved to {gradient_file}")
 
-            # Direção de busca: steepest descent
-            p = -g
-            # p = -g/np.max(np.abs(g)) 
+            # Direção de busca: LBFGS
+            p = -self.two_loop_recursion(g,s_store,y_store)
+            p = p/np.max(np.abs(p))
 
             # Line search
-            alpha = self.stepsearch(m, p, X)
+            alpha = self.step_length(m, p, g, X)
             print("alpha=",alpha)
 
             # Atualização do modelo
-            m = m + alpha * p
+            m_new = m + alpha * p
+    
+            X_new = self.objective_function(m_new, save_residual = True)
+            g_new = self.calculate_gradient(m_new)
+
+            s = (m_new - m)
+            y = (g_new - g)
+            s_store.append(s)
+            y_store.append(y)
+
+            m = m_new.copy()
 
             model_file = (f"{self.pmt.modelFolder}fwi_vp_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}_itr{itr+1}.bin")
             m.astype(np.float32).tofile(model_file)
@@ -217,6 +223,4 @@ class fwi:
 
         end_time = time.time()
         print(f"\ninfo: FWI finished in {end_time - start_time:.2f} s")
-
-
 

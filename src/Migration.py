@@ -861,7 +861,7 @@ class migration:
 
             # Top muting
             seismogram = self.loadSeismogram(shot)
-            if self.pmt.fwi  == True:
+            if self.pmt.fwi == True:
                 self.muted_seismogram = seismogram
             else:
                 self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt, self.pmt.shift,self.pmt.window,self.pmt.v0) 

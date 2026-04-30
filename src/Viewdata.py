@@ -75,9 +75,8 @@ class plotting:
             if keyword in filename and filename.endswith(".bin"):
                 path = os.path.join(self.pmt.modelFolder, filename)
                 model = np.fromfile(path, dtype=np.float32).reshape(self.pmt.nz,self.pmt.nx)
-                # model = np.fromfile(path, dtype=np.float32).reshape(self.pmt.nx,self.pmt.nz).T
                 fig, ax = plt.subplots(figsize=(10, 5))
-                im = ax.imshow(model, aspect='equal', cmap='jet', extent=[0, self.pmt.L, self.pmt.D, 0])
+                im = ax.imshow(model, aspect='equal', cmap='gray', extent=[0, self.pmt.L, self.pmt.D, 0])
                 ax.plot(self.pmt.rec_x, self.pmt.rec_z, 'bv', markersize=2, label='Receivers')
                 ax.plot(self.pmt.shot_x, self.pmt.shot_z, 'r*', markersize=5, label='Sources')
                 ax.set_xlabel("Distance (m)")
@@ -120,9 +119,9 @@ class plotting:
         return shot, frame
 
     def viewSnapshot(self, keyword_snap, path_model):
-        perc = 1e-8
+        perc = 1e-6
 
-        model = np.fromfile(path_model, dtype=np.float32).reshape(self.pmt.nx, self.pmt.nz).T
+        model = np.fromfile(path_model, dtype=np.float32).reshape(self.pmt.nz, self.pmt.nx).T
 
         files = []
         for file in os.listdir(self.pmt.snapshotFolder):
@@ -138,6 +137,7 @@ class plotting:
             path_snap = os.path.join(self.pmt.snapshotFolder, filename)
 
             snapshot = np.fromfile(path_snap, dtype=np.float32).reshape(self.pmt.nz, self.pmt.nx)
+            # perc = np.percentile(np.abs(snapshot), perc)
 
             fig, ax = plt.subplots(figsize=(10, 5))
             ax.imshow(model,cmap="jet",aspect="equal",extent=[0, self.pmt.L, self.pmt.D, 0])
@@ -153,10 +153,10 @@ class plotting:
             cbar.set_label("Amplitude")
 
             plt.tight_layout()
-            plt.show(block = False)
+            plt.show()
 
     def movieSnapshot(self, keyword_snap, path_model, interval=200, savegif = False):
-        perc = 1e-8
+        perc = 1e-6
 
         snap_files = []
         for filename in os.listdir(self.pmt.snapshotFolder):
@@ -166,7 +166,7 @@ class plotting:
 
         snap_files.sort(key=lambda x: (x[0], x[1]))
 
-        model = np.fromfile(path_model, dtype=np.float32).reshape(self.pmt.nx, self.pmt.nz).T
+        model = np.fromfile(path_model, dtype=np.float32).reshape(self.pmt.nz, self.pmt.nx)
 
         fig, ax = plt.subplots(figsize=(10, 5))
         ax.imshow(model, cmap="jet", aspect="equal", extent=[0, self.pmt.L, self.pmt.D, 0])

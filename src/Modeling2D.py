@@ -31,9 +31,9 @@ class wavefield:
         print(f"info: Ricker Source wavelet created: {self.pmt.nt} samples")
         
     def ImportModel(self, filename):
-        data = np.fromfile(filename, dtype=np.float32).reshape(self.pmt.nx, self.pmt.nz)
+        data = np.fromfile(filename, dtype=np.float32).reshape(self.pmt.nz, self.pmt.nx)
         print(f"info: Imported: {filename}")
-        return data.T
+        return data
         
     def ExpandModel(self, model_data):
         N = self.pmt.N_abc
@@ -417,5 +417,4 @@ class wavefield:
         elif self.pmt.unit == "GPU":
             self.solveWaveEquationGPU()
         else:
-            raise ValueError("Unknown migration method. Choose 'CPU' or 'GPU'.")
-        print(f"info: Migration solved")
+            raise ValueError("Unknown unit. Choose 'CPU' or 'GPU'.")

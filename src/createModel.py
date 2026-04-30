@@ -25,27 +25,27 @@ class model:
         self.wf.vp[:self.pmt.nz//2, :] = v1
         self.wf.vp[self.pmt.nz//2:self.pmt.nz, :] = v2
         self.modelFile = f"{self.pmt.modelFolder}layer2vp_Nz{self.pmt.nz}_Nx{self.pmt.nx}.bin"
-        self.wf.vp.T.tofile(self.modelFile)
+        self.wf.vp.tofile(self.modelFile)
         print(f"info: Vp saved to {self.modelFile}")
 
         if self.pmt.approximation in ["VTI", "TTI"]:
             self.wf.epsilon[:self.pmt.nz//2, :] = e1
             self.wf.epsilon[self.pmt.nz//2:self.pmt.nz, :] = e2
             self.modelFile = f"{self.pmt.modelFolder}layer2epsilon_Nz{self.pmt.nz}_Nx{self.pmt.nx}.bin"
-            self.wf.epsilon.T.tofile(self.modelFile)
+            self.wf.epsilon.tofile(self.modelFile)
             print(f"info: Epsilon saved to {self.modelFile}")
 
             self.wf.delta[:self.pmt.nz//2, :] = d1
             self.wf.delta[self.pmt.nz//2:self.pmt.nz, :] = d2
             self.modelFile = f"{self.pmt.modelFolder}layer2delta_Nz{self.pmt.nz}_Nx{self.pmt.nx}.bin"
-            self.wf.delta.T.tofile(self.modelFile)
+            self.wf.delta.tofile(self.modelFile)
             print(f"info: Delta saved to {self.modelFile}")
         
         if self.pmt.approximation == "TTI":
             self.wf.theta[:self.pmt.nz//2, :] = t1
             self.wf.theta[self.pmt.nz//2:self.pmt.nz, :] = t2
             self.modelFile = f"{self.pmt.modelFolder}layer2theta_Nz{self.pmt.nz}_Nx{self.pmt.nx}.bin"
-            self.wf.theta.T.tofile(self.modelFile)
+            self.wf.theta.tofile(self.modelFile)
             print(f"info: Theta saved to {self.modelFile}")
         
     
@@ -54,21 +54,21 @@ class model:
         self.wf.vp[self.pmt.nz//3:2*self.pmt.nz//3, :] = v2
         self.wf.vp[2*self.pmt.nz//3:, :] = v3
         self.modelFile = f"{self.pmt.modelFolder}layer3vp_Nz{self.pmt.nz}_Nx{self.pmt.nx}.bin"
-        self.wf.vp.T.tofile(self.modelFile)
+        self.wf.vp.tofile(self.modelFile)
         print(f"info: Vp saved to {self.modelFile}")
         if self.pmt.approximation in ["VTI", "TTI"]:
             self.wf.epsilon[:self.pmt.nz//3, :] = e1
             self.wf.epsilon[self.pmt.nz//3:2*self.pmt.nz//3, :] = e2
             self.wf.epsilon[2*self.pmt.nz//3:, :] = e3
             self.modelFile = f"{self.pmt.modelFolder}layer3epsilon_Nz{self.pmt.nz}_Nx{self.pmt.nx}.bin"
-            self.wf.epsilon.T.tofile(self.modelFile)
+            self.wf.epsilon.tofile(self.modelFile)
             print(f"info: Epsilon saved to {self.modelFile}")
 
             self.wf.delta[:self.pmt.nz//3, :] = d1
             self.wf.delta[self.pmt.nz//3:2*self.pmt.nz//3, :] = d2
             self.wf.delta[2*self.pmt.nz//3:, :] = d3
             self.modelFile = f"{self.pmt.modelFolder}layer3delta_Nz{self.pmt.nz}_Nx{self.pmt.nx}.bin"
-            self.wf.delta.T.tofile(self.modelFile)
+            self.wf.delta.tofile(self.modelFile)
             print(f"info: Delta saved to {self.modelFile}")
         
         if self.pmt.approximation == "TTI":
@@ -76,35 +76,35 @@ class model:
             self.wf.theta[self.pmt.nz//3:2*self.pmt.nz//3, :] = t2
             self.wf.theta[2*self.pmt.nz//3:, :] = t3
             self.modelFile = f"{self.pmt.modelFolder}layer3theta_Nz{self.pmt.nz}_Nx{self.pmt.nx}.bin"
-            self.wf.theta.T.tofile(self.modelFile)
+            self.wf.theta.tofile(self.modelFile)
             print(f"info: Theta saved to {self.modelFile}")
     
     def createDiffractorModel(self,v1,v2,e1,e2,d1,d2,t1,t2):
         self.wf.vp[:, :] = v1
-        self.wf.vp[self.pmt.nz//2,self.pmt.nx//2] = v2
-        # self.wf.vp[(self.pmt.nz // 2)-5:(self.pmt.nz // 2)+5, (self.pmt.nx // 2)-5:(self.pmt.nx // 2)+5] = v2
+        # self.wf.vp[self.pmt.nz//2,self.pmt.nx//2] = v2
+        self.wf.vp[(self.pmt.nz // 2)-20:(self.pmt.nz // 2)+20, (self.pmt.nx // 2)-20:(self.pmt.nx // 2)+20] = v2
         self.modelFile = f"{self.pmt.modelFolder}diffractorvp_Nz{self.pmt.nz}_Nx{self.pmt.nx}.bin"
-        self.wf.vp.T.tofile(self.modelFile)
+        self.wf.vp.tofile(self.modelFile)
         print(f"info: Vp saved to {self.modelFile}")
 
         if self.pmt.approximation in ["VTI", "TTI"]:
             self.wf.epsilon[:, :] = e1
             self.wf.epsilon[self.pmt.nz // 2, self.pmt.nx // 2] = e2
             self.modelFile = f"{self.pmt.modelFolder}diffractorepsilon_Nz{self.pmt.nz}_Nx{self.pmt.nx}.bin"
-            self.wf.epsilon.T.tofile(self.modelFile)
+            self.wf.epsilon.tofile(self.modelFile)
             print(f"info: Epsilon saved to {self.modelFile}")
 
             self.wf.delta[:, :] = d1
             self.wf.delta[self.pmt.nz // 2, self.pmt.nx // 2] = d2
             self.modelFile = f"{self.pmt.modelFolder}diffractordelta_Nz{self.pmt.nz}_Nx{self.pmt.nx}.bin"
-            self.wf.delta.T.tofile(self.modelFile)
+            self.wf.delta.tofile(self.modelFile)
             print(f"info: Delta saved to {self.modelFile}")
             
         if self.pmt.approximation == "TTI":
             self.wf.theta[:, :] = t1
             self.wf.theta[self.pmt.nz // 2, self.pmt.nx // 2] = t2
             self.modelFile = f"{self.pmt.modelFolder}diffractortheta_Nz{self.pmt.nz}_Nx{self.pmt.nx}.bin"
-            self.wf.theta.T.tofile(self.modelFile)
+            self.wf.theta.tofile(self.modelFile)
             print(f"info: Theta saved to {self.modelFile}")
     
     def createGradientModel(self,v1,e1,d1,t1):
@@ -114,7 +114,7 @@ class model:
             self.wf.vp[iz,:] = v1 + alpha*self.pmt.z[iz]
 
         self.modelFile = f"{self.pmt.modelFolder}gradientvp_Nz{self.pmt.nz}_Nx{self.pmt.nx}.bin"
-        self.wf.vp.T.tofile(self.modelFile)
+        self.wf.vp.tofile(self.modelFile)
         print(f"info: Vp saved to {self.modelFile}")
 
         if self.pmt.approximation in ["VTI", "TTI"]:
@@ -122,14 +122,14 @@ class model:
             for iz in range(self.pmt.nz):
                 self.wf.epsilon[iz,:] = e1 + alpha*self.pmt.z[iz]
             self.modelFile = f"{self.pmt.modelFolder}gradientepsilon_Nz{self.pmt.nz}_Nx{self.pmt.nx}.bin"
-            self.wf.epsilon.T.tofile(self.modelFile)
+            self.wf.epsilon.tofile(self.modelFile)
             print(f"info: Epsilon saved to {self.modelFile}")
 
             self.wf.delta[:, :] = d1
             for iz in range(self.pmt.nz):
                 self.wf.delta[iz,:] = d1 + alpha*self.pmt.z[iz]
             self.modelFile = f"{self.pmt.modelFolder}gradientdelta_Nz{self.pmt.nz}_Nx{self.pmt.nx}.bin"
-            self.wf.delta.T.tofile(self.modelFile)
+            self.wf.delta.tofile(self.modelFile)
             print(f"info: Delta saved to {self.modelFile}")
             
         if self.pmt.approximation == "TTI":
@@ -137,7 +137,7 @@ class model:
             for iz in range(self.pmt.nz):
                 self.wf.theta[iz,:] = t1 + alpha*self.pmt.z[iz]
             self.modelFile = f"{self.pmt.modelFolder}gradienttheta_Nz{self.pmt.nz}_Nx{self.pmt.nx}.bin"
-            self.wf.theta.T.tofile(self.modelFile)
+            self.wf.theta.tofile(self.modelFile)
             print(f"info: Theta saved to {self.modelFile}")
 
     def createModelFromVp(self):  
@@ -155,14 +155,14 @@ class model:
         self.wf.epsilon = np.zeros_like(self.wf.vp,dtype=np.float32)
         self.wf.epsilon = (0.25 * self.rho/1000) - 0.3 # rho in g/cm3
         self.wf.epsilon[idx_water] = 0.0 # water epsilon
-        self.wf.epsilon.T.tofile(self.pmt.vpFile.replace(".bin","_epsilon.bin"))	
+        self.wf.epsilon.tofile(self.pmt.vpFile.replace(".bin","_epsilon.bin"))	
         print(f"info: Epsilon model saved to {self.pmt.vpFile.replace('.bin','_epsilon.bin')}")
 
         # create delta model delta = 0.125 rho - 0.1 - Petrov et al. (2021)
         self.wf.delta = np.zeros_like(self.wf.vp,dtype=np.float32)
         self.wf.delta = (0.125 * self.rho/1000) - 0.1 # rho in g/cm3
         self.wf.delta[idx_water] = 0.0 # water delta
-        self.wf.delta.T.tofile(self.pmt.vpFile.replace(".bin","_delta.bin"))
+        self.wf.delta.tofile(self.pmt.vpFile.replace(".bin","_delta.bin"))
         print(f"info: Delta model saved to {self.pmt.vpFile.replace('.bin','_delta.bin')}")
     
     def buildModel(self):
@@ -191,5 +191,4 @@ if __name__ == "__main__":
         wf.loadModels()
 
     model = model(pmt,wf)
-    model.buildModel()      
- 
+    model.buildModel()
