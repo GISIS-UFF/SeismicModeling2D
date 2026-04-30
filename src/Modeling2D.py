@@ -229,10 +229,7 @@ class wavefield:
             self.seismogram_gpu[k, :] = self.current[rz, rx]
 
     def save_seismogram(self,shot):     
-        if self.pmt.fwi == True:
-             self.seismogramFile = f"{self.pmt.seismogramFolder}seismogram_obs_shot_{shot+1}_Nt{self.pmt.nt}_Nrec{self.pmt.Nrec}.bin"
-        else:
-            self.seismogramFile = f"{self.pmt.seismogramFolder}seismogram_shot_{shot+1}_Nt{self.pmt.nt}_Nrec{self.pmt.Nrec}.bin"
+        self.seismogramFile = f"{self.pmt.seismogramFolder}seismogram_shot_{shot+1}_Nt{self.pmt.nt}_Nrec{self.pmt.Nrec}.bin"
         self.seismogram.tofile(self.seismogramFile)
         print(f"info: Seismogram saved to {self.seismogramFile}")
 
@@ -358,7 +355,7 @@ class wavefield:
                 self.save_snapshot(shot, k)       
                 #swap
                 self.current, self.future = self.future, self.current
-                
+                 
             self.save_seismogram(shot)
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
         print(f"info: Wave equation solved")
@@ -404,7 +401,8 @@ class wavefield:
                 #swap
                 self.current, self.future = self.future, self.current
 
-            self.seismogram = cp.asnumpy(self.seismogram_gpu)   
+            self.seismogram = cp.asnumpy(self.seismogram_gpu) 
+
             self.save_seismogram(shot)
             self.save_snapshotGPU(shot)
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")

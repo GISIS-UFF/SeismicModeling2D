@@ -10,7 +10,6 @@ wf.createSourceWavelet()
 wf.initializeWavefields()
 wf.loadModels()
 wf.checkDispersionAndStability()
-# wf.SolveWaveEquation()
 
 mig = migration(wf,pmt)
 mig.initializeMigrationfields()

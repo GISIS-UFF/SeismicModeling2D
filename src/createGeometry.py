@@ -4,7 +4,7 @@ import pandas as pd
 
 # sources
 sx_init = 0
-sx_end  = 17000
+sx_end  = 8500
 Nsource = 40
 sx = np.linspace(sx_init,sx_end,Nsource)
 sz = 10*np.ones(len(sx))
@@ -12,8 +12,8 @@ sIdx = np.arange(Nsource)
 
 # receivers
 rx_init = 0
-rx_end = 17000
-Nrec = 1400
+rx_end = 8500
+Nrec = 169
 rx = np.linspace(rx_init,rx_end,Nrec)
 rz = 400*np.ones(len(rx))
 rIdx = np.arange(Nrec)

@@ -11,7 +11,7 @@ class fwi:
 
     def objective_function(self, m, save_residual):
         X = 0.0
-        self.wf.vp = m      
+        self.wf.vp = 1.0 / np.sqrt(m)      
         self.wf.source = cp.asarray(self.wf.source, dtype=cp.float32)
         self.wf.vp_exp = self.wf.ExpandModel(self.wf.vp)
         self.wf.vp_exp = cp.asarray(self.wf.vp_exp, dtype=cp.float32)
@@ -101,8 +101,10 @@ class fwi:
     def step_length(self, m, p, g, X0):
         c1 = 1e-4
         c2 = 0.9
+        vmin = np.min(m)
+        vmax = np.max(m)
         gTp0 = np.sum(g * p)
-        alpha = 0.01 * np.max(m)
+        alpha = 0.01 * (1.0 / (vmin*vmin)) - (1.0 / (vmax*vmax))
         lo = 0.0
         hi = None
         best_alpha = 0.0
@@ -155,7 +157,7 @@ class fwi:
         return grad
     
     def loadObsSeismogram(self,shot):
-        seismogramFile = f"{self.pmt.seismogramFolder}seismogram_obs_shot_{shot+1}_Nt{self.pmt.nt}_Nrec{self.pmt.Nrec}.bin"
+        seismogramFile = f"{self.pmt.seismogramFolder}seismogram_shot_{shot+1}_Nt{self.pmt.nt}_Nrec{self.pmt.Nrec}.bin"
         seismogram = np.fromfile(seismogramFile, dtype=np.float32).reshape(self.pmt.nt,self.pmt.Nrec) 
         return seismogram
 
@@ -170,13 +172,13 @@ class fwi:
         
         # Modelo inicial
         self.m0 = smooth_model(self.wf.vp, self.pmt.sigma).copy()
-        m = self.m0
+        m = 1.0 / (self.m0 * self.m0)
         final_model_file = (f"{self.pmt.modelFolder}fwi_vp_smooth_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
-        m.astype(np.float32).tofile(final_model_file)
-        # import matplotlib.pyplot as plt
-        # plt.figure()
-        # plt.imshow(m)
-        # plt.show()
+        self.m0.astype(np.float32).tofile(final_model_file)
+        import matplotlib.pyplot as plt
+        plt.figure()
+        plt.imshow(self.m0)
+        plt.show()
 
         s_store = []
         y_store = []
@@ -214,8 +216,9 @@ class fwi:
 
             m = m_new.copy()
 
+            m_it = 1.0 / np.sqrt(m)
             model_file = (f"{self.pmt.modelFolder}fwi_vp_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}_itr{itr+1}.bin")
-            m.astype(np.float32).tofile(model_file)
+            m_it.astype(np.float32).tofile(model_file)
             print(f"info: Model of {itr+1} iteration saved to {model_file}")
 
         # Atualiza modelo final
