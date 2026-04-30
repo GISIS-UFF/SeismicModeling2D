@@ -81,8 +81,8 @@ class model:
     
     def createDiffractorModel(self,v1,v2,e1,e2,d1,d2,t1,t2):
         self.wf.vp[:, :] = v1
-        # self.wf.vp[self.pmt.nz//2,self.pmt.nx//2] = v2
-        self.wf.vp[(self.pmt.nz // 2)-20:(self.pmt.nz // 2)+20, (self.pmt.nx // 2)-20:(self.pmt.nx // 2)+20] = v2
+        self.wf.vp[self.pmt.nz//2,self.pmt.nx//2] = v2
+        # self.wf.vp[(self.pmt.nz // 2)-20:(self.pmt.nz // 2)+20, (self.pmt.nx // 2)-20:(self.pmt.nx // 2)+20] = v2
         self.modelFile = f"{self.pmt.modelFolder}diffractorvp_Nz{self.pmt.nz}_Nx{self.pmt.nx}.bin"
         self.wf.vp.tofile(self.modelFile)
         print(f"info: Vp saved to {self.modelFile}")

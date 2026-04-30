@@ -76,7 +76,7 @@ class plotting:
                 path = os.path.join(self.pmt.modelFolder, filename)
                 model = np.fromfile(path, dtype=np.float32).reshape(self.pmt.nz,self.pmt.nx)
                 fig, ax = plt.subplots(figsize=(10, 5))
-                im = ax.imshow(model, aspect='equal', cmap='gray', extent=[0, self.pmt.L, self.pmt.D, 0])
+                im = ax.imshow(model, aspect='equal', cmap='jet', extent=[0, self.pmt.L, self.pmt.D, 0])
                 ax.plot(self.pmt.rec_x, self.pmt.rec_z, 'bv', markersize=2, label='Receivers')
                 ax.plot(self.pmt.shot_x, self.pmt.shot_z, 'r*', markersize=5, label='Sources')
                 ax.set_xlabel("Distance (m)")

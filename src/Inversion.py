@@ -56,7 +56,7 @@ class fwi:
 
     def calculate_gradient(self, m):
         grad = np.zeros_like(m)
-        self.wf.vp = m
+        self.wf.vp = 1.0 / np.sqrt(m)
         self.mig.SolveBackwardWaveEquation()
         grad = self.loadGradient()
         return grad
@@ -101,55 +101,47 @@ class fwi:
     def step_length(self, m, p, g, X0):
         c1 = 1e-4
         c2 = 0.9
-        vmin = np.min(m)
-        vmax = np.max(m)
         gTp0 = np.sum(g * p)
-        alpha = 0.01 * (1.0 / (vmin*vmin)) - (1.0 / (vmax*vmax))
+        vmax = np.max(self.m0)
+        alpha = 0.01 * (1.0 / (vmax*vmax))
         lo = 0.0
         hi = None
-        best_alpha = 0.0
-        best_X = X0
         for _ in range(10):
             m_new = m + alpha * p
             X_new = self.objective_function(m_new, save_residual=True)
-            g_new = self.calculate_gradient(m_new)
-            gTp_new = np.sum(g_new * p)
+            # g_new = self.calculate_gradient(m_new)
+            # gTp_new = np.sum(g_new * p)
             armijo = X_new <= X0 + c1 * alpha * gTp0
-            curvature = abs(gTp_new) <= c2 * abs(gTp0)
+            # curvature = abs(gTp_new) <= c2 * abs(gTp0)
 
             print("alpha =", alpha)
             print("X0 =", X0)
             print("X_new =", X_new)
             print("gTp0 =", gTp0)
-            print("gTp_new =", gTp_new)
+            # print("gTp_new =", gTp_new)
             print("Armijo =", armijo)
-            print("Curvature =", curvature)
+            # print("Curvature =", curvature)
             print("lo =", lo, "hi =", hi)
             print()
 
-            if np.isfinite(X_new) and X_new < best_X:
-                best_X = X_new
-                best_alpha = alpha
-
-            if armijo and curvature:
+            if armijo: #and curvature:
                 return alpha
 
             if not armijo:
                 hi = alpha
 
-            else:
-                if gTp_new < 0.0:
-                    lo = alpha
-                else:
-                    hi = alpha
+            # else:
+            #     if gTp_new < 0.0:
+            #         lo = alpha
+            #     else:
+            #         hi = alpha
 
             if hi is None:
                 alpha *= 2.0
             else:
                 alpha = 0.5 * (lo + hi)
 
-        print("warning: Wolfe não satisfeito. Retornando melhor alpha que reduziu X.")
-        return best_alpha
+        return alpha
     
     def loadGradient(self):
         gradientFile = f"{self.pmt.migratedimageFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
@@ -175,10 +167,10 @@ class fwi:
         m = 1.0 / (self.m0 * self.m0)
         final_model_file = (f"{self.pmt.modelFolder}fwi_vp_smooth_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
         self.m0.astype(np.float32).tofile(final_model_file)
-        import matplotlib.pyplot as plt
-        plt.figure()
-        plt.imshow(self.m0)
-        plt.show()
+        # import matplotlib.pyplot as plt
+        # plt.figure()
+        # plt.imshow(self.m0)
+        # plt.show()
 
         s_store = []
         y_store = []
@@ -201,7 +193,6 @@ class fwi:
 
             # Line search
             alpha = self.step_length(m, p, g, X)
-            print("alpha=",alpha)
 
             # Atualização do modelo
             m_new = m + alpha * p
@@ -222,7 +213,7 @@ class fwi:
             print(f"info: Model of {itr+1} iteration saved to {model_file}")
 
         # Atualiza modelo final
-        self.wf.vp = m.copy()
+        self.wf.vp = 1.0 / np.sqrt(m)
 
         end_time = time.time()
         print(f"\ninfo: FWI finished in {end_time - start_time:.2f} s")
