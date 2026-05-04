@@ -102,44 +102,28 @@ class fwi:
         c1 = 1e-4
         c2 = 0.9
         gTp0 = np.sum(g * p)
-        vmax = np.max(self.m0)
-        alpha = 0.01 * (1.0 / (vmax*vmax))
+        vmin = np.min(self.m0)
+        alpha = 0.01 * (1.0 / (vmin*vmin))
         lo = 0.0
         hi = None
         for _ in range(10):
             m_new = m + alpha * p
             X_new = self.objective_function(m_new, save_residual=True)
-            # g_new = self.calculate_gradient(m_new)
-            # gTp_new = np.sum(g_new * p)
             armijo = X_new <= X0 + c1 * alpha * gTp0
-            # curvature = abs(gTp_new) <= c2 * abs(gTp0)
-
+            print("X0 + c1 * alpha * gTp0 = " , X0 + c1 * alpha * gTp0)
             print("alpha =", alpha)
             print("X0 =", X0)
             print("X_new =", X_new)
             print("gTp0 =", gTp0)
-            # print("gTp_new =", gTp_new)
             print("Armijo =", armijo)
-            # print("Curvature =", curvature)
             print("lo =", lo, "hi =", hi)
             print()
 
-            if armijo: #and curvature:
+            if armijo:
                 return alpha
 
-            if not armijo:
-                hi = alpha
-
-            # else:
-            #     if gTp_new < 0.0:
-            #         lo = alpha
-            #     else:
-            #         hi = alpha
-
-            if hi is None:
-                alpha *= 2.0
-            else:
-                alpha = 0.5 * (lo + hi)
+            hi = alpha
+            alpha = 0.5 * (lo + hi)
 
         return alpha
     
@@ -180,7 +164,7 @@ class fwi:
             # Gradiente e função objetivo no modelo atual
             X = self.objective_function(m, save_residual = True)
             g = self.calculate_gradient(m)
-            # g = g/np.max(np.abs(g))
+            g = g/np.max(np.abs(g))
             
             # Salvar gradiente da iteração atual
             gradient_file = (f"{self.pmt.migratedimageFolder}gradient_fwi_iter_{itr+1}_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
@@ -189,7 +173,7 @@ class fwi:
 
             # Direção de busca: LBFGS
             p = -self.two_loop_recursion(g,s_store,y_store)
-            p = p/np.max(np.abs(p))
+            # p = p/np.max(np.abs(p))
 
             # Line search
             alpha = self.step_length(m, p, g, X)

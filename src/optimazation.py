@@ -116,30 +116,16 @@ def two_loop_recursion(g,s_store,y_store):
 
 def line_search(x, p, g):
     c1 = 1e-4
-    c2 = 0.9
-
     fx = f(x)
     gTp0 = np.dot(g, p)
-
-    if not np.isfinite(gTp0) or gTp0 >= 0.0:
-        print("warning: p não é direção de descida")
-        return 0.0
-
     alpha = 1.0
     lo = 0.0
     hi = None
-
-    best_alpha = 0.0
-    best_f = fx
-
     for it in range(30):
         x_new = x + alpha * p
         f_new = f(x_new)
-        g_new = grad(x_new)
-        gTp_new = np.dot(g_new, p)
 
         armijo = f_new <= fx + c1 * alpha * gTp0
-        curvature = abs(gTp_new) <= c2 * abs(gTp0)
 
         print("\n--- line_search_lo_hi ---")
         print("it =", it)
@@ -148,38 +134,14 @@ def line_search(x, p, g):
         print("f0 =", fx)
         print("f_new =", f_new)
         print("gTp0 =", gTp0)
-        print("gTp_new =", gTp_new)
         print("Armijo =", armijo)
-        print("Curvature =", curvature)
 
-        if np.isfinite(f_new) and f_new < best_f:
-            best_f = f_new
-            best_alpha = alpha
-
-        if armijo and curvature:
+        if armijo:
             return alpha
 
-        # Atualiza intervalo
-        if not armijo:
-            # passo grande demais
-            hi = alpha
-        else:
-            # Armijo passou, mas curvatura falhou
-            if gTp_new > 0.0:
-                # passou do mínimo ao longo da direção
-                hi = alpha
-            else:
-                # ainda está descendo
-                lo = alpha
-
-        # Escolhe próximo alpha
-        if hi is None:
-            alpha *= 2.0
-        else:
-            alpha = 0.5 * (lo + hi)
-
-    print("warning: Wolfe não satisfeito. Retornando melhor alpha encontrado.")
-    return best_alpha
+        hi = alpha
+        alpha = 0.5 * (lo + hi)
+    return alpha
 
 ni = 30
 x0 = -2.0
