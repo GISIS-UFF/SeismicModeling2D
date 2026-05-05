@@ -30,6 +30,7 @@ class migration:
     
     def initializeMigrationfields(self):
         self.migrated_image = np.zeros((self.pmt.nz, self.pmt.nx), dtype=np.float32)
+        self.ilum = np.zeros((self.pmt.nz, self.pmt.nx), dtype=np.float32)
         self.currentbck  = np.zeros([self.pmt.nz_abc,self.pmt.nx_abc],dtype=np.float32)
         self.futurebck   = np.zeros([self.pmt.nz_abc,self.pmt.nx_abc],dtype=np.float32)
         if self.pmt.migration == "SB":
@@ -47,7 +48,7 @@ class migration:
             self.currentbck  = cp.zeros([self.pmt.nz_abc,self.pmt.nx_abc],dtype=np.float32)
             self.futurebck   = cp.zeros([self.pmt.nz_abc,self.pmt.nx_abc],dtype=np.float32)
             if self.pmt.snap == True:
-                self.snapshots_gpubck = cp.zeros((self.nsnaps, self.pmt.nz, self.pmt.nx), dtype=cp.float32)
+                self.snapshots_gpubck = cp.zeros((self.wf.nsnaps, self.pmt.nz, self.pmt.nx), dtype=cp.float32)
                 self.snap_idxbck = 0
                 self.img_times = list(range(0, self.pmt.last_save + 1, self.pmt.step))
                 self.nimg = len(self.wf.snap_times)
@@ -542,7 +543,8 @@ class migration:
         if self.pmt.fwi == True:
             self.vp = self.wf.vp
         else:
-            self.vp = smooth_model(self.wf.vp, self.pmt.sigma)
+            water_mask = np.abs(self.wf.vp - 1500.0) < 1e-3
+            self.vp = smooth_model(self.wf.vp, self.pmt.sigma, water_mask)
         self.vp_exp = self.wf.ExpandModel(self.vp)
         if self.pmt.ABC == "cerjan":
             self.A = self.wf.createCerjanVector()
@@ -574,12 +576,12 @@ class migration:
             else:
                 self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt, self.pmt.shift,self.pmt.window,self.pmt.v0) 
             self.migrated_partial = np.zeros_like(self.migrated_image)
-            self.ilum = np.zeros_like(self.migrated_image)
+            self.ilum_partial = np.zeros_like(self.ilum)
             for k in range(self.pmt.nt):
                 self.forward_step(k)
                 self.wf.save_snapshot(shot, k)
                 save_field[k,:,:] = self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
-                self.ilum += save_field[k,:,:] * save_field[k,:,:] 
+                self.ilum_partial += save_field[k,:,:] * save_field[k,:,:] 
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
             for t in range(self.pmt.nt - 2, self.stop, -1):
                 self.backward_step(t)
@@ -593,8 +595,10 @@ class migration:
                 #swap
                 self.currentbck, self.futurebck = self.futurebck, self.currentbck
 
-            self.migrated_image += self.migrated_partial / (self.ilum)
+            self.migrated_image += self.migrated_partial
+            self.ilum += self.ilum_partial
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
+        self.migrated_image = self.migrated_image / self.ilum
         if self.pmt.fwi  == True:
             self.migratedFile = f"{self.pmt.migratedimageFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
             self.migrated_image.astype(np.float32).tofile(self.migratedFile)
@@ -611,7 +615,8 @@ class migration:
         if self.pmt.fwi == True:
             self.vp = self.wf.vp
         else:
-            self.vp = smooth_model(self.wf.vp, self.pmt.sigma)
+            water_mask = np.abs(self.wf.vp - 1500.0) < 1e-3
+            self.vp = smooth_model(self.wf.vp, self.pmt.sigma, water_mask)
         self.vp_exp = self.wf.ExpandModel(self.vp)
         if self.pmt.ABC == "cerjan":
             self.A = self.wf.createCerjanVector()
@@ -641,18 +646,18 @@ class migration:
             else:
                 self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt, self.pmt.shift,self.pmt.window,self.pmt.v0) 
             self.migrated_partial = np.zeros_like(self.migrated_image)
-            self.ilum = np.zeros_like(self.migrated_image)
+            self.ilum_partial = np.zeros_like(self.ilum)
             self.build_ckpts_steps()
             for k in range(self.pmt.nt):
                 self.forward_step(k)
                 self.wf.save_snapshot(shot, k)
-                self.ilum += self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] 
                 self.save_checkpoint(shot, k)
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
             for (t0,t1) in reversed(self.ckpts_steps):
                 self.load_checkpoint(shot,t1)
                 for t in range(t1, t0, -1):
+                    self.ilum_partial += self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] 
                     if self.pmt.fwi == True:
                         u_next = self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()
                         u_curr = self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()
@@ -671,8 +676,10 @@ class migration:
                     self.wf.current, self.wf.future = self.wf.future, self.wf.current
                     self.currentbck, self.futurebck = self.futurebck, self.currentbck
 
-            self.migrated_image += self.migrated_partial / (self.ilum)
+            self.migrated_image += self.migrated_partial
+            self.ilum += self.ilum_partial 
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
+        self.migrated_image = self.migrated_image / self.ilum
         if self.pmt.fwi  == True:
             self.migratedFile = f"{self.pmt.migratedimageFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
             self.migrated_image.astype(np.float32).tofile(self.migratedFile)
@@ -689,7 +696,8 @@ class migration:
         if self.pmt.fwi == True:
             self.vp = self.wf.vp
         else:
-            self.vp = smooth_model(self.wf.vp, self.pmt.sigma)
+            water_mask = np.abs(self.wf.vp - 1500.0) < 1e-3
+            self.vp = smooth_model(self.wf.vp, self.pmt.sigma, water_mask)
         self.vp_exp = self.wf.ExpandModel(self.vp)
         if self.pmt.ABC == "cerjan":
             self.A = self.wf.createCerjanVector()
@@ -719,15 +727,15 @@ class migration:
             else:
                 self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt, self.pmt.shift,self.pmt.window,self.pmt.v0) 
             self.migrated_partial = np.zeros_like(self.migrated_image)
-            self.ilum = np.zeros_like(self.migrated_image)
+            self.ilum_partial = np.zeros_like(self.ilum)
             for k in range(self.pmt.nt):
                 self.forward_step(k)
                 self.save_boundaries(k)
                 self.wf.save_snapshot(shot, k)
-                self.ilum += self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]  
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current 
             for t in range(self.pmt.nt - 2, self.stop, -1):
+                self.ilum_partial += self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]  
                 if self.pmt.fwi == True:
                     u_next = self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()
                     u_curr = self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()   
@@ -747,8 +755,10 @@ class migration:
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
                 self.currentbck, self.futurebck = self.futurebck, self.currentbck
 
-            self.migrated_image += self.migrated_partial / (self.ilum)
-            print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")      
+            self.migrated_image += self.migrated_partial
+            self.ilum += self.ilum_partial
+            print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
+        self.migrated_image = self.migrated_image / self.ilum      
         if self.pmt.fwi  == True:
             self.migratedFile = f"{self.pmt.migratedimageFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
             self.migrated_image.astype(np.float32).tofile(self.migratedFile)
@@ -765,7 +775,8 @@ class migration:
         if self.pmt.fwi == True:
             self.vp = self.wf.vp
         else:
-            self.vp = smooth_model(self.wf.vp, self.pmt.sigma)
+            water_mask = np.abs(self.wf.vp - 1500.0) < 1e-3
+            self.vp = smooth_model(self.wf.vp, self.pmt.sigma, water_mask)
         vp_exp_base = self.wf.ExpandModel(self.vp)
         if self.pmt.ABC == "cerjan":
             self.A = self.wf.createCerjanVector()
@@ -797,15 +808,15 @@ class migration:
             else:
                 self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt, self.pmt.shift,self.pmt.window,self.pmt.v0) 
             self.migrated_partial = np.zeros_like(self.migrated_image)
-            self.ilum = np.zeros_like(self.migrated_image)
+            self.ilum_partial = np.zeros_like(self.ilum)
             for k in range(self.pmt.nt):
                 self.forward_step(k)
                 self.wf.save_snapshot(shot, k)
-                self.ilum += self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] 
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
             self.wf.current, self.wf.future = self.wf.future, self.wf.current    
             for t in range(self.pmt.nt - 2, self.stop, -1): 
+                self.ilum_partial += self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] 
                 if self.pmt.fwi == True:
                     u_next = self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()
                     u_curr = self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()   
@@ -824,8 +835,10 @@ class migration:
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
                 self.currentbck, self.futurebck = self.futurebck, self.currentbck
 
-            self.migrated_image += self.migrated_partial / (self.ilum)
+            self.migrated_image += self.migrated_partial
+            self.ilum += self.ilum_partial
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
+        self.migrated_image = self.migrated_image / self.ilum
         if self.pmt.fwi  == True:
             self.migratedFile = f"{self.pmt.migratedimageFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
             self.migrated_image.astype(np.float32).tofile(self.migratedFile)
@@ -843,8 +856,8 @@ class migration:
         if self.pmt.fwi == True:
             self.vp = self.wf.vp
         else:
-            self.vp = smooth_model(self.wf.vp, self.pmt.sigma)
-
+            water_mask = np.abs(self.wf.vp - 1500.0) < 1e-3
+            self.vp = smooth_model(self.wf.vp, self.pmt.sigma,water_mask)
         self.vp_exp = self.wf.ExpandModel(self.vp)
         self.vp_exp = cp.asarray(self.vp_exp, dtype=cp.float32)
         if self.pmt.ABC == "cerjan":
@@ -867,6 +880,8 @@ class migration:
         self.rz = cp.asarray(self.rz)
         save_field = cp.zeros([self.pmt.nt,self.pmt.nz,self.pmt.nx],dtype=np.float32)
         self.stop = int(2*self.pmt.tlag/self.pmt.dt)
+        self.ilum = cp.asarray(self.ilum)
+        self.migrated_image = cp.asarray(self.migrated_image)
         for shot in range(self.pmt.Nshot):
             print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
             self.reset_field()
@@ -883,12 +898,12 @@ class migration:
                 self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt, self.pmt.shift,self.pmt.window,self.pmt.v0) 
             self.muted_seismogram = cp.asarray(self.muted_seismogram,dtype=cp.float32)
             self.migrated_partial = cp.zeros_like(self.migrated_image)
-            self.ilum = cp.zeros_like(self.migrated_image)
+            self.ilum_partial = cp.zeros_like(self.migrated_image)
             for k in range(self.pmt.nt):
                 self.forward_stepGPU(k)
                 self.wf.store_snapshotGPU(k) 
                 save_field[k,:,:] = self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
-                self.ilum += save_field[k,:,:] * save_field[k,:,:] 
+                self.ilum_partial += save_field[k,:,:] * save_field[k,:,:] 
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
             for t in range(self.pmt.nt - 2, self.stop, -1):
                 self.backward_stepGPU(t)
@@ -901,12 +916,13 @@ class migration:
                 self.store_imageGPU(t)
                 #swap
                 self.currentbck, self.futurebck = self.futurebck, self.currentbck
-            ilum_max = cp.max(self.ilum)
-            self.migrated_image += self.migrated_partial / (ilum_max)
+            self.ilum += self.ilum_partial
+            self.migrated_image += self.migrated_partial
             self.wf.save_snapshotGPU(shot)
             self.save_snapshotBCKGPU(shot)
             self.save_imageGPU(shot)
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
+        self.migrated_image = self.migrated_image / self.ilum
         migrated_imagecpu = cp.asnumpy(self.migrated_image)
         if self.pmt.fwi  == True:
             self.migratedFile = f"{self.pmt.migratedimageFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
@@ -923,7 +939,8 @@ class migration:
         if self.pmt.fwi == True:
             self.vp = self.wf.vp
         else:
-            self.vp = smooth_model(self.wf.vp, self.pmt.sigma)
+            water_mask = np.abs(self.wf.vp - 1500.0) < 1e-3
+            self.vp = smooth_model(self.wf.vp, self.pmt.sigma, water_mask)
         self.vp_exp = self.wf.ExpandModel(self.vp)
         self.vp_exp = cp.asarray(self.vp_exp, dtype=cp.float32)
         if self.pmt.ABC == "cerjan":
@@ -945,6 +962,8 @@ class migration:
         self.rx = cp.asarray(self.rx)
         self.rz = cp.asarray(self.rz)
         self.stop = int(2*self.pmt.tlag/self.pmt.dt)
+        self.ilum = cp.asarray(self.ilum)
+        self.migrated_image = cp.asarray(self.migrated_image)
         for shot in range(self.pmt.Nshot):
             print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
             self.reset_field()
@@ -961,12 +980,11 @@ class migration:
                 self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt, self.pmt.shift,self.pmt.window,self.pmt.v0) 
             self.muted_seismogram = cp.asarray(self.muted_seismogram,dtype=cp.float32)
             self.migrated_partial = cp.zeros_like(self.migrated_image)
-            self.ilum = cp.zeros_like(self.migrated_image)
+            self.ilum_partial = cp.zeros_like(self.migrated_image)
             self.build_ckpts_steps()
             for k in range(self.pmt.nt):
                 self.forward_stepGPU(k)
                 self.wf.store_snapshotGPU(k)
-                self.ilum += self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] 
                 self.save_checkpointGPU(shot, k)
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
@@ -974,6 +992,7 @@ class migration:
             for (t0,t1) in reversed(self.ckpts_steps):
                 self.load_checkpoint(shot,t1)
                 for t in range(t1, t0, -1):
+                    self.ilum_partial += self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] 
                     if self.pmt.fwi == True:
                         u_next = self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()
                         u_curr = self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()                  
@@ -992,11 +1011,13 @@ class migration:
                     self.wf.current, self.wf.future = self.wf.future, self.wf.current
                     self.currentbck, self.futurebck = self.futurebck, self.currentbck
 
-            self.migrated_image += self.migrated_partial / (self.ilum)
+            self.migrated_image += self.migrated_partial
+            self.ilum += self.ilum_partial 
             self.wf.save_snapshotGPU(shot)
             self.save_snapshotBCKGPU(shot)
             self.save_imageGPU(shot)
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
+        self.migrated_image = self.migrated_image / self.ilum
         migrated_imagecpu = cp.asnumpy(self.migrated_image)
         if self.pmt.fwi  == True:
             self.migratedFile = f"{self.pmt.migratedimageFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
@@ -1013,7 +1034,8 @@ class migration:
         if self.pmt.fwi == True:
             self.vp = self.wf.vp
         else:
-            self.vp = smooth_model(self.wf.vp, self.pmt.sigma)
+            water_mask = np.abs(self.wf.vp - 1500.0) < 1e-3
+            self.vp = smooth_model(self.wf.vp, self.pmt.sigma, water_mask)
         self.vp_exp = self.wf.ExpandModel(self.vp)
         self.vp_exp = cp.asarray(self.vp_exp, dtype=cp.float32)
         if self.pmt.ABC == "cerjan":
@@ -1035,6 +1057,8 @@ class migration:
         self.rx = cp.asarray(self.rx)
         self.rz = cp.asarray(self.rz)
         self.stop = int(2*self.pmt.tlag/self.pmt.dt)
+        self.ilum = cp.asarray(self.ilum)
+        self.migrated_image = cp.asarray(self.migrated_image)
         for shot in range(self.pmt.Nshot):
             print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
             self.reset_field()
@@ -1051,15 +1075,15 @@ class migration:
                 self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt, self.pmt.shift,self.pmt.window,self.pmt.v0) 
             self.muted_seismogram = cp.asarray(self.muted_seismogram,dtype=cp.float32)
             self.migrated_partial = cp.zeros_like(self.migrated_image)
-            self.ilum = cp.zeros_like(self.migrated_image)
+            self.ilum_partial = cp.zeros_like(self.migrated_image)
             for k in range(self.pmt.nt):
                 self.forward_stepGPU(k)
                 self.save_boundaries(k)
                 self.wf.store_snapshotGPU(k)
-                self.ilum += self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] 
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current 
             for t in range(self.pmt.nt - 2, self.stop, -1):
+                self.ilum_partial += self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] 
                 if self.pmt.fwi == True:
                     u_next = self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()
                     u_curr = self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()                  
@@ -1079,11 +1103,13 @@ class migration:
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
                 self.currentbck, self.futurebck = self.futurebck, self.currentbck
 
-            self.migrated_image += self.migrated_partial / (self.ilum)
+            self.migrated_image += self.migrated_partial
+            self.ilum += self.ilum_partial
             self.wf.save_snapshotGPU(shot)
             self.save_snapshotBCKGPU(shot)
             self.save_imageGPU(shot)
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
+        self.migrated_image = self.migrated_image / self.ilum
         migrated_imagecpu = cp.asnumpy(self.migrated_image)      
         if self.pmt.fwi  == True:
             self.migratedFile = f"{self.pmt.migratedimageFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
@@ -1100,7 +1126,8 @@ class migration:
         if self.pmt.fwi == True:
             self.vp = self.wf.vp
         else:
-            self.vp = smooth_model(self.wf.vp, self.pmt.sigma)
+            water_mask = np.abs(self.wf.vp - 1500.0) < 1e-3
+            self.vp = smooth_model(self.wf.vp, self.pmt.sigma, water_mask)
         vp_exp_base = self.wf.ExpandModel(self.vp)
         if self.pmt.ABC == "cerjan":
             self.A = self.wf.createCerjanVector()
@@ -1121,6 +1148,8 @@ class migration:
         self.rx = cp.asarray(self.rx)
         self.rz = cp.asarray(self.rz)
         self.stop = int(2*self.pmt.tlag/self.pmt.dt)
+        self.ilum = cp.asarray(self.ilum)
+        self.migrated_image = cp.asarray(self.migrated_image)
         for shot in range(self.pmt.Nshot):
             print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
             self.reset_field()
@@ -1140,15 +1169,15 @@ class migration:
                 self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt, self.pmt.shift,self.pmt.window,self.pmt.v0) 
             self.muted_seismogram = cp.asarray(self.muted_seismogram,dtype=cp.float32)
             self.migrated_partial = cp.zeros_like(self.migrated_image)
-            self.ilum = cp.zeros_like(self.migrated_image)
+            self.ilum_partial = cp.zeros_like(self.migrated_image)
             for k in range(self.pmt.nt):
                 self.forward_stepGPU(k)
                 self.wf.store_snapshotGPU(k)
-                self.ilum += self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
             self.wf.current, self.wf.future = self.wf.future, self.wf.current    
             for t in range(self.pmt.nt - 2, self.stop, -1):
+                self.ilum_partial += self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
                 if self.pmt.fwi == True:
                     u_next = self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()
                     u_curr = self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()                   
@@ -1167,11 +1196,13 @@ class migration:
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
                 self.currentbck, self.futurebck = self.futurebck, self.currentbck
 
-            self.migrated_image += self.migrated_partial / (self.ilum)
+            self.migrated_image += self.migrated_partial
+            self.ilum += self.ilum_partial
             self.wf.save_snapshotGPU(shot)
             self.save_snapshotBCKGPU(shot)
             self.save_imageGPU(shot)
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
+        self.migrated_image = self.migrated_image / self.ilum
         migrated_imagecpu = cp.asnumpy(self.migrated_image)
         if self.pmt.fwi  == True:
             self.migratedFile = f"{self.pmt.migratedimageFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"

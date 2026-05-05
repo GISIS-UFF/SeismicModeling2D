@@ -68,31 +68,51 @@ def gaussian_filter2D(sigma):
     return kernel2d
 
 @jit(nopython=True, parallel=True)
-def smooth_model(f,sigma):
+def smooth_model(f, sigma, water_mask):
     s = 1.0 / f
     s_old = s.copy()
     kernel = gaussian_filter2D(sigma)
     ksize = kernel.shape[0]
     half = ksize // 2
-
     nz, nx = np.shape(s)
 
     for z in prange(half, nz - half):
         for x in prange(half, nx - half):
+
+            if water_mask[z, x]:
+                continue
+
             new_value = 0.0
-            for i in prange(ksize):
-                for j in prange(ksize):
-                    new_value += (kernel[i, j] * s_old[z + i - half, x + j - half])
-            s[z, x] = new_value
+            total = 0.0
+
+            for i in range(ksize):
+                for j in range(ksize):
+                    zz = z + i - half
+                    xx = x + j - half
+
+                    if water_mask[zz, xx]:
+                        continue
+
+                    new_value += kernel[i, j] * s_old[zz, xx]
+                    total += kernel[i, j]
+
+            if total > 0.0:
+                s[z, x] = new_value / total
 
     for z in range(half):
         s[z, :] = s[half, :]
         s[nz - 1 - z, :] = s[nz - 1 - half, :]
+
     for x in range(half):
         s[:, x] = s[:, half]
         s[:, nx - 1 - x] = s[:, nx - 1 - half]
 
-    return (1.0 / s)
+    for z in range(nz):
+        for x in range(nx):
+            if water_mask[z, x]:
+                s[z, x] = s_old[z, x]
+
+    return 1.0 / s
 
 # CPML Auxiliar Functions
 @njit(inline = "always")

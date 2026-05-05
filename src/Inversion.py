@@ -104,11 +104,9 @@ class fwi:
         gTp0 = np.sum(g * p)
         vmin = np.min(self.m0)
         alpha = 0.01 * (1.0 / (vmin*vmin))
-        lo = 0.0
-        hi = None
         for _ in range(10):
             m_new = m + alpha * p
-            X_new = self.objective_function(m_new, save_residual=True)
+            X_new = self.objective_function(m_new, save_residual=False)
             armijo = X_new <= X0 + c1 * alpha * gTp0
             print("X0 + c1 * alpha * gTp0 = " , X0 + c1 * alpha * gTp0)
             print("alpha =", alpha)
@@ -116,14 +114,12 @@ class fwi:
             print("X_new =", X_new)
             print("gTp0 =", gTp0)
             print("Armijo =", armijo)
-            print("lo =", lo, "hi =", hi)
             print()
-
+        
             if armijo:
                 return alpha
 
-            hi = alpha
-            alpha = 0.5 * (lo + hi)
+            alpha *= 0.5 
 
         return alpha
     
@@ -147,14 +143,11 @@ class fwi:
         print("info: Solving Full Waveform Inversion")
         
         # Modelo inicial
-        self.m0 = smooth_model(self.wf.vp, self.pmt.sigma).copy()
+        water_mask = np.abs(self.wf.vp - 1500.0) < 1e-3
+        self.m0 = smooth_model(self.wf.vp, self.pmt.sigma, water_mask).copy()
         m = 1.0 / (self.m0 * self.m0)
-        final_model_file = (f"{self.pmt.modelFolder}fwi_vp_smooth_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
-        self.m0.astype(np.float32).tofile(final_model_file)
-        # import matplotlib.pyplot as plt
-        # plt.figure()
-        # plt.imshow(self.m0)
-        # plt.show()
+        smooth_model_file = (f"{self.pmt.modelFolder}fwi_vp_smooth_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
+        self.m0.astype(np.float32).tofile(smooth_model_file)
 
         s_store = []
         y_store = []
@@ -164,7 +157,6 @@ class fwi:
             # Gradiente e função objetivo no modelo atual
             X = self.objective_function(m, save_residual = True)
             g = self.calculate_gradient(m)
-            g = g/np.max(np.abs(g))
             
             # Salvar gradiente da iteração atual
             gradient_file = (f"{self.pmt.migratedimageFolder}gradient_fwi_iter_{itr+1}_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
@@ -173,7 +165,7 @@ class fwi:
 
             # Direção de busca: LBFGS
             p = -self.two_loop_recursion(g,s_store,y_store)
-            # p = p/np.max(np.abs(p))
+            p = p/np.max(np.abs(p))
 
             # Line search
             alpha = self.step_length(m, p, g, X)

@@ -119,8 +119,6 @@ def line_search(x, p, g):
     fx = f(x)
     gTp0 = np.dot(g, p)
     alpha = 1.0
-    lo = 0.0
-    hi = None
     for it in range(30):
         x_new = x + alpha * p
         f_new = f(x_new)
@@ -129,7 +127,6 @@ def line_search(x, p, g):
 
         print("\n--- line_search_lo_hi ---")
         print("it =", it)
-        print("lo =", lo, "hi =", hi)
         print("alpha =", alpha)
         print("f0 =", fx)
         print("f_new =", f_new)
@@ -139,8 +136,7 @@ def line_search(x, p, g):
         if armijo:
             return alpha
 
-        hi = alpha
-        alpha = 0.5 * (lo + hi)
+        alpha *= 0.5 
     return alpha
 
 ni = 30

@@ -15,7 +15,7 @@ rx_init = 0
 rx_end = 8500
 Nrec = 170
 rx = np.linspace(rx_init,rx_end,Nrec)
-rz = 400*np.ones(len(rx))
+rz = 450*np.ones(len(rx))
 rIdx = np.arange(Nrec)
 
 plt.figure()
