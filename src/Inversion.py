@@ -151,12 +151,12 @@ class fwi:
 
         s_store = []
         y_store = []
+
+        # Gradiente e função objetivo no modelo atual
+        X = self.objective_function(m, save_residual = True)
+        g = self.calculate_gradient(m)
         for itr in range(self.pmt.niter):
             print(f"\033[31minfo: FWI iteration {itr + 1}/{self.pmt.niter}\033[0m")
-
-            # Gradiente e função objetivo no modelo atual
-            X = self.objective_function(m, save_residual = True)
-            g = self.calculate_gradient(m)
             
             # Salvar gradiente da iteração atual
             gradient_file = (f"{self.pmt.migratedimageFolder}gradient_fwi_iter_{itr+1}_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
@@ -182,14 +182,13 @@ class fwi:
             y_store.append(y)
 
             m = m_new.copy()
+            X = X_new
+            g = g_new.copy()
 
             m_it = 1.0 / np.sqrt(m)
             model_file = (f"{self.pmt.modelFolder}fwi_vp_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}_itr{itr+1}.bin")
             m_it.astype(np.float32).tofile(model_file)
             print(f"info: Model of {itr+1} iteration saved to {model_file}")
-
-        # Atualiza modelo final
-        self.wf.vp = 1.0 / np.sqrt(m)
 
         end_time = time.time()
         print(f"\ninfo: FWI finished in {end_time - start_time:.2f} s")
