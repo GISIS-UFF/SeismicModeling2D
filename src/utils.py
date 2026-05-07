@@ -114,6 +114,33 @@ def smooth_model(f, sigma, water_mask):
 
     return 1.0 / s
 
+def low_pass_filter(data, cutoff, dt, transition=0.15, axis=0):
+    data = np.asarray(data)
+    nt = data.shape[axis]
+
+    fft_data = np.fft.rfft(data, axis=axis)
+    frequencies = np.fft.rfftfreq(nt, d=dt)
+
+    fpass = cutoff * (1.0 - transition)
+    fstop = cutoff
+
+    mask = np.ones_like(frequencies)
+
+    mask[frequencies >= fstop] = 0.0
+
+    idx = (frequencies > fpass) & (frequencies < fstop)
+
+    if np.any(idx):
+        mask[idx] = 0.5 * (1.0 + np.cos(np.pi * (frequencies[idx] - fpass) / (fstop - fpass)))
+
+    shape = [1] * fft_data.ndim
+    shape[axis] = mask.size
+    mask = mask.reshape(shape)
+
+    data_filt = np.fft.irfft(fft_data * mask, n=nt, axis=axis)
+
+    return data_filt.astype(data.dtype, copy=False)
+
 # CPML Auxiliar Functions
 @njit(inline = "always")
 def horizontal_dampening_profiles(N_abc,nx_abc, dx, vp, f_pico, d0, dt, i, j):

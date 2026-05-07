@@ -92,6 +92,7 @@ class parameters:
         #FWI parameters
         self.niter = self.parameters['niter']
         self.fwi = self.parameters['fwi']
+        self.freqs = self.parameters['freqs']
 
     def readAcquisitionGeometry(self):        
         # Read receiver and source coordinates from CSV files

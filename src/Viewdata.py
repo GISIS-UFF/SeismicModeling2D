@@ -362,3 +362,26 @@ class plotting:
         cbar.set_label("Amplitude")
 
         plt.show()
+
+    def viewHistory(self):
+        history = np.loadtxt("../outputs/history.txt")
+        if history.ndim == 1:
+            history = history.reshape(1, -1)
+
+        X_norm = history[:, 0]
+        fmax = history[:, 1]
+
+        plt.figure()
+        freqs = np.unique(fmax)
+        for freq in freqs:
+            idx = fmax == freq
+            x = np.arange(np.sum(idx))
+            y = X_norm[idx]
+            plt.plot(x, y, "o-", label=f"0-{freq:g} Hz")
+
+        plt.xlabel("Iteração dentro da banda")
+        plt.ylabel("X / X0 da banda")
+        plt.title("Função objetivo normalizada por banda")
+        plt.legend()
+        plt.grid()
+        plt.show()
