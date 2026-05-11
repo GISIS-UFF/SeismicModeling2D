@@ -61,6 +61,8 @@ class fwi:
         self.wf.vp = 1.0 / np.sqrt(m)
         self.mig.SolveBackwardWaveEquation()
         grad = self.loadGradient()
+        water_mask = np.abs(self.wf.vp - 1500.0) < 1e-3
+        grad[water_mask] = 0.0
         return grad
     
     def two_loop_recursion(self,g,s_store,y_store):
@@ -154,6 +156,7 @@ class fwi:
         source0 = self.wf.source.copy()
         history = []
         for fmax in self.pmt.freqs:
+            print(f"\033[31minfo: FWI frequency {fmax} of {self.pmt.freqs}\033[0m")
             self.wf.source = low_pass_filter(source0, fmax, self.pmt.dt)
 
             s_store = []
