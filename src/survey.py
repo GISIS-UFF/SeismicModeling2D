@@ -93,6 +93,8 @@ class parameters:
         self.niter = self.parameters['niter']
         self.fwi = self.parameters['fwi']
         self.freqs = self.parameters['freqs']
+        self.vmax = self.parameters['vmax']
+        self.vmin = self.parameters['vmin']
 
     def readAcquisitionGeometry(self):        
         # Read receiver and source coordinates from CSV files
@@ -106,6 +108,11 @@ class parameters:
         self.rec_z = receiverTable['coordz'].to_numpy()
         self.shot_x = sourceTable['coordx'].to_numpy()
         self.shot_z = sourceTable['coordz'].to_numpy()
+        
+        self.rx = np.int32(self.rec_x/self.dx) + self.N_abc
+        self.rz = np.int32(self.rec_z/self.dz) + self.N_abc
+        self.sx = np.int32(self.shot_x/self.dx) + self.N_abc
+        self.sz = np.int32(self.shot_z/self.dz) + self.N_abc
 
         self.Nrec = len(self.rec_x)
         self.Nshot = len(self.shot_x)   

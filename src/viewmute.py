@@ -4,16 +4,24 @@ import matplotlib.pyplot as plt
 import numpy 
 
 pmt = parameters("../inputs/Parameters.json")
-shot = 5
+shot = 9
+shift = 0.1
+window = 0.05
 seismogramFile = f"{pmt.seismogramFolder}seismogram_shot_{shot}_Nt{pmt.nt}_Nrec{pmt.Nrec}.bin"
 seismogram = numpy.fromfile(seismogramFile, dtype=numpy.float32).reshape(pmt.nt,pmt.Nrec) 
-muted_seismogram = Mute(seismogram, shot, pmt.rec_x, pmt.rec_z, pmt.shot_x, pmt.shot_z, pmt.dt, shift = 0.21,window = 0.04,v0=1500)
+muted_seismogram = Mute(seismogram, shot, pmt.rec_x, pmt.rec_z, pmt.shot_x, pmt.shot_z, pmt.dt,pmt.tlag,shift,pmt.dx,pmt.N_abc,window,v0=1500)
+
+dist = numpy.sqrt((pmt.rec_z - pmt.shot_z[shot])**2 + (pmt.rec_x - pmt.shot_x[shot]+950)**2)
+traveltimes = dist / 1500 + pmt.tlag + 0.1
+travel_idx = traveltimes / pmt.dt   
 
 plt.figure()
-plt.plot(seismogram[:,80], label = "seismogram")
-plt.plot(muted_seismogram[:,80], label = "muted")
+plt.plot(seismogram[:, 350], label="seismogram")
+plt.plot(muted_seismogram[:, 350], label="muted")
 plt.legend()
+
 plt.figure()
-plt.imshow(muted_seismogram, aspect="auto")
+plt.imshow(muted_seismogram, aspect="auto", cmap="gray")
+# plt.plot(numpy.arange(pmt.Nrec), travel_idx, 'r', linewidth=2, alpha = 0.7)
 plt.colorbar()
 plt.show()

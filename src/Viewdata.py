@@ -279,7 +279,7 @@ class plotting:
         if laplacian == True:
             migrated_image = self.laplacian_filter(migrated_image)
         perc = np.percentile(migrated_image, perc)
-        plt.imshow(migrated_image, cmap='gray', vmin=-perc, vmax=perc, extent=[0, self.pmt.nx*self.pmt.dx, self.pmt.nz*self.pmt.dz, 0])  
+        plt.imshow(migrated_image, aspect='auto', cmap='gray', vmin=-perc, vmax=perc, extent=[0, self.pmt.nx*self.pmt.dx, self.pmt.nz*self.pmt.dz, 0])  
         plt.colorbar(label='Amplitude')
         plt.title("Migrated Image")
         plt.xlabel("Distance (m)")

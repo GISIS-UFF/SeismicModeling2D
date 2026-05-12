@@ -489,7 +489,7 @@ void updateWaveEquationCPMLCuda(float* Uf,const float* Uc,const float* vp,const 
     int iz = i/nx_abc;
     int ix = i%nx_abc;
 
-    // Região Interior
+    // Regiao Interior
     if (iz >= N_abc && iz < nz_abc - N_abc && ix >= N_abc && ix < nx_abc - N_abc)
     {
         float pxx = (c0 * Uc[i]
@@ -507,7 +507,7 @@ void updateWaveEquationCPMLCuda(float* Uf,const float* Uc,const float* vp,const 
         Uf[i] = (vp[i] * vp[i]) * (dt * dt) * (pxx + pzz) + 2.0f * Uc[i] - Uf[i];
     }
 
-    // Região Esquerda
+    // Regiao Esquerda
     if (iz >= N_abc && iz < nz_abc - N_abc && ix >= 4 && ix < N_abc)
     {
         int idx = iz * N_abc + ix;
@@ -532,7 +532,7 @@ void updateWaveEquationCPMLCuda(float* Uf,const float* Uc,const float* vp,const 
         Uf[i] = (vp[i] * vp[i]) * (dt * dt) * (pxx + pzz + psix + ZetaxFL[idx]) + 2.0f * Uc[i] - Uf[i];
     }
 
-    // Região Direita
+    // Regiao Direita
     if (iz >= N_abc && iz < nz_abc - N_abc && ix >= nx_abc - N_abc && ix < nx_abc - 4)
     {
         int idx = iz * N_abc + (ix - (nx_abc - N_abc));
@@ -557,7 +557,7 @@ void updateWaveEquationCPMLCuda(float* Uf,const float* Uc,const float* vp,const 
         Uf[i] = (vp[i] * vp[i]) * (dt * dt) * (pxx + pzz + psix + ZetaxFR[idx]) + 2.0f * Uc[i] - Uf[i];
     }
 
-    // Região Superior
+    // Regiao Superior
     if (iz >= 4 && iz < N_abc && ix >= N_abc && ix < nx_abc - N_abc)
     {
         int jdx = iz * nx_abc + ix;
@@ -582,7 +582,7 @@ void updateWaveEquationCPMLCuda(float* Uf,const float* Uc,const float* vp,const 
         Uf[i] = (vp[i] * vp[i]) * (dt * dt) * (pxx + pzz + psiz + ZetazFU[jdx]) + 2.0f * Uc[i] - Uf[i];
     }
 
-    // Região Inferior
+    // Regiao Inferior
     if (iz >= nz_abc - N_abc && iz < nz_abc - 4 && ix >= N_abc && ix < nx_abc - N_abc)
     {
         int jdx = (iz - (nz_abc - N_abc)) * nx_abc + ix;
@@ -759,7 +759,7 @@ void updateWaveEquationVTICPMLCuda(float* Uf,const float* Uc,const float* vp,con
     int iz = i/nx_abc;
     int ix = i%nx_abc;
 
-    // Região Interior
+    // Regiao Interior
     if (iz >= N_abc && iz < nz_abc - N_abc && ix >= N_abc && ix < nx_abc - N_abc)
     {
         float pxx = (c0 * Uc[i]
@@ -797,7 +797,7 @@ void updateWaveEquationVTICPMLCuda(float* Uf,const float* Uc,const float* vp,con
         Uf[i] = 2.0f * Uc[i] - Uf[i] + (vp[i] * vp[i]) * (dt * dt) * ((1.0f+ 2.0f*epsilon[i]) + Sd) * pxx + (vp[i] * vp[i]) * (dt * dt) *(1.0f + Sd) * pzz;
     }
 
-    // Região Esquerda
+    // Regiao Esquerda
     if (iz >= N_abc && iz < nz_abc - N_abc && ix >= 4 && ix < N_abc)
     {
         int idx = iz * N_abc + ix;
@@ -842,7 +842,7 @@ void updateWaveEquationVTICPMLCuda(float* Uf,const float* Uc,const float* vp,con
         Uf[i] = 2.0f * Uc[i] - Uf[i] + (vp[i] * vp[i]) * (dt * dt) * ((1.0f+ 2.0f*epsilon[i]) + Sd) * (pxx + psix + ZetaxFL[idx]) + (vp[i] * vp[i]) * (dt * dt) *(1.0f + Sd) * pzz;
     }
 
-    // Região Direita
+    // Regiao Direita
     if (iz >= N_abc && iz < nz_abc - N_abc && ix >= nx_abc - N_abc && ix < nx_abc - 4)
     {
         int idx = iz * N_abc + (ix - (nx_abc - N_abc));
@@ -887,7 +887,7 @@ void updateWaveEquationVTICPMLCuda(float* Uf,const float* Uc,const float* vp,con
         Uf[i] = 2.0f * Uc[i] - Uf[i] + (vp[i] * vp[i]) * (dt * dt) * ((1.0f+ 2.0f*epsilon[i]) + Sd) * (pxx + psix + ZetaxFR[idx]) + (vp[i] * vp[i]) * (dt * dt) *(1.0f + Sd) * pzz;
     }
 
-    // Região Superior
+    // Regiao Superior
     if (iz >= 4 && iz < N_abc && ix >= N_abc && ix < nx_abc - N_abc)
     {
         int jdx = iz * nx_abc + ix;
@@ -932,7 +932,7 @@ void updateWaveEquationVTICPMLCuda(float* Uf,const float* Uc,const float* vp,con
         Uf[i] = 2.0f * Uc[i] - Uf[i] + (vp[i] * vp[i]) * (dt * dt) * ((1.0f+ 2.0f*epsilon[i]) + Sd) * pxx + (vp[i] * vp[i]) * (dt * dt) *(1.0f + Sd) * (pzz + psiz + ZetazFU[jdx]);
     }
 
-    // Região Inferior
+    // Regiao Inferior
     if (iz >= nz_abc - N_abc && iz < nz_abc - 4 && ix >= N_abc && ix < nx_abc - N_abc)
     {
         int jdx = (iz - (nz_abc - N_abc)) * nx_abc + ix;

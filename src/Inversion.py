@@ -30,22 +30,20 @@ class fwi:
                 self.wf.theta_exp = self.wf.ExpandModel(self.wf.theta)
                 self.wf.theta_exp  = cp.asarray(self.wf.theta_exp, dtype=cp.float32)
         
-        rx = np.int32(self.pmt.rec_x/self.pmt.dx) + self.pmt.N_abc
-        rz = np.int32(self.pmt.rec_z/self.pmt.dz) + self.pmt.N_abc
-        rx = cp.asarray(rx)
-        rz = cp.asarray(rz)
+        self.pmt.rx = cp.asarray(self.pmt.rx)
+        self.pmt.rz = cp.asarray(self.pmt.rz)
         for shot in range(self.pmt.Nshot):
             dobs = self.loadObsSeismogram(shot)
             dobs = low_pass_filter(dobs,fmax,self.pmt.dt)
             self.wf.reset_field()
 
             # convert acquisition geometry coordinates to grid points
-            self.wf.sx = int(self.pmt.shot_x[shot]/self.pmt.dx) + self.pmt.N_abc
-            self.wf.sz = int(self.pmt.shot_z[shot]/self.pmt.dz) + self.pmt.N_abc           
+            self.wf.isx = self.pmt.sx[shot]
+            self.wf.isz = self.pmt.sz[shot]            
             for k in range(self.pmt.nt): 
                 self.wf.forward_stepGPU(k)
                 # Register seismogram and snapshot
-                self.wf.store_seismogram(k,rz,rx)      
+                self.wf.store_seismogram(k,self.pmt.rz,self.pmt.rx)      
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
            
@@ -183,7 +181,11 @@ class fwi:
                 alpha = self.step_length(m, p, g, X, fmax)
 
                 # Atualização do modelo
+                m_max = 1.0 / (self.pmt.vmax * self.pmt.vmax)
+                m_min = 1.0 / (self.pmt.vmin * self.pmt.vmin)
+
                 m_new = m + alpha * p
+                m_new = np.clip(m_new, m_min, m_max)
 
                 X_new = self.objective_function(m_new, fmax, save_residual = True)
                 g_new = self.calculate_gradient(m_new)
