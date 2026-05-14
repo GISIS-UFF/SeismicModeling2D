@@ -68,40 +68,37 @@ class plotting:
         plt.colorbar(label='Amplitude')
         plt.title("Seismogram")
         plt.ylabel("Time (s)")
-        plt.show(block=True)
+        plt.show(block=False)
 
-    def viewModel(self,keyword):
-        for filename in sorted(os.listdir(self.pmt.modelFolder)):
-            if keyword in filename and filename.endswith(".bin"):
-                path = os.path.join(self.pmt.modelFolder, filename)
-                model = np.fromfile(path, dtype=np.float32).reshape(self.pmt.nz,self.pmt.nx)
-                fig, ax = plt.subplots(figsize=(10, 5))
-                im = ax.imshow(model, aspect='equal', cmap='jet', extent=[0, self.pmt.L, self.pmt.D, 0])
-                ax.plot(self.pmt.rec_x, self.pmt.rec_z, 'bv', markersize=2, label='Receivers')
-                ax.plot(self.pmt.shot_x, self.pmt.shot_z, 'r*', markersize=5, label='Sources')
-                ax.set_xlabel("Distance (m)")
-                ax.set_ylabel("Depth (m)")
-                
-                # nice colorbar
-                name = filename.lower()
-                if "epsilon" in name:
-                    label = "Epsilon"
-                elif "delta" in name:
-                    label = "Delta"
-                elif "vs" in name:
-                    label = "Shear velocity (m/s)"
-                elif "theta" in name:
-                    label = "Tilt angle (°)"
-                elif "vp" in name:
-                    label = "Velocity (m/s)"
-                else:
-                    label = "Amplitude"
+    def viewModel(self,filename):
+        model = np.fromfile(filename, dtype=np.float32).reshape(self.pmt.nz,self.pmt.nx)
+        fig, ax = plt.subplots(figsize=(10, 5))
+        im = ax.imshow(model, aspect='equal', cmap='jet', extent=[0, self.pmt.L, self.pmt.D, 0])
+        ax.plot(self.pmt.rec_x, self.pmt.rec_z, 'bv', markersize=2, label='Receivers')
+        ax.plot(self.pmt.shot_x, self.pmt.shot_z, 'r*', markersize=5, label='Sources')
+        ax.set_xlabel("Distance (m)")
+        ax.set_ylabel("Depth (m)")
+        
+        # nice colorbar
+        name = filename.lower()
+        if "epsilon" in name:
+            label = "Epsilon"
+        elif "delta" in name:
+            label = "Delta"
+        elif "vs" in name:
+            label = "Shear velocity (m/s)"
+        elif "theta" in name:
+            label = "Tilt angle (°)"
+        elif "vp" in name:
+            label = "Velocity (m/s)"
+        else:
+            label = "Amplitude"
 
-                cbar = self.adjustColorBar(fig, ax, im)
-                cbar.set_label(label)
+        cbar = self.adjustColorBar(fig, ax, im)
+        cbar.set_label(label)
 
-                plt.tight_layout()
-                plt.show()
+        plt.tight_layout()
+        plt.show()
 
     def get_shot_frame(self,filename):
         name = filename.replace(".bin", "")

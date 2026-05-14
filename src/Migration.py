@@ -541,12 +541,12 @@ class migration:
         
         self.migrated_image = self.migrated_image / self.ilum
         if self.pmt.fwi  == True:
-            self.migratedFile = f"{self.pmt.migratedimageFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
-            self.migrated_image.astype(np.float32).tofile(self.migratedFile)
+            self.outputFile = f"{self.pmt.gradientsFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
+            self.migrated_image.astype(np.float32).tofile(self.outputFile)
         else:
-            self.migratedFile = f"{self.pmt.migratedimageFolder}migrated_image_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
-            self.migrated_image.astype(np.float32).tofile(self.migratedFile)
-        print(f"info: Final image saved to {self.migratedFile}")
+            self.outputFile = f"{self.pmt.migratedimageFolder}migrated_image_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
+            self.migrated_image.astype(np.float32).tofile(self.outputFile)
+        print(f"info: Final image saved to {self.outputFile}")
     
     # REGULAR CHECKPOINTING
     def solveBackwardWaveEquationCheckpointing(self):
@@ -620,12 +620,12 @@ class migration:
         
         self.migrated_image = self.migrated_image / self.ilum
         if self.pmt.fwi  == True:
-            self.migratedFile = f"{self.pmt.migratedimageFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
-            self.migrated_image.astype(np.float32).tofile(self.migratedFile)
+            self.outputFile = f"{self.pmt.gradientsFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
+            self.migrated_image.astype(np.float32).tofile(self.outputFile)
         else:
-            self.migratedFile = f"{self.pmt.migratedimageFolder}migrated_image_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
-            self.migrated_image.astype(np.float32).tofile(self.migratedFile)
-        print(f"info: Final image saved to {self.migratedFile}")
+            self.outputFile = f"{self.pmt.migratedimageFolder}migrated_image_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
+            self.migrated_image.astype(np.float32).tofile(self.outputFile)
+        print(f"info: Final image saved to {self.outputFile}")
     
     #Saving Boundaries
     def solveBackwardWaveEquationSavingBoundaries(self):
@@ -697,12 +697,12 @@ class migration:
         
         self.migrated_image = self.migrated_image / self.ilum      
         if self.pmt.fwi  == True:
-            self.migratedFile = f"{self.pmt.migratedimageFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
-            self.migrated_image.astype(np.float32).tofile(self.migratedFile)
+            self.outputFile = f"{self.pmt.gradientsFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
+            self.migrated_image.astype(np.float32).tofile(self.outputFile)
         else:
-            self.migratedFile = f"{self.pmt.migratedimageFolder}migrated_image_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
-            self.migrated_image.astype(np.float32).tofile(self.migratedFile)
-        print(f"info: Final image saved to {self.migratedFile}")
+            self.outputFile = f"{self.pmt.migratedimageFolder}migrated_image_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
+            self.migrated_image.astype(np.float32).tofile(self.outputFile)
+        print(f"info: Final image saved to {self.outputFile}")
 
     #Random Boundary Condintion
     def solveBackwardWaveEquationRBC(self):
@@ -775,12 +775,12 @@ class migration:
         
         self.migrated_image = self.migrated_image / self.ilum
         if self.pmt.fwi  == True:
-            self.migratedFile = f"{self.pmt.migratedimageFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
-            self.migrated_image.astype(np.float32).tofile(self.migratedFile)
+            self.outputFile = f"{self.pmt.gradientsFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
+            self.migrated_image.astype(np.float32).tofile(self.outputFile)
         else:
-            self.migratedFile = f"{self.pmt.migratedimageFolder}migrated_image_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
-            self.migrated_image.astype(np.float32).tofile(self.migratedFile)
-        print(f"info: Final image saved to {self.migratedFile}")
+            self.outputFile = f"{self.pmt.migratedimageFolder}migrated_image_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
+            self.migrated_image.astype(np.float32).tofile(self.outputFile)
+        print(f"info: Final image saved to {self.outputFile}")
 
 ## GPU Migration Types
     #On the fly
@@ -826,7 +826,6 @@ class migration:
                 self.muted_seismogram = seismogram
             else:
                 self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,self.pmt.tlag, self.pmt.shift,self.pmt.dx,self.pmt.N_abc,self.pmt.window,self.pmt.v0) 
-            import matplotlib.pyplot as plt
             self.muted_seismogram = cp.asarray(self.muted_seismogram,dtype=cp.float32)
             self.migrated_partial = cp.zeros_like(self.migrated_image)
             self.ilum_partial = cp.zeros_like(self.migrated_image)
@@ -858,11 +857,11 @@ class migration:
         migrated_imagecpu = cp.asnumpy(self.migrated_image)
         migrated_imagecpu[water_mask] = 0
         if self.pmt.fwi  == True:
-            self.migratedFile = f"{self.pmt.migratedimageFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
+            self.outputFile = f"{self.pmt.gradientsFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
         else:
-            self.migratedFile = f"{self.pmt.migratedimageFolder}migrated_image_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
-        migrated_imagecpu.astype(np.float32).tofile(self.migratedFile)
-        print(f"info: Final image saved to {self.migratedFile}")
+            self.outputFile = f"{self.pmt.migratedimageFolder}migrated_image_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
+        migrated_imagecpu.astype(np.float32).tofile(self.outputFile)
+        print(f"info: Final image saved to {self.outputFile}")
         
     # REGULAR CHECKPOINTING
     def solveBackwardWaveEquationCheckpointingGPU(self):
@@ -950,11 +949,11 @@ class migration:
         self.migrated_image = self.migrated_image / self.ilum
         migrated_imagecpu = cp.asnumpy(self.migrated_image)
         if self.pmt.fwi  == True:
-            self.migratedFile = f"{self.pmt.migratedimageFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
+            self.outputFile = f"{self.pmt.gradientsFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
         else:
-            self.migratedFile = f"{self.pmt.migratedimageFolder}migrated_image_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
-        migrated_imagecpu.astype(np.float32).tofile(self.migratedFile)
-        print(f"info: Final image saved to {self.migratedFile}")
+            self.outputFile = f"{self.pmt.migratedimageFolder}migrated_image_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
+        migrated_imagecpu.astype(np.float32).tofile(self.outputFile)
+        print(f"info: Final image saved to {self.outputFile}")
     
     #Saving Boundaries
     def solveBackwardWaveEquationSavingBoundariesGPU(self):
@@ -1039,11 +1038,11 @@ class migration:
         self.migrated_image = self.migrated_image / self.ilum
         migrated_imagecpu = cp.asnumpy(self.migrated_image)      
         if self.pmt.fwi  == True:
-            self.migratedFile = f"{self.pmt.migratedimageFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
+            self.outputFile = f"{self.pmt.gradientsFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
         else:
-            self.migratedFile = f"{self.pmt.migratedimageFolder}migrated_image_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
-        migrated_imagecpu.astype(np.float32).tofile(self.migratedFile)
-        print(f"info: Final image saved to {self.migratedFile}")
+            self.outputFile = f"{self.pmt.migratedimageFolder}migrated_image_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
+        migrated_imagecpu.astype(np.float32).tofile(self.outputFile)
+        print(f"info: Final image saved to {self.outputFile}")
 
     #Random Boundary Condintion
     def solveBackwardWaveEquationRBCGPU(self):
@@ -1130,11 +1129,11 @@ class migration:
         self.migrated_image = self.migrated_image / self.ilum
         migrated_imagecpu = cp.asnumpy(self.migrated_image)
         if self.pmt.fwi  == True:
-            self.migratedFile = f"{self.pmt.migratedimageFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
+            self.outputFile = f"{self.pmt.gradientsFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
         else:
-            self.migratedFile = f"{self.pmt.migratedimageFolder}migrated_image_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
-        migrated_imagecpu.astype(np.float32).tofile(self.migratedFile)
-        print(f"info: Final image saved to {self.migratedFile}")
+            self.outputFile = f"{self.pmt.migratedimageFolder}migrated_image_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
+        migrated_imagecpu.astype(np.float32).tofile(self.outputFile)
+        print(f"info: Final image saved to {self.outputFile}")
 
     def SolveBackwardWaveEquation(self):
         if self.pmt.unit == "CPU":

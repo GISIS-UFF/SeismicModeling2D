@@ -28,6 +28,8 @@ class wavefield:
         # Create Ricker wavelet
         self.source = ricker(self.pmt.fcut, self.pmt.t, self.pmt.tlag)
         self.source = self.source * 1/(self.pmt.dx*self.pmt.dz) 
+        from utils import low_pass_filter
+        self.source = low_pass_filter(self.source, 10, self.pmt.dt)
         print(f"info: Ricker Source wavelet created: {self.pmt.nt} samples")
         
     def ImportModel(self, filename):

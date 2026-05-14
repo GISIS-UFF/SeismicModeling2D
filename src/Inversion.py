@@ -126,7 +126,7 @@ class fwi:
         return alpha
     
     def loadGradient(self):
-        gradientFile = f"{self.pmt.migratedimageFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
+        gradientFile = f"{self.pmt.gradientsFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
         grad = np.fromfile(gradientFile, dtype=np.float32).reshape(self.pmt.nz, self.pmt.nx)
         return grad
     
@@ -163,13 +163,15 @@ class fwi:
             # Gradiente e função objetivo no modelo atual
             X = self.objective_function(m,fmax, save_residual = True)
             g = self.calculate_gradient(m)
-            X0 = X
+
+            if fmax == self.pmt.freqs[0]:
+                X0 = X
     
             for itr in range(self.pmt.niter):
                 print(f"\033[31minfo: FWI iteration {itr + 1}/{self.pmt.niter}\033[0m")
 
                 # Salvar gradiente da iteração atual
-                gradient_file = (f"{self.pmt.migratedimageFolder}gradient_fwi_iter_{itr+1}_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
+                gradient_file = (f"{self.pmt.gradientsFolder}gradient_fwi_iter_{itr+1}_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
                 (g).astype(np.float32).tofile(gradient_file)
                 print(f"info: Gradient saved to {gradient_file}")
 
@@ -201,7 +203,7 @@ class fwi:
                 g = g_new.copy()
 
                 m_it = 1.0 / np.sqrt(m)
-                model_file = (f"{self.pmt.modelFolder}fwi_vp_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}_itr{itr+1}.bin")
+                model_file = (f"{self.pmt.estimatedmodelsFolder}fwi_vp_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}_itr{itr+1}.bin")
                 m_it.astype(np.float32).tofile(model_file)
                 print(f"info: Model of {itr+1} iteration saved to {model_file}")
         

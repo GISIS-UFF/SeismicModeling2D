@@ -23,7 +23,7 @@
     "fwi": false,
     "niter": 25,
     "freqs": [7.5, 15.0, 22.5, 30.0],
-    "vmin": 1000,
+    "vmin": 1500,
     "vmax": 6000,
     "rec_file": "../inputs/receivers.csv",
     "src_file": "../inputs/sources.csv",
@@ -41,5 +41,8 @@
     "seismogramFolder": "../outputs/seismograms/",
     "checkpointFolder": "../outputs/checkpoints/",
     "migratedimageFolder": "../outputs/images/",
-    "modelFolder": "../inputs/models/"
+    "modelFolder": "../inputs/models/",
+    "estimatedmodelsFolder":"../outputs/estimated_models/",
+    "gradientsFolder": "../outputs/gradients/"
+
 }

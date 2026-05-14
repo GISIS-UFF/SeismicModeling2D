@@ -115,7 +115,7 @@ def smooth_model(f, sigma, water_mask):
 
     return 1.0 / s
 
-def low_pass_filter(data, cutoff, dt, transition=0.15, axis=0):
+def low_pass_filter(data, cutoff, dt, transition=0.2, axis=0):
     data = np.asarray(data)
     nt = data.shape[axis]
 

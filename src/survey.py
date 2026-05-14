@@ -50,12 +50,14 @@ class parameters:
         # Source delay
         self.tlag = self.parameters["tlag"]
 
-        # Output folders
+        # Folders
         self.seismogramFolder = self.parameters["seismogramFolder"]
         self.migratedimageFolder = self.parameters["migratedimageFolder"]
         self.snapshotFolder = self.parameters["snapshotFolder"]
         self.modelFolder = self.parameters["modelFolder"]
         self.checkpointFolder = self.parameters["checkpointFolder"]
+        self.estimatedmodelsFolder = self.parameters["estimatedmodelsFolder"]
+        self.gradientsFolder = self.parameters["gradientsFolder"]
 
         # Source and receiver files
         self.rec_file = self.parameters["rec_file"]

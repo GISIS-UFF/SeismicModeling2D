@@ -3,10 +3,10 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 # sources
-sx_init = 0
+sx_init = 4000
 sx_end  = 8500
-Nsource = 10
-sx = np.linspace(sx_init,sx_end,Nsource)
+Nsource = 1
+sx = np.linspace(sx_init,sx_end,Nsource, endpoint = "True")
 sz = 10*np.ones(len(sx))
 sIdx = np.arange(Nsource)
 
@@ -14,7 +14,7 @@ sIdx = np.arange(Nsource)
 rx_init = 0
 rx_end = 8500
 Nrec = 170
-rx = np.linspace(rx_init,rx_end,Nrec)
+rx = np.linspace(rx_init,rx_end,Nrec, endpoint = "True")
 rz = 450*np.ones(len(rx))
 rIdx = np.arange(Nrec)
 
