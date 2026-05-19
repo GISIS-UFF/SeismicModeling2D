@@ -316,7 +316,7 @@ class migration:
 
     def build_ckpts_steps(self):
         self.ckpts_steps = []
-        for t0 in range (self.stop,self.pmt.nt-1,self.pmt.step):
+        for t0 in range (0,self.pmt.nt-1,self.pmt.step):
             t1 = min(t0 + self.pmt.step,self.pmt.nt-1)
             self.ckpts_steps.append((t0,t1))
         self.ckpt_frames = {t1 for (t0, t1) in self.ckpts_steps}
@@ -496,10 +496,8 @@ class migration:
             self.wf.delta_exp = self.wf.ExpandModel(self.wf.delta)
             if self.pmt.approximation == "TTI":
                 self.wf.theta_exp = self.wf.ExpandModel(self.wf.theta)
-        
 
         save_field = np.zeros([self.pmt.nt,self.pmt.nz,self.pmt.nx],dtype=np.float32)
-        self.stop = 0
         for shot in range(self.pmt.Nshot):
             print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
 
@@ -523,7 +521,7 @@ class migration:
                 save_field[k,:,:] = self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
                 self.ilum_partial += save_field[k,:,:] * save_field[k,:,:] 
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
-            for t in range(self.pmt.nt - 1, self.stop, -1):
+            for t in range(self.pmt.nt - 1, -1, -1):
                 self.backward_step(t)
                 self.save_snapshotBCK(shot,t)
                 if self.pmt.fwi  == True:
@@ -567,8 +565,6 @@ class migration:
             if self.pmt.approximation == "TTI":
                 self.wf.theta_exp = self.wf.ExpandModel(self.wf.theta)
         
-
-        self.stop = 0
         for shot in range(self.pmt.Nshot):
             print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
             self.reset_field()
@@ -646,8 +642,6 @@ class migration:
             if self.pmt.approximation == "TTI":
                 self.wf.theta_exp = self.wf.ExpandModel(self.wf.theta)
 
-
-        self.stop = 0
         for shot in range(self.pmt.Nshot):
             print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
             self.reset_field()
@@ -670,7 +664,7 @@ class migration:
                 self.wf.save_snapshot(shot, k)
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current 
-            for t in range(self.pmt.nt - 1, self.stop, -1):
+            for t in range(self.pmt.nt - 1, -1, -1):
                 self.ilum_partial += self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]  
                 if self.pmt.fwi == True:
                     u_next = self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()
@@ -723,8 +717,6 @@ class migration:
             if self.pmt.approximation == "TTI":
                 self.wf.theta_exp = self.wf.ExpandModel(self.wf.theta)
 
-
-        self.stop = 0
         for shot in range(self.pmt.Nshot):
             print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
             self.reset_field()
@@ -749,7 +741,7 @@ class migration:
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
             self.wf.current, self.wf.future = self.wf.future, self.wf.current    
-            for t in range(self.pmt.nt - 1, self.stop, -1): 
+            for t in range(self.pmt.nt - 1, -1, -1): 
                 self.ilum_partial += self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] 
                 if self.pmt.fwi == True:
                     u_next = self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()
@@ -810,7 +802,6 @@ class migration:
         self.pmt.rx = cp.asarray(self.pmt.rx)
         self.pmt.rz = cp.asarray(self.pmt.rz)
         save_field = cp.zeros([self.pmt.nt,self.pmt.nz,self.pmt.nx],dtype=cp.float32)
-        self.stop = 0
         self.ilum = cp.asarray(self.ilum)
         self.migrated_image = cp.asarray(self.migrated_image)
         for shot in range(self.pmt.Nshot):
@@ -825,7 +816,7 @@ class migration:
             if self.pmt.fwi == True:
                 self.muted_seismogram = seismogram
             else:
-                self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,self.pmt.tlag, self.pmt.shift,self.pmt.dx,self.pmt.N_abc,self.pmt.window,self.pmt.v0) 
+                self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,self.pmt.tlag, self.pmt.shift,self.pmt.window,self.pmt.v0) 
             self.muted_seismogram = cp.asarray(self.muted_seismogram,dtype=cp.float32)
             self.migrated_partial = cp.zeros_like(self.migrated_image)
             self.ilum_partial = cp.zeros_like(self.migrated_image)
@@ -835,7 +826,7 @@ class migration:
                 save_field[k,:,:] = self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
                 self.ilum_partial += save_field[k,:,:] * save_field[k,:,:] 
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
-            for t in range(self.pmt.nt - 2, self.stop, -1):
+            for t in range(self.pmt.nt - 2, -1, -1):
                 self.backward_stepGPU(t)
                 self.store_snapshotBCKGPU(t)
                 if self.pmt.fwi  == True:
@@ -887,7 +878,6 @@ class migration:
         
         self.pmt.rx = cp.asarray(self.pmt.rx)
         self.pmt.rz = cp.asarray(self.pmt.rz)
-        self.stop = 0
         self.ilum = cp.asarray(self.ilum)
         self.migrated_image = cp.asarray(self.migrated_image)
         for shot in range(self.pmt.Nshot):
@@ -980,7 +970,6 @@ class migration:
 
         self.pmt.rx = cp.asarray(self.pmt.rx)
         self.pmt.rz = cp.asarray(self.pmt.rz)
-        self.stop = 0
         self.ilum = cp.asarray(self.ilum)
         self.migrated_image = cp.asarray(self.migrated_image)
         for shot in range(self.pmt.Nshot):
@@ -1006,7 +995,7 @@ class migration:
                 self.wf.store_snapshotGPU(k)
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current 
-            for t in range(self.pmt.nt - 1, self.stop, -1):
+            for t in range(self.pmt.nt - 1, -1, -1):
                 self.ilum_partial += self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] 
                 if self.pmt.fwi == True:
                     u_next = self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()
@@ -1067,8 +1056,7 @@ class migration:
 
 
         self.pmt.rx = cp.asarray(self.pmt.rx)
-        self.pmt.rz = cp.asarray(self.pmt.rz)
-        self.stop = 0
+        self.pmt.rz = cp.asarray(self.pmt.rz)  
         self.ilum = cp.asarray(self.ilum)
         self.migrated_image = cp.asarray(self.migrated_image)
         for shot in range(self.pmt.Nshot):
@@ -1097,7 +1085,7 @@ class migration:
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
             self.wf.current, self.wf.future = self.wf.future, self.wf.current    
-            for t in range(self.pmt.nt - 1, self.stop, -1):
+            for t in range(self.pmt.nt - 1, -1, -1):
                 self.ilum_partial += self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
                 if self.pmt.fwi == True:
                     u_next = self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()
