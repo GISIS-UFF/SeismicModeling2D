@@ -2,7 +2,8 @@ import numpy as np
 import time
 import cupy as cp
 from utils import smooth_model
-from utils import low_pass_filter
+# from utils import low_pass_filter
+from utils import ricker
 
 class fwi:
     def __init__(self,parameters,wavefield,migration):
@@ -10,7 +11,7 @@ class fwi:
         self.wf = wavefield
         self.mig = migration
 
-    def objective_function(self, m, fmax, save_residual):
+    def objective_function(self, m, save_residual):
         X = 0.0
         self.wf.vp = 1.0 / np.sqrt(m)      
         self.wf.source = cp.asarray(self.wf.source, dtype=cp.float32)
@@ -34,7 +35,6 @@ class fwi:
         self.pmt.rz = cp.asarray(self.pmt.rz)
         for shot in range(self.pmt.Nshot):
             dobs = self.loadObsSeismogram(shot)
-            dobs = low_pass_filter(dobs,fmax,self.pmt.dt)
             self.wf.reset_field()
 
             # convert acquisition geometry coordinates to grid points
@@ -46,7 +46,6 @@ class fwi:
                 self.wf.store_seismogram(k,self.pmt.rz,self.pmt.rx)      
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
-           
             self.seismogram = cp.asnumpy(self.wf.seismogram_gpu)
             residual = dobs - self.seismogram
             if save_residual==True:
@@ -56,7 +55,7 @@ class fwi:
 
     def calculate_gradient(self, m):
         grad = np.zeros_like(m)
-        self.wf.vp = 1.0 / np.sqrt(m)
+        self.mig.vp = 1.0 / np.sqrt(m)
         self.mig.SolveBackwardWaveEquation()
         grad = self.loadGradient()
         water_mask = np.abs(self.wf.vp - 1500.0) < 1e-3
@@ -100,7 +99,7 @@ class fwi:
 
         return r
     
-    def step_length(self, m, p, g, X0, fmax):
+    def step_length(self, m, p, g, X0):
         c1 = 1e-4
         c2 = 0.9
         gTp0 = np.sum(g * p)
@@ -108,7 +107,7 @@ class fwi:
         alpha = 0.01 * (1.0 / (vmin*vmin))
         for _ in range(10):
             m_new = m + alpha * p
-            X_new = self.objective_function(m_new, fmax, save_residual=False)
+            X_new = self.objective_function(m_new, save_residual=False)
             armijo = X_new <= X0 + c1 * alpha * gTp0
             print("X0 + c1 * alpha * gTp0 = " , X0 + c1 * alpha * gTp0)
             print("alpha =", alpha)
@@ -140,7 +139,7 @@ class fwi:
         residual.tofile(self.seismogramFile)
         print(f"info: Residuo saved to {self.seismogramFile}")
 
-    def solveFullWaveformInversion(self):
+    def solveFullWaveformInversion(self,fmax):
         start_time = time.time()
         print("info: Solving Full Waveform Inversion")
         
@@ -151,61 +150,57 @@ class fwi:
         smooth_model_file = (f"{self.pmt.modelFolder}fwi_vp_smooth_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
         self.m0.astype(np.float32).tofile(smooth_model_file)
 
-        source0 = self.wf.source.copy()
         history = []
-        for fmax in self.pmt.freqs:
-            print(f"\033[31minfo: FWI frequency {fmax} of {self.pmt.freqs}\033[0m")
-            self.wf.source = low_pass_filter(source0, fmax, self.pmt.dt)
 
-            s_store = []
-            y_store = []
+        s_store = []
+        y_store = []
 
-            # Gradiente e função objetivo no modelo atual
-            X = self.objective_function(m,fmax, save_residual = True)
-            g = self.calculate_gradient(m)
+        # Gradiente e função objetivo no modelo atual
+        X = self.objective_function(m, save_residual = True)
+        g = self.calculate_gradient(m)
 
-            if fmax == self.pmt.freqs[0]:
-                X0 = X
-    
-            for itr in range(self.pmt.niter):
-                print(f"\033[31minfo: FWI iteration {itr + 1}/{self.pmt.niter}\033[0m")
+        if fmax == self.pmt.freqs[0]:
+            X0 = X
 
-                # Salvar gradiente da iteração atual
-                gradient_file = (f"{self.pmt.gradientsFolder}gradient_fwi_iter_{itr+1}_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
-                (g).astype(np.float32).tofile(gradient_file)
-                print(f"info: Gradient saved to {gradient_file}")
+        for itr in range(self.pmt.niter):
+            print(f"\033[31minfo: FWI iteration {itr + 1}/{self.pmt.niter}\033[0m")
 
-                # Direção de busca: LBFGS
-                p = -self.two_loop_recursion(g,s_store,y_store)
-                p = p/np.max(np.abs(p))
+            # Salvar gradiente da iteração atual
+            gradient_file = (f"{self.pmt.gradientsFolder}gradient_fwi_iter_{itr+1}_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
+            (g).astype(np.float32).tofile(gradient_file)
+            print(f"info: Gradient saved to {gradient_file}")
 
-                # Line search
-                alpha = self.step_length(m, p, g, X, fmax)
+            # Direção de busca: LBFGS
+            p = -self.two_loop_recursion(g,s_store,y_store)
+            p = p/np.max(np.abs(p))
 
-                # Atualização do modelo
-                m_max = 1.0 / (self.pmt.vmax * self.pmt.vmax)
-                m_min = 1.0 / (self.pmt.vmin * self.pmt.vmin)
+            # Line search
+            alpha = self.step_length(m, p, g, X)
 
-                m_new = m + alpha * p
-                m_new = np.clip(m_new, m_min, m_max)
+            # Atualização do modelo
+            m_min = 1.0/(self.pmt.vmax*self.pmt.vmax)
+            m_max = 1.0/(self.pmt.vmin*self.pmt.vmin)
 
-                X_new = self.objective_function(m_new, fmax, save_residual = True)
-                g_new = self.calculate_gradient(m_new)
-                history.append([X_new / X0, fmax])
+            m_new = m + alpha * p
+            m_new = np.clip(m_new, m_min, m_max)
 
-                s = (m_new - m)
-                y = (g_new - g)
-                s_store.append(s)
-                y_store.append(y)
+            X_new = self.objective_function(m_new, save_residual = True)
+            g_new = self.calculate_gradient(m_new)
+            history.append([X_new / X0, fmax])
 
-                m = m_new.copy()
-                X = X_new
-                g = g_new.copy()
+            s = (m_new - m)
+            y = (g_new - g)
+            s_store.append(s)
+            y_store.append(y)
 
-                m_it = 1.0 / np.sqrt(m)
-                model_file = (f"{self.pmt.estimatedmodelsFolder}fwi_vp_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}_itr{itr+1}.bin")
-                m_it.astype(np.float32).tofile(model_file)
-                print(f"info: Model of {itr+1} iteration saved to {model_file}")
+            m = m_new.copy()
+            X = X_new
+            g = g_new.copy()
+
+            m_it = 1.0 / np.sqrt(m)
+            model_file = (f"{self.pmt.estimatedmodelsFolder}fwi_vp_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}_itr{itr+1}.bin")
+            m_it.astype(np.float32).tofile(model_file)
+            print(f"info: Model of {itr+1} iteration saved to {model_file}")
         
         history = np.array(history, dtype=np.float32)
         history_file = (f"../outputs/history.txt")
@@ -215,4 +210,3 @@ class fwi:
 
         end_time = time.time()
         print(f"\ninfo: FWI finished in {end_time - start_time:.2f} s")
-

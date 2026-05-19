@@ -22,7 +22,7 @@
     "last_save": 8000,
     "fwi": false,
     "niter": 25,
-    "freqs": [7.5, 15.0, 22.5, 30.0],
+    "freqs": [30.0],
     "vmin": 1500,
     "vmax": 6000,
     "rec_file": "../inputs/receivers.csv",

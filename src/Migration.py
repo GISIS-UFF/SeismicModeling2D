@@ -499,7 +499,7 @@ class migration:
         
 
         save_field = np.zeros([self.pmt.nt,self.pmt.nz,self.pmt.nx],dtype=np.float32)
-        self.stop = int(2*self.pmt.tlag/self.pmt.dt)
+        self.stop = 0
         for shot in range(self.pmt.Nshot):
             print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
 
@@ -568,7 +568,7 @@ class migration:
                 self.wf.theta_exp = self.wf.ExpandModel(self.wf.theta)
         
 
-        self.stop = int(2*self.pmt.tlag/self.pmt.dt)
+        self.stop = 0
         for shot in range(self.pmt.Nshot):
             print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
             self.reset_field()
@@ -647,7 +647,7 @@ class migration:
                 self.wf.theta_exp = self.wf.ExpandModel(self.wf.theta)
 
 
-        self.stop = int(2*self.pmt.tlag/self.pmt.dt)
+        self.stop = 0
         for shot in range(self.pmt.Nshot):
             print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
             self.reset_field()
@@ -724,7 +724,7 @@ class migration:
                 self.wf.theta_exp = self.wf.ExpandModel(self.wf.theta)
 
 
-        self.stop = int(2*self.pmt.tlag/self.pmt.dt)
+        self.stop = 0
         for shot in range(self.pmt.Nshot):
             print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
             self.reset_field()
@@ -810,7 +810,7 @@ class migration:
         self.pmt.rx = cp.asarray(self.pmt.rx)
         self.pmt.rz = cp.asarray(self.pmt.rz)
         save_field = cp.zeros([self.pmt.nt,self.pmt.nz,self.pmt.nx],dtype=cp.float32)
-        self.stop = int(2*self.pmt.tlag/self.pmt.dt)
+        self.stop = 0
         self.ilum = cp.asarray(self.ilum)
         self.migrated_image = cp.asarray(self.migrated_image)
         for shot in range(self.pmt.Nshot):
@@ -835,8 +835,7 @@ class migration:
                 save_field[k,:,:] = self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
                 self.ilum_partial += save_field[k,:,:] * save_field[k,:,:] 
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
-            for t in range(self.pmt.nt - 1, self.stop, -1):
-                self.wf.forward_stepGPU(t)
+            for t in range(self.pmt.nt - 2, self.stop, -1):
                 self.backward_stepGPU(t)
                 self.store_snapshotBCKGPU(t)
                 if self.pmt.fwi  == True:
@@ -855,7 +854,6 @@ class migration:
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
         self.migrated_image = self.migrated_image / self.ilum
         migrated_imagecpu = cp.asnumpy(self.migrated_image)
-        migrated_imagecpu[water_mask] = 0
         if self.pmt.fwi  == True:
             self.outputFile = f"{self.pmt.gradientsFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
         else:
@@ -889,7 +887,7 @@ class migration:
         
         self.pmt.rx = cp.asarray(self.pmt.rx)
         self.pmt.rz = cp.asarray(self.pmt.rz)
-        self.stop = int(2*self.pmt.tlag/self.pmt.dt)
+        self.stop = 0
         self.ilum = cp.asarray(self.ilum)
         self.migrated_image = cp.asarray(self.migrated_image)
         for shot in range(self.pmt.Nshot):
@@ -962,7 +960,7 @@ class migration:
         # Expand velocity model and Create absorbing layers
         if self.pmt.fwi == False:
             water_mask = np.abs(self.wf.vp - 1500.0) < 1e-3
-            # self.vp = smooth_model(self.wf.vp, self.pmt.sigma, water_mask)
+            self.vp = smooth_model(self.wf.vp, self.pmt.sigma, water_mask)
         self.wf.vp_exp = self.wf.ExpandModel(self.wf.vp)
         self.wf.vp_exp = cp.asarray(self.wf.vp_exp, dtype=cp.float32)
         if self.pmt.ABC == "cerjan":
@@ -982,7 +980,7 @@ class migration:
 
         self.pmt.rx = cp.asarray(self.pmt.rx)
         self.pmt.rz = cp.asarray(self.pmt.rz)
-        self.stop = int(2*self.pmt.tlag/self.pmt.dt)
+        self.stop = 0
         self.ilum = cp.asarray(self.ilum)
         self.migrated_image = cp.asarray(self.migrated_image)
         for shot in range(self.pmt.Nshot):
@@ -998,7 +996,7 @@ class migration:
             if self.pmt.fwi  == True:
                 self.muted_seismogram = seismogram
             else:
-                self.muted_seismogram = seismogram#Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,self.pmt.tlag, self.pmt.shift,self.pmt.dx,self.pmt.N_abc,self.pmt.window,self.pmt.v0) 
+                self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,self.pmt.tlag, self.pmt.shift,self.pmt.dx,self.pmt.N_abc,self.pmt.window,self.pmt.v0) 
             self.muted_seismogram = cp.asarray(self.muted_seismogram,dtype=cp.float32)
             self.migrated_partial = cp.zeros_like(self.migrated_image)
             self.ilum_partial = cp.zeros_like(self.migrated_image)
@@ -1070,7 +1068,7 @@ class migration:
 
         self.pmt.rx = cp.asarray(self.pmt.rx)
         self.pmt.rz = cp.asarray(self.pmt.rz)
-        self.stop = int(2*self.pmt.tlag/self.pmt.dt)
+        self.stop = 0
         self.ilum = cp.asarray(self.ilum)
         self.migrated_image = cp.asarray(self.migrated_image)
         for shot in range(self.pmt.Nshot):

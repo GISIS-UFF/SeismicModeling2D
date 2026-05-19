@@ -115,32 +115,48 @@ def smooth_model(f, sigma, water_mask):
 
     return 1.0 / s
 
-def low_pass_filter(data, cutoff, dt, transition=0.2, axis=0):
+def low_pass_filter(data, cutoff, dt, transition=0.3, axis=0): 
     data = np.asarray(data)
     nt = data.shape[axis]
 
-    fft_data = np.fft.rfft(data, axis=axis)
-    frequencies = np.fft.rfftfreq(nt, d=dt)
+    # Padding
+    nt_pad = 2 * nt
 
-    fpass = cutoff * (1.0 - transition)
-    fstop = cutoff
+    if data.ndim == 1:
+        data_pad = np.zeros(nt_pad, dtype=data.dtype)
+        data_pad[:nt] = data
+
+    elif data.ndim == 2:
+        data_pad = np.zeros((nt_pad, data.shape[1]), dtype=data.dtype)
+        data_pad[:nt, :] = data
+
+    fft_data = np.fft.rfft(data_pad, axis=axis)
+    frequencies = np.fft.rfftfreq(nt_pad, d=dt)
+
+    fpass = cutoff 
+    fstop = cutoff * (1.0 + transition)
 
     mask = np.ones_like(frequencies)
 
     mask[frequencies >= fstop] = 0.0
 
-    idx = (frequencies > fpass) & (frequencies < fstop)
+    for idx in range(len(frequencies)):
+        if frequencies[idx] > fpass and frequencies[idx] < fstop:
+            mask[idx] = 1.0 - (frequencies[idx] - fpass) / (fstop - fpass)
 
-    if np.any(idx):
-        mask[idx] = 0.5 * (1.0 + np.cos(np.pi * (frequencies[idx] - fpass) / (fstop - fpass)))
+    if data.ndim == 2:
+        mask = mask[:, np.newaxis]
 
-    shape = [1] * fft_data.ndim
-    shape[axis] = mask.size
-    mask = mask.reshape(shape)
+    data_filt_pad = np.fft.irfft(fft_data * mask, n=nt_pad, axis=axis)
 
-    data_filt = np.fft.irfft(fft_data * mask, n=nt, axis=axis)
+    # Remove o padding
+    if data.ndim == 1:
+        data_filt = data_filt_pad[:nt]
 
-    return data_filt.astype(data.dtype, copy=False)
+    elif data.ndim == 2:
+        data_filt = data_filt_pad[:nt, :]
+
+    return data_filt.astype(data.dtype)
 
 # CPML Auxiliar Functions
 @njit(inline = "always")

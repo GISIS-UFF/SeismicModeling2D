@@ -3,9 +3,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 # sources
-sx_init = 4000
+sx_init = 0
 sx_end  = 8500
-Nsource = 1
+Nsource = 40
 sx = np.linspace(sx_init,sx_end,Nsource, endpoint = "True")
 sz = 10*np.ones(len(sx))
 sIdx = np.arange(Nsource)

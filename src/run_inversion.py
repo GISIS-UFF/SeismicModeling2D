@@ -5,15 +5,21 @@ from Inversion import fwi
 
 pmt = parameters("../inputs/Parameters.json")
 
-wf = wavefield(pmt)
-wf.createSourceWavelet()
-wf.initializeWavefields()
-wf.loadModels()
-wf.checkDispersionAndStability()
+for fmax in pmt.freqs:
+    print(f"\033[31minfo: FWI frequency {fmax} of {pmt.freqs}\033[0m")
 
-mig = migration(wf,pmt)
-mig.initializeMigrationfields()
+    pmt.fcut = fmax
 
-fwi = fwi(pmt, wf, mig)
+    wf = wavefield(pmt)
+    wf.createSourceWavelet()
+    wf.initializeWavefields()
+    wf.loadModels()
+    wf.checkDispersionAndStability()
+    wf.SolveWaveEquation()
 
-fwi.solveFullWaveformInversion()
+    mig = migration(wf,pmt)
+    mig.initializeMigrationfields()
+
+    fwi = fwi(pmt, wf, mig)
+
+    fwi.solveFullWaveformInversion(fmax)
