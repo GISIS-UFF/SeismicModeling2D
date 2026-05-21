@@ -798,7 +798,7 @@ class migration:
             if self.pmt.approximation == "TTI":
                 self.wf.theta_exp = self.wf.ExpandModel(self.wf.theta)
                 self.wf.theta_exp  = cp.asarray(self.wf.theta_exp, dtype=cp.float32)
-        
+
         self.pmt.rx = cp.asarray(self.pmt.rx)
         self.pmt.rz = cp.asarray(self.pmt.rz)
         save_field = cp.zeros([self.pmt.nt,self.pmt.nz,self.pmt.nx],dtype=cp.float32)
@@ -816,7 +816,7 @@ class migration:
             if self.pmt.fwi == True:
                 self.muted_seismogram = seismogram
             else:
-                self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,self.pmt.tlag, self.pmt.shift,self.pmt.window,self.pmt.v0) 
+                self.muted_seismogram = seismogram #Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,self.pmt.tlag, self.pmt.shift,self.pmt.window,self.pmt.v0) 
             self.muted_seismogram = cp.asarray(self.muted_seismogram,dtype=cp.float32)
             self.migrated_partial = cp.zeros_like(self.migrated_image)
             self.ilum_partial = cp.zeros_like(self.migrated_image)

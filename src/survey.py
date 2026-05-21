@@ -82,6 +82,8 @@ class parameters:
         self.gradientmodel =  self.parameters['gradientmodel']
         self.diffractor =  self.parameters['diffractor']
         self.modelfromvp =  self.parameters['modelfromvp']
+        self.waterlayer = self.parameters['waterlayer']
+        self.idx_water = self.parameters['idx_water']
         
         #migration parameters
         self.shift = self.parameters['shift']
@@ -90,6 +92,8 @@ class parameters:
         self.sigma = self.parameters['sigma'] 
         self.dvel = self.parameters['dvel']
         self.ratio = self.parameters['ratio']
+        self.mirror = self.parameters['mirror']
+        self.reciprocity = self.parameters['reciprocity']
 
         #FWI parameters
         self.niter = self.parameters['niter']
@@ -111,10 +115,23 @@ class parameters:
         self.shot_x = sourceTable['coordx'].to_numpy()
         self.shot_z = sourceTable['coordz'].to_numpy()
         
-        self.rx = np.int32(self.rec_x/self.dx) + self.N_abc
-        self.rz = np.int32(self.rec_z/self.dz) + self.N_abc
+        self.rx = np.int32(self.rec_x/self.dx) + self.N_abc 
+        self.rz = np.int32(self.rec_z/self.dz) + self.N_abc 
         self.sx = np.int32(self.shot_x/self.dx) + self.N_abc
-        self.sz = np.int32(self.shot_z/self.dz) + self.N_abc
+        self.sz = np.int32(self.shot_z/self.dz) + self.N_abc 
+        
+        if self.mirror == True:
+            self.rz = np.int32(self.rec_z/self.dz) + self.N_abc - self.idx_water
+            self.sz = np.int32(self.shot_z/self.dz) + self.N_abc - self.idx_water
 
         self.Nrec = len(self.rec_x)
-        self.Nshot = len(self.shot_x)   
+        self.Nshot = len(self.shot_x) 
+
+        if self.reciprocity == True:
+            self.rx, self.rz = self.rz.copy(), self.rx.copy()
+            self.sx, self.sz = self.sz.copy(), self.sx.copy()
+            self.Nrec, self.Nshot = self.Nshot, self.Nrec
+        
+
+    
+  

@@ -165,6 +165,14 @@ class model:
         self.wf.delta.tofile(self.pmt.vpFile.replace(".bin","_delta.bin"))
         print(f"info: Delta model saved to {self.pmt.vpFile.replace('.bin','_delta.bin')}")
     
+    def createWaterLayer(self,):
+        vp_exp = np.zeros((self.pmt.nz + self.pmt.idx_water, self.pmt.nx), dtype=self.wf.vp.dtype)
+        vp_exp[:self.pmt.idx_water, :] = 1500.0
+        vp_exp[idx_water:self.pmt.nz + idx_water, :] = self.wf.vp
+        self.modelFile = f"{self.pmt.modelFolder}ExpandWatervp_Nz{self.pmt.nz + idx_water}_Nx{self.pmt.nx}.bin"
+        vp_exp.tofile(self.modelFile)
+        print(f"info: Vp saved to {self.modelFile}")
+    
     def buildModel(self):
         if self.pmt.layer2 == True:
             self.create2LayerModel(self.vp1,self.vp2,self.epsilon1,self.epsilon2,self.delta1,self.delta2,self.theta1,self.theta2)
@@ -176,6 +184,8 @@ class model:
             self.createGradientModel(self.vp1,self.epsilon1,self.delta1,self.theta1)
         elif self.pmt.modelfromvp == True:
             self.createModelFromVp()
+        elif self.pmt.waterlayer == True:
+            self.createWaterLayer()
         else:
             raise ValueError(f"ERROR: Unknwon synthetic model.")
         
@@ -187,8 +197,9 @@ if __name__ == "__main__":
 
     wf = wavefield(pmt)
     wf.initializeWavefields()
-    if pmt.modelfromvp == True:
+    if pmt.modelfromvp or pmt.waterlayer == True:
         wf.loadModels()
+        
 
     model = model(pmt,wf)
     model.buildModel()

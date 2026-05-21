@@ -68,7 +68,7 @@ class plotting:
         plt.colorbar(label='Amplitude')
         plt.title("Seismogram")
         plt.ylabel("Time (s)")
-        plt.show(block=False)
+        plt.show()
 
     def viewModel(self,filename):
         model = np.fromfile(filename, dtype=np.float32).reshape(self.pmt.nz,self.pmt.nx)

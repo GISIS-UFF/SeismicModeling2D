@@ -72,7 +72,7 @@ class wavefield:
         print(f"info: Model expanded to {nz_abc}x{nx_abc}")
 
         return model_exp
-    
+   
     def initializeWavefields(self):
         # Initialize velocity model and wavefields
         self.vp         = np.zeros([self.pmt.nz,self.pmt.nx],dtype=np.float32)

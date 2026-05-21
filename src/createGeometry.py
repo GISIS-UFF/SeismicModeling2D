@@ -5,7 +5,7 @@ import pandas as pd
 # sources
 sx_init = 0
 sx_end  = 8500
-Nsource = 40
+Nsource = 10
 sx = np.linspace(sx_init,sx_end,Nsource, endpoint = "True")
 sz = 10*np.ones(len(sx))
 sIdx = np.arange(Nsource)
