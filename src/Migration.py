@@ -492,10 +492,13 @@ class migration:
         elif self.pmt.ABC == "CPML":
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
-            self.wf.epsilon_exp = self.wf.ExpandModel(self.wf.epsilon)
-            self.wf.delta_exp = self.wf.ExpandModel(self.wf.delta)
+            self.epsilon = smooth_model(self.wf.epsilon, self.pmt.sigma, water_mask)
+            self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
+            self.delta = smooth_model(self.wf.delta, self.pmt.sigma, water_mask)
+            self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             if self.pmt.approximation == "TTI":
-                self.wf.theta_exp = self.wf.ExpandModel(self.wf.theta)
+                self.theta = smooth_model(self.wf.theta, self.pmt.sigma, water_mask)
+                self.wf.theta_exp = self.wf.ExpandModel(self.theta)
 
         save_field = np.zeros([self.pmt.nt,self.pmt.nz,self.pmt.nx],dtype=np.float32)
         for shot in range(self.pmt.Nshot):
@@ -512,7 +515,7 @@ class migration:
             if self.pmt.fwi  == True:
                 self.muted_seismogram = seismogram
             else:
-                self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,self.pmt.tlag, self.pmt.shift,self.pmt.dx,self.pmt.N_abc,self.pmt.window,self.pmt.v0) 
+                self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,self.pmt.tlag, self.pmt.shift,self.pmt.window,self.pmt.v0)      
             self.migrated_partial = np.zeros_like(self.migrated_image)
             self.ilum_partial = np.zeros_like(self.ilum)
             for k in range(self.pmt.nt):
@@ -560,10 +563,13 @@ class migration:
         elif self.pmt.ABC == "CPML":
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
-            self.wf.epsilon_exp = self.wf.ExpandModel(self.wf.epsilon)
-            self.wf.delta_exp = self.wf.ExpandModel(self.wf.delta)
+            self.epsilon = smooth_model(self.wf.epsilon, self.pmt.sigma, water_mask)
+            self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
+            self.delta = smooth_model(self.wf.delta, self.pmt.sigma, water_mask)
+            self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             if self.pmt.approximation == "TTI":
-                self.wf.theta_exp = self.wf.ExpandModel(self.wf.theta)
+                self.theta = smooth_model(self.wf.theta, self.pmt.sigma, water_mask)
+                self.wf.theta_exp = self.wf.ExpandModel(self.theta)
         
         for shot in range(self.pmt.Nshot):
             print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
@@ -578,7 +584,7 @@ class migration:
             if self.pmt.fwi  == True:
                 self.muted_seismogram = seismogram
             else:
-                self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,self.pmt.tlag, self.pmt.shift,self.pmt.dx,self.pmt.N_abc,self.pmt.window,self.pmt.v0) 
+                self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,self.pmt.tlag, self.pmt.shift,self.pmt.window,self.pmt.v0)      
             self.migrated_partial = np.zeros_like(self.migrated_image)
             self.ilum_partial = np.zeros_like(self.ilum)
             self.build_ckpts_steps()
@@ -637,10 +643,13 @@ class migration:
         elif self.pmt.ABC == "CPML":
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
-            self.wf.epsilon_exp = self.wf.ExpandModel(self.wf.epsilon)
-            self.wf.delta_exp = self.wf.ExpandModel(self.wf.delta)
+            self.epsilon = smooth_model(self.wf.epsilon, self.pmt.sigma, water_mask)
+            self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
+            self.delta = smooth_model(self.wf.delta, self.pmt.sigma, water_mask)
+            self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             if self.pmt.approximation == "TTI":
-                self.wf.theta_exp = self.wf.ExpandModel(self.wf.theta)
+                self.theta = smooth_model(self.wf.theta, self.pmt.sigma, water_mask)
+                self.wf.theta_exp = self.wf.ExpandModel(self.theta)
 
         for shot in range(self.pmt.Nshot):
             print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
@@ -655,7 +664,7 @@ class migration:
             if self.pmt.fwi  == True:
                 self.muted_seismogram = seismogram
             else:
-                self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,self.pmt.tlag, self.pmt.shift,self.pmt.dx,self.pmt.N_abc,self.pmt.window,self.pmt.v0) 
+                self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,self.pmt.tlag, self.pmt.shift,self.pmt.window,self.pmt.v0)      
             self.migrated_partial = np.zeros_like(self.migrated_image)
             self.ilum_partial = np.zeros_like(self.ilum)
             for k in range(self.pmt.nt):
@@ -706,16 +715,19 @@ class migration:
         if self.pmt.fwi == False:
             water_mask = np.abs(self.wf.vp - 1500.0) < 1e-3
             self.vp = smooth_model(self.wf.vp, self.pmt.sigma, water_mask)
-        vp_exp_base = self.wf.ExpandModel(self.vp)
+        self.wf.vp_exp = self.wf.ExpandModel(self.vp)
         if self.pmt.ABC == "cerjan":
             self.wf.A = self.wf.createCerjanVector()
         elif self.pmt.ABC == "CPML":
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
-            self.wf.epsilon_exp = self.wf.ExpandModel(self.wf.epsilon)
-            self.wf.delta_exp = self.wf.ExpandModel(self.wf.delta)
+            self.epsilon = smooth_model(self.wf.epsilon, self.pmt.sigma, water_mask)
+            self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
+            self.delta = smooth_model(self.wf.delta, self.pmt.sigma, water_mask)
+            self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             if self.pmt.approximation == "TTI":
-                self.wf.theta_exp = self.wf.ExpandModel(self.wf.theta)
+                self.theta = smooth_model(self.wf.theta, self.pmt.sigma, water_mask)
+                self.wf.theta_exp = self.wf.ExpandModel(self.theta)
 
         for shot in range(self.pmt.Nshot):
             print(f"info: Shot {shot+1} of {self.pmt.Nshot}")
@@ -732,7 +744,7 @@ class migration:
             if self.pmt.fwi  == True:
                 self.muted_seismogram = seismogram
             else:
-                self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,self.pmt.tlag, self.pmt.shift,self.pmt.dx,self.pmt.N_abc,self.pmt.window,self.pmt.v0) 
+                self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,self.pmt.tlag, self.pmt.shift,self.pmt.window,self.pmt.v0)      
             self.migrated_partial = np.zeros_like(self.migrated_image)
             self.ilum_partial = np.zeros_like(self.ilum)
             for k in range(self.pmt.nt):
@@ -791,12 +803,15 @@ class migration:
         elif self.pmt.ABC == "CPML":
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
-            self.wf.epsilon_exp = self.wf.ExpandModel(self.wf.epsilon)
-            self.wf.delta_exp = self.wf.ExpandModel(self.wf.delta)
+            self.epsilon = smooth_model(self.wf.epsilon, self.pmt.sigma, water_mask)
+            self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
+            self.delta = smooth_model(self.wf.delta, self.pmt.sigma, water_mask)
+            self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             self.wf.epsilon_exp  = cp.asarray(self.wf.epsilon_exp, dtype=cp.float32)
             self.wf.delta_exp  = cp.asarray(self.wf.delta_exp, dtype=cp.float32)
             if self.pmt.approximation == "TTI":
-                self.wf.theta_exp = self.wf.ExpandModel(self.wf.theta)
+                self.theta = smooth_model(self.wf.theta, self.pmt.sigma, water_mask)
+                self.wf.theta_exp = self.wf.ExpandModel(self.theta)
                 self.wf.theta_exp  = cp.asarray(self.wf.theta_exp, dtype=cp.float32)
 
         self.pmt.rx = cp.asarray(self.pmt.rx)
@@ -816,7 +831,7 @@ class migration:
             if self.pmt.fwi == True:
                 self.muted_seismogram = seismogram
             else:
-                self.muted_seismogram = seismogram #Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,self.pmt.tlag, self.pmt.shift,self.pmt.window,self.pmt.v0) 
+                self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,self.pmt.tlag, self.pmt.shift,self.pmt.window,self.pmt.v0) 
             self.muted_seismogram = cp.asarray(self.muted_seismogram,dtype=cp.float32)
             self.migrated_partial = cp.zeros_like(self.migrated_image)
             self.ilum_partial = cp.zeros_like(self.migrated_image)
@@ -844,6 +859,7 @@ class migration:
             self.save_imageGPU(shot)
             print(f"info: Shot {shot+1} completed in {time.time() - start_time:.2f} seconds")
         self.migrated_image = self.migrated_image / self.ilum
+        # self.migrated_image[water_mask] = 0.0
         migrated_imagecpu = cp.asnumpy(self.migrated_image)
         if self.pmt.fwi  == True:
             self.outputFile = f"{self.pmt.gradientsFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
@@ -868,12 +884,15 @@ class migration:
         elif self.pmt.ABC == "CPML":
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
-            self.wf.epsilon_exp = self.wf.ExpandModel(self.wf.epsilon)
-            self.wf.delta_exp = self.wf.ExpandModel(self.wf.delta)
+            self.epsilon = smooth_model(self.wf.epsilon, self.pmt.sigma, water_mask)
+            self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
+            self.delta = smooth_model(self.wf.delta, self.pmt.sigma, water_mask)
+            self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             self.wf.epsilon_exp  = cp.asarray(self.wf.epsilon_exp, dtype=cp.float32)
             self.wf.delta_exp  = cp.asarray(self.wf.delta_exp, dtype=cp.float32)
             if self.pmt.approximation == "TTI":
-                self.wf.theta_exp = self.wf.ExpandModel(self.wf.theta)
+                self.theta = smooth_model(self.wf.theta, self.pmt.sigma, water_mask)
+                self.wf.theta_exp = self.wf.ExpandModel(self.theta)
                 self.wf.theta_exp  = cp.asarray(self.wf.theta_exp, dtype=cp.float32)
         
         self.pmt.rx = cp.asarray(self.pmt.rx)
@@ -893,7 +912,7 @@ class migration:
             if self.pmt.fwi  == True:
                 self.muted_seismogram = seismogram
             else:
-                self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,self.pmt.tlag, self.pmt.shift,self.pmt.dx,self.pmt.N_abc,self.pmt.window,self.pmt.v0) 
+                self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,self.pmt.tlag, self.pmt.shift,self.pmt.window,self.pmt.v0)      
             self.muted_seismogram = cp.asarray(self.muted_seismogram,dtype=cp.float32)
             self.migrated_partial = cp.zeros_like(self.migrated_image)
             self.ilum_partial = cp.zeros_like(self.migrated_image)
@@ -951,7 +970,7 @@ class migration:
         if self.pmt.fwi == False:
             water_mask = np.abs(self.wf.vp - 1500.0) < 1e-3
             self.vp = smooth_model(self.wf.vp, self.pmt.sigma, water_mask)
-        self.wf.vp_exp = self.wf.ExpandModel(self.wf.vp)
+        self.wf.vp_exp = self.wf.ExpandModel(self.vp)
         self.wf.vp_exp = cp.asarray(self.wf.vp_exp, dtype=cp.float32)
         if self.pmt.ABC == "cerjan":
             self.wf.A = self.wf.createCerjanVector()
@@ -959,14 +978,16 @@ class migration:
         elif self.pmt.ABC == "CPML":
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
-            self.wf.epsilon_exp = self.wf.ExpandModel(self.wf.epsilon)
-            self.wf.delta_exp = self.wf.ExpandModel(self.wf.delta)
+            self.epsilon = smooth_model(self.wf.epsilon, self.pmt.sigma, water_mask)
+            self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
+            self.delta = smooth_model(self.wf.delta, self.pmt.sigma, water_mask)
+            self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             self.wf.epsilon_exp  = cp.asarray(self.wf.epsilon_exp, dtype=cp.float32)
             self.wf.delta_exp  = cp.asarray(self.wf.delta_exp, dtype=cp.float32)
             if self.pmt.approximation == "TTI":
-                self.wf.theta_exp = self.wf.ExpandModel(self.wf.theta)
+                self.theta = smooth_model(self.wf.theta, self.pmt.sigma, water_mask)
+                self.wf.theta_exp = self.wf.ExpandModel(self.theta)
                 self.wf.theta_exp  = cp.asarray(self.wf.theta_exp, dtype=cp.float32)
-
 
         self.pmt.rx = cp.asarray(self.pmt.rx)
         self.pmt.rz = cp.asarray(self.pmt.rz)
@@ -985,7 +1006,7 @@ class migration:
             if self.pmt.fwi  == True:
                 self.muted_seismogram = seismogram
             else:
-                self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,self.pmt.tlag, self.pmt.shift,self.pmt.dx,self.pmt.N_abc,self.pmt.window,self.pmt.v0) 
+                self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,self.pmt.tlag, self.pmt.shift,self.pmt.window,self.pmt.v0)      
             self.muted_seismogram = cp.asarray(self.muted_seismogram,dtype=cp.float32)
             self.migrated_partial = cp.zeros_like(self.migrated_image)
             self.ilum_partial = cp.zeros_like(self.migrated_image)
@@ -1039,21 +1060,24 @@ class migration:
         if self.pmt.fwi == False:
             water_mask = np.abs(self.wf.vp - 1500.0) < 1e-3
             self.vp = smooth_model(self.wf.vp, self.pmt.sigma, water_mask)
-        vp_exp_base = self.wf.ExpandModel(self.vp)
+        self.wf.vp_exp = self.wf.ExpandModel(self.vp)
+        self.wf.vp_exp = cp.asarray(self.wf.vp_exp, dtype=cp.float32)
         if self.pmt.ABC == "cerjan":
             self.wf.A = self.wf.createCerjanVector()
             self.wf.A = cp.asarray(self.wf.A, dtype=cp.float32)
         elif self.pmt.ABC == "CPML":
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
-            self.wf.epsilon_exp = self.wf.ExpandModel(self.wf.epsilon)
-            self.wf.delta_exp = self.wf.ExpandModel(self.wf.delta)
+            self.epsilon = smooth_model(self.wf.epsilon, self.pmt.sigma, water_mask)
+            self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
+            self.delta = smooth_model(self.wf.delta, self.pmt.sigma, water_mask)
+            self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             self.wf.epsilon_exp  = cp.asarray(self.wf.epsilon_exp, dtype=cp.float32)
             self.wf.delta_exp  = cp.asarray(self.wf.delta_exp, dtype=cp.float32)
             if self.pmt.approximation == "TTI":
-                self.wf.theta_exp = self.wf.ExpandModel(self.wf.theta)
+                self.theta = smooth_model(self.wf.theta, self.pmt.sigma, water_mask)
+                self.wf.theta_exp = self.wf.ExpandModel(self.theta)
                 self.wf.theta_exp  = cp.asarray(self.wf.theta_exp, dtype=cp.float32)
-
 
         self.pmt.rx = cp.asarray(self.pmt.rx)
         self.pmt.rz = cp.asarray(self.pmt.rz)  
@@ -1075,7 +1099,7 @@ class migration:
             if self.pmt.fwi  == True:
                 self.muted_seismogram = seismogram
             else:
-                self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,self.pmt.tlag, self.pmt.shift,self.pmt.dx,self.pmt.N_abc,self.pmt.window,self.pmt.v0) 
+                self.muted_seismogram = Mute(seismogram, shot, self.pmt.rec_x, self.pmt.rec_z, self.pmt.shot_x, self.pmt.shot_z, self.pmt.dt,self.pmt.tlag, self.pmt.shift,self.pmt.window,self.pmt.v0)      
             self.muted_seismogram = cp.asarray(self.muted_seismogram,dtype=cp.float32)
             self.migrated_partial = cp.zeros_like(self.migrated_image)
             self.ilum_partial = cp.zeros_like(self.migrated_image)

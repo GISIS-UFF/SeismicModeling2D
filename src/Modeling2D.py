@@ -28,26 +28,6 @@ class wavefield:
         # Create Ricker wavelet
         self.source = ricker(self.pmt.fcut, self.pmt.t, self.pmt.tlag)
         self.source = self.source * 1/(self.pmt.dx*self.pmt.dz) 
-        # source_low = low_pass_filter(self.source, 10.0, self.pmt.dt)
-
-        # import matplotlib.pyplot as plt
-        # import numpy as np
-
-        # frequencies = np.fft.rfftfreq(self.pmt.nt, d=self.pmt.dt)
-        # amp_source = np.abs(np.fft.rfft(self.source))
-        # amp_source_low = np.abs(np.fft.rfft(source_low))
-        # plt.figure()
-        # plt.plot(self.pmt.t, self.source, label="Fonte original")
-        # plt.plot(self.pmt.t, source_low, label="Fonte filtrada")
-        # plt.legend()
-
-        # plt.figure()
-        # plt.plot(frequencies, amp_source, label="Fonte original")
-        # plt.plot(frequencies, amp_source_low, label="Fonte filtrada")
-        # plt.xlim(0, 50)
-        # plt.legend()
-        
-        # plt.show() 
         print(f"info: Ricker Source wavelet created: {self.pmt.nt} samples")
         
     def ImportModel(self, filename):

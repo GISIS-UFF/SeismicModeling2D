@@ -24,10 +24,10 @@ def Mute(seismogram, shot, rec_x, rec_z, shot_x, shot_z, dt,tlag,shift,window,v0
     result = np.zeros_like(seismogram)
     Nt = seismogram.shape[0]
     Nrec = seismogram.shape[1]  
-    dist = np.sqrt((rec_z - shot_z[shot])**2 + (rec_x - shot_x[shot])**2)
-    traveltimes = dist/v0 + tlag + shift
     for rec in prange(Nrec):
-        t1 = traveltimes[rec] 
+        dist = np.sqrt((rec_z[rec] - shot_z[shot])**2 + (rec_x[rec] - shot_x[shot])**2)
+        traveltimes = dist/v0 + tlag + shift
+        t1 = traveltimes
         t2 = t1 + window
         for i in prange(Nt):
             t = i*dt

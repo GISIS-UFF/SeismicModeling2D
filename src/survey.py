@@ -114,12 +114,16 @@ class parameters:
         self.rec_z = receiverTable['coordz'].to_numpy()
         self.shot_x = sourceTable['coordx'].to_numpy()
         self.shot_z = sourceTable['coordz'].to_numpy()
-        
-        self.rx = np.int32(self.rec_x/self.dx) + self.N_abc 
-        self.rz = np.int32(self.rec_z/self.dz) + self.N_abc 
-        self.sx = np.int32(self.shot_x/self.dx) + self.N_abc
-        self.sz = np.int32(self.shot_z/self.dz) + self.N_abc 
-        
+
+        if self.reciprocity == True:
+            self.shot_x, self.shot_z = self.rec_x.copy(), self.rec_z.copy()
+            self.rec_x, self.rec_z = self.shot_x.copy(), self.shot_z.copy()
+
+        self.rx = np.int32(self.rec_x / self.dx) + self.N_abc 
+        self.rz = np.int32(self.rec_z / self.dz) + self.N_abc 
+        self.sx = np.int32(self.shot_x / self.dx) + self.N_abc
+        self.sz = np.int32(self.shot_z / self.dz) + self.N_abc 
+            
         if self.mirror == True:
             self.rz = np.int32(self.rec_z/self.dz) + self.N_abc - self.idx_water
             self.sz = np.int32(self.shot_z/self.dz) + self.N_abc - self.idx_water
@@ -127,11 +131,7 @@ class parameters:
         self.Nrec = len(self.rec_x)
         self.Nshot = len(self.shot_x) 
 
-        if self.reciprocity == True:
-            self.rx, self.rz = self.rz.copy(), self.rx.copy()
-            self.sx, self.sz = self.sz.copy(), self.sx.copy()
-            self.Nrec, self.Nshot = self.Nshot, self.Nrec
-        
+
 
     
   

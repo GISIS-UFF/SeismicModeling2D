@@ -168,8 +168,8 @@ class model:
     def createWaterLayer(self,):
         vp_exp = np.zeros((self.pmt.nz + self.pmt.idx_water, self.pmt.nx), dtype=self.wf.vp.dtype)
         vp_exp[:self.pmt.idx_water, :] = 1500.0
-        vp_exp[idx_water:self.pmt.nz + idx_water, :] = self.wf.vp
-        self.modelFile = f"{self.pmt.modelFolder}ExpandWatervp_Nz{self.pmt.nz + idx_water}_Nx{self.pmt.nx}.bin"
+        vp_exp[self.pmt.idx_water:self.pmt.nz + self.pmt.idx_water, :] = self.wf.vp
+        self.modelFile = f"{self.pmt.modelFolder}ExpandWatervp_Nz{self.pmt.nz + self.pmt.idx_water}_Nx{self.pmt.nx}.bin"
         vp_exp.tofile(self.modelFile)
         print(f"info: Vp saved to {self.modelFile}")
     

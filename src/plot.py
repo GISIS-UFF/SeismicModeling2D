@@ -4,13 +4,13 @@ from survey import parameters
 pmt = parameters("../inputs/Parameters.json")
 plt = plotting(pmt)
 
-plt.viewModel(f"/home/processamento/SeismicModeling2D/inputs/models/ExpandWatervp_Nz396_Nx851.bin")
+# plt.viewModel(f"../inputs/models/ExpandWatervp_Nz396_Nx851.bin")
 # plt.viewHistory()
 # plt.viewSnapshot("acousticforward_shot_3_Nx201_Nz201_Nt8001_frame_","../inputs/diffractorvp_Nz201_Nx201.bin")
 # plt.movieSnapshot(f"acousticforward_shot_20_Nx1701_Nz351_Nt8001_frame", f"../inputs/models/vp_marmousi-ii_shape_(2801, 13601)_dh10m_Nz351_Nx1701.bin", savegif = False)
-# plt.viewSeismogram(f"/home/processamento/SeismicModeling2D/outputs/seismograms/seismogram_shot_5_Nt8001_Nrec170.bin", perc=99)
+# plt.viewSeismogram(f"/home/juanmarques/workspace/SeismicModeling2D/outputs/seismograms/seismogram_shot_10_Nt8001_Nrec170.bin", perc=99)
 # plt.viewSeismogramComparison(95,0,"../outputs/seismograms/VTIseismogram_shot_1_Nt20001_Nrec501.bin", "../outputs/seismograms/VTINewseismogram_shot_1_Nt20001_Nrec501.bin")
-plt.viewImage(f"../outputs/images/migrated_image_acoustic_Nx851_Nz396.bin",laplacian=True,perc=98)
+plt.viewImage(f"../outputs/images/migrated_image_acoustic_Nx851_Nz351.bin",laplacian=True,perc=99)
 # plt.plotImageTrace(f"{pmt.migratedimageFolder}migrated_image_{pmt.approximation}_Nx{pmt.nx}_Nz{pmt.nz}.bin", f"../inputs/layer2vp_Nz{pmt.nz}_Nx{pmt.nx}.bin", laplacian = True, ix=None, perc=99)
 # plt.movieImage(f"{pmt.approximation}shot_1_Nx{pmt.nx}_Nz{pmt.nz}_frame", f"../inputs/layer2vp_Nz301_Nx301.bin",laplacian = True, interval=200, savegif = False)
 
