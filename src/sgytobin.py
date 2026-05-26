@@ -4,7 +4,7 @@ import segyio as sgy
 import os
 
 #.sgy para .bin
-# path = "/home/juanmarques/workspace/SeismicModeling2D/inputs/vp_marmousi-ii.segy"
+# path = "/home/processamento/SeismicModeling2D/inputs/vp_marmousi-ii.segy"
 # with sgy.open(path, ignore_geometry=True) as segyfile:
 #     data = np.array(segyfile.trace.raw[:]).T
 #     # data = data[:,:3149]
@@ -21,13 +21,13 @@ import os
 
 #--------------------------------------------------------------------------------------------------
 
-bin_path = "/home/processamento/SeismicModeling2D/inputs/models/vp_marmousi-ii_shape_(2801, 13601).bin"
+bin_path = "/home/processamento/SeismicModeling2D/inputs/vp_marmousi-ii_shape_(2801, 13601).bin"
 
 nz_old = 2801
 nx_old = 13601
 
 dh_old = 1.25
-dh_new = 10.0
+dh_new = 25.0
 
 fator = int(dh_new / dh_old)
 vp = np.fromfile(bin_path, dtype=np.float32).reshape(nz_old, nx_old)

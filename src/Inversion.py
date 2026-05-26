@@ -145,7 +145,7 @@ class fwi:
         
         # Modelo inicial
         water_mask = np.abs(self.wf.vp - 1500.0) < 1e-3
-        self.m0 = smooth_model(self.wf.vp, self.pmt.sigma, water_mask).copy()
+        self.m0 = smooth_model(self.wf.vp,self.pmt.sigma_x,self.pmt.sigma_z,water_mask).copy()
         m = 1.0 / (self.m0 * self.m0)
         smooth_model_file = (f"{self.pmt.modelFolder}fwi_vp_smooth_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
         self.m0.astype(np.float32).tofile(smooth_model_file)
