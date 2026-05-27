@@ -21,7 +21,7 @@ import os
 
 #--------------------------------------------------------------------------------------------------
 
-bin_path = "/home/processamento/SeismicModeling2D/inputs/vp_marmousi-ii_shape_(2801, 13601).bin"
+bin_path = "/home/juanmarques/workspace/SeismicModeling2D/inputs/models/vp_marmousi-ii_shape_(2801, 13601).bin"
 
 nz_old = 2801
 nx_old = 13601

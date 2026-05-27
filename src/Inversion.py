@@ -55,6 +55,8 @@ class fwi:
 
     def calculate_gradient(self, m):
         grad = np.zeros_like(m)
+        self.mig.ilum.fill(0)
+        self.mig.migrated_image.fill(0)
         self.mig.vp = 1.0 / np.sqrt(m)
         self.mig.SolveBackwardWaveEquation()
         grad = self.loadGradient()
@@ -101,29 +103,32 @@ class fwi:
     
     def step_length(self, m, p, g, X0):
         c1 = 1e-4
-        c2 = 0.9
         gTp0 = np.sum(g * p)
         vmin = np.min(self.m0)
         alpha = 0.01 * (1.0 / (vmin*vmin))
+        m_min = 1.0/(self.pmt.vmax*self.pmt.vmax)
+        m_max = 1.0/(self.pmt.vmin*self.pmt.vmin)
         for _ in range(10):
             m_new = m + alpha * p
+            m_new = np.clip(m_new, m_min, m_max)
+
             X_new = self.objective_function(m_new, save_residual=False)
+
             armijo = X_new <= X0 + c1 * alpha * gTp0
-            print("X0 + c1 * alpha * gTp0 = " , X0 + c1 * alpha * gTp0)
+
             print("alpha =", alpha)
             print("X0 =", X0)
             print("X_new =", X_new)
             print("gTp0 =", gTp0)
             print("Armijo =", armijo)
-            print()
-        
+
             if armijo:
                 return alpha
 
-            alpha *= 0.5 
+            alpha *= 0.5
 
         return alpha
-    
+        
     def loadGradient(self):
         gradientFile = f"{self.pmt.gradientsFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
         grad = np.fromfile(gradientFile, dtype=np.float32).reshape(self.pmt.nz, self.pmt.nx)
@@ -145,7 +150,7 @@ class fwi:
         
         # Modelo inicial
         water_mask = np.abs(self.wf.vp - 1500.0) < 1e-3
-        self.m0 = smooth_model(self.wf.vp,self.pmt.sigma_x,self.pmt.sigma_z,water_mask).copy()
+        self.m0 = smooth_model(self.wf.vp,self.pmt.sigma,water_mask).copy()
         m = 1.0 / (self.m0 * self.m0)
         smooth_model_file = (f"{self.pmt.modelFolder}fwi_vp_smooth_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
         self.m0.astype(np.float32).tofile(smooth_model_file)
@@ -186,16 +191,24 @@ class fwi:
 
             X_new = self.objective_function(m_new, save_residual = True)
             g_new = self.calculate_gradient(m_new)
-            history.append([X_new / X0, fmax])
 
             s = (m_new - m)
             y = (g_new - g)
-            s_store.append(s)
-            y_store.append(y)
+            sy = np.sum(s * y)
+            print(sy)
+            if sy > 0:
+                s_store.append(s)
+                y_store.append(y)
+
+            if len(s_store) > 8:
+                s_store.pop(0)
+                y_store.pop(0)
 
             m = m_new.copy()
             X = X_new
             g = g_new.copy()
+
+            history.append([X_new / X0, fmax])
 
             m_it = 1.0 / np.sqrt(m)
             model_file = (f"{self.pmt.estimatedmodelsFolder}fwi_vp_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}_itr{itr+1}.bin")

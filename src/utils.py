@@ -41,59 +41,43 @@ def Mute(seismogram, shot, rec_x, rec_z, shot_x, shot_z, dt,tlag,shift,window,v0
     return result
 
 @jit(nopython=True)
-def gaussian_kernel(x, z, sigma_x, sigma_z):
-    fator = 1.0 / (2.0 * np.pi * sigma_x * sigma_z)
-    expoente = -0.5 * ((x * x) / (sigma_x * sigma_x) +(z * z) / (sigma_z * sigma_z))
+def gaussian_kernel(x, z, sigma):
+    fator = 1. / (2.*np.pi*sigma*sigma)
+    expoente = -(x * x + z * z)/(2.*sigma*sigma)
     return fator * np.exp(expoente)
 
+@jit(nopython=True, parallel=True)
+def gaussian_filter2D(sigma):
+    kernel_size = int(np.ceil(2.0 * sigma + 1))
+    if kernel_size % 2 == 0:
+        kernel_size += 1
 
-@jit(nopython=True)
-def gaussian_filter2D(sigma_x, sigma_z):
-    half_x = int(np.ceil(3.0 * sigma_x))
-    half_z = int(np.ceil(3.0 * sigma_z))
-
-    kernel_size_x = 2 * half_x + 1
-    kernel_size_z = 2 * half_z + 1
-
-    kernel2d = np.zeros((kernel_size_z, kernel_size_x), dtype=np.float32)
-
+    kernel2d = np.zeros((kernel_size, kernel_size), dtype=np.float32)
     total = 0.0
 
-    for lin in range(kernel_size_z):
-        for col in range(kernel_size_x):
-
-            z = lin - half_z
-            x = col - half_x
-
-            val = gaussian_kernel(x, z, sigma_x, sigma_z)
-
+    for lin in prange(kernel_size):
+        for col in prange(kernel_size):
+            x = lin - kernel_size // 2
+            y = col - kernel_size // 2
+            val = gaussian_kernel(x, y, sigma)
             kernel2d[lin, col] = val
             total += val
 
-    for lin in range(kernel_size_z):
-        for col in range(kernel_size_x):
-            kernel2d[lin, col] /= total
+    kernel2d /= total
 
     return kernel2d
 
-
 @jit(nopython=True, parallel=True)
-def smooth_model(f, sigma_x, sigma_z, water_mask):
+def smooth_model(f, sigma, water_mask):
     s = 1.0 / f
     s_old = s.copy()
+    kernel = gaussian_filter2D(sigma)
+    ksize = kernel.shape[0]
+    half = ksize // 2
+    nz, nx = np.shape(s)
 
-    kernel = gaussian_filter2D(sigma_x, sigma_z)
-
-    ksize_z = kernel.shape[0]
-    ksize_x = kernel.shape[1]
-
-    half_z = ksize_z // 2
-    half_x = ksize_x // 2
-
-    nz, nx = s.shape
-
-    for z in prange(half_z, nz - half_z):
-        for x in range(half_x, nx - half_x):
+    for z in prange(half, nz - half):
+        for x in prange(half, nx - half):
 
             if water_mask[z, x]:
                 continue
@@ -101,11 +85,10 @@ def smooth_model(f, sigma_x, sigma_z, water_mask):
             new_value = 0.0
             total = 0.0
 
-            for i in range(ksize_z):
-                for j in range(ksize_x):
-
-                    zz = z + i - half_z
-                    xx = x + j - half_x
+            for i in range(ksize):
+                for j in range(ksize):
+                    zz = z + i - half
+                    xx = x + j - half
 
                     if water_mask[zz, xx]:
                         continue
@@ -116,14 +99,14 @@ def smooth_model(f, sigma_x, sigma_z, water_mask):
             if total > 0.0:
                 s[z, x] = new_value / total
 
-    for z in range(half_z):
-        s[z, :] = s[half_z, :]
-        s[nz - 1 - z, :] = s[nz - 1 - half_z, :]
+    for z in range(half):
+        s[z, :] = s[half, :]
+        s[nz - 1 - z, :] = s[nz - 1 - half, :]
 
-    for x in range(half_x):
-        s[:, x] = s[:, half_x]
-        s[:, nx - 1 - x] = s[:, nx - 1 - half_x]
-        
+    for x in range(half):
+        s[:, x] = s[:, half]
+        s[:, nx - 1 - x] = s[:, nx - 1 - half]
+
     for z in range(nz):
         for x in range(nx):
             if water_mask[z, x]:

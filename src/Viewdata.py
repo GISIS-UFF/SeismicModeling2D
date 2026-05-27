@@ -278,7 +278,7 @@ class plotting:
         perc = np.percentile(migrated_image, perc)
         plt.imshow(migrated_image, aspect='auto', cmap='gray', vmin=-perc, vmax=perc, extent=[0, self.pmt.nx*self.pmt.dx, self.pmt.nz*self.pmt.dz, 0])  
         plt.colorbar(label='Amplitude')
-        plt.title("Migrated Image")
+        plt.title("Image")
         plt.xlabel("Distance (m)")
         plt.ylabel("Depth (m)")
         plt.show()
