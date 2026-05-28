@@ -20,6 +20,6 @@ for fmax in pmt.freqs:
     mig = migration(wf,pmt)
     mig.initializeMigrationfields()
 
-    fwi = fwi(pmt, wf, mig)
+    inv = fwi(pmt, wf, mig)
 
-    fwi.solveFullWaveformInversion(fmax)
+    inv.solveFullWaveformInversion(fmax)

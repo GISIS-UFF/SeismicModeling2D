@@ -149,12 +149,16 @@ class fwi:
         print("info: Solving Full Waveform Inversion")
         
         # Modelo inicial
-        water_mask = np.abs(self.wf.vp - 1500.0) < 1e-3
-        self.m0 = smooth_model(self.wf.vp,self.pmt.sigma,water_mask).copy()
-        m = 1.0 / (self.m0 * self.m0)
-        smooth_model_file = (f"{self.pmt.modelFolder}fwi_vp_smooth_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
-        self.m0.astype(np.float32).tofile(smooth_model_file)
-
+        if fmax == self.pmt.freqs[0]:
+            water_mask = np.abs(self.wf.vp - 1500.0) < 1e-3
+            self.m0 = smooth_model(self.wf.vp,self.pmt.sigma,water_mask).copy()
+            smooth_model_file = (f"{self.pmt.modelFolder}fwi_vp_smooth_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
+            self.m0.astype(np.float32).tofile(smooth_model_file)
+        else:
+            idx_fmax = self.pmt.freqs.index(fmax)
+            fmax_previous = self.pmt.freqs[idx_fmax - 1]
+            self.m0 = np.fromfile(f"{self.pmt.estimatedmodelsFolder}fwi_vp_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}_itr{self.pmt.niter}_{fmax_previous}.bin", dtype=np.float32).reshape(self.pmt.nz, self.pmt.nx)
+            
         history = []
 
         s_store = []
@@ -171,7 +175,7 @@ class fwi:
             print(f"\033[31minfo: FWI iteration {itr + 1}/{self.pmt.niter}\033[0m")
 
             # Salvar gradiente da iteração atual
-            gradient_file = (f"{self.pmt.gradientsFolder}gradient_fwi_iter_{itr+1}_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
+            gradient_file = (f"{self.pmt.gradientsFolder}gradient_fwi_iter_{itr+1}_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}_freq{fmax}.bin")
             (g).astype(np.float32).tofile(gradient_file)
             print(f"info: Gradient saved to {gradient_file}")
 
@@ -211,7 +215,7 @@ class fwi:
             history.append([X_new / X0, fmax])
 
             m_it = 1.0 / np.sqrt(m)
-            model_file = (f"{self.pmt.estimatedmodelsFolder}fwi_vp_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}_itr{itr+1}.bin")
+            model_file = (f"{self.pmt.estimatedmodelsFolder}fwi_vp_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}_itr{itr+1}_freq{fmax}.bin")
             m_it.astype(np.float32).tofile(model_file)
             print(f"info: Model of {itr+1} iteration saved to {model_file}")
         
