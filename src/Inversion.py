@@ -157,8 +157,10 @@ class fwi:
         else:
             idx_fmax = self.pmt.freqs.index(fmax)
             fmax_previous = self.pmt.freqs[idx_fmax - 1]
-            self.m0 = np.fromfile(f"{self.pmt.estimatedmodelsFolder}fwi_vp_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}_itr{self.pmt.niter}_{fmax_previous}.bin", dtype=np.float32).reshape(self.pmt.nz, self.pmt.nx)
-            
+            self.m0 = np.fromfile(f"{self.pmt.estimatedmodelsFolder}fwi_vp_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}_itr{self.pmt.niter}_freq{fmax_previous}.bin", dtype=np.float32).reshape(self.pmt.nz, self.pmt.nx)
+        
+        m = 1.0 / (self.m0 * self.m0)
+        
         history = []
 
         s_store = []
