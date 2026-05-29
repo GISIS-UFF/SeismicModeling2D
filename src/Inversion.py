@@ -10,6 +10,8 @@ class fwi:
         self.pmt = parameters
         self.wf = wavefield
         self.mig = migration
+        self.X0 = None
+        self.history = []
 
     def objective_function(self, m, save_residual):
         X = 0.0
@@ -160,8 +162,6 @@ class fwi:
             self.m0 = np.fromfile(f"{self.pmt.estimatedmodelsFolder}fwi_vp_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}_itr{self.pmt.niter}_freq{fmax_previous}.bin", dtype=np.float32).reshape(self.pmt.nz, self.pmt.nx)
         
         m = 1.0 / (self.m0 * self.m0)
-        
-        history = []
 
         s_store = []
         y_store = []
@@ -170,8 +170,8 @@ class fwi:
         X = self.objective_function(m, save_residual = True)
         g = self.calculate_gradient(m)
 
-        if fmax == self.pmt.freqs[0]:
-            X0 = X
+        if self.X0 is None:
+            self.X0 = X
 
         for itr in range(self.pmt.niter):
             print(f"\033[31minfo: FWI iteration {itr + 1}/{self.pmt.niter}\033[0m")
@@ -214,14 +214,14 @@ class fwi:
             X = X_new
             g = g_new.copy()
 
-            history.append([X_new / X0, fmax])
+            self.history.append([X_new / self.X0, fmax])
 
             m_it = 1.0 / np.sqrt(m)
             model_file = (f"{self.pmt.estimatedmodelsFolder}fwi_vp_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}_itr{itr+1}_freq{fmax}.bin")
             m_it.astype(np.float32).tofile(model_file)
             print(f"info: Model of {itr+1} iteration saved to {model_file}")
         
-        history = np.array(history, dtype=np.float32)
+        history = np.array(self.history, dtype=np.float32)
         history_file = (f"../outputs/history.txt")
         np.savetxt(history_file,history)
 
