@@ -114,6 +114,53 @@ def smooth_model(f, sigma, water_mask):
 
     return 1.0 / s
 
+@jit(nopython=True, parallel=True)
+def smooth_parameter(f, sigma, water_mask):
+    s = f.copy()
+    s_old = s.copy()
+    kernel = gaussian_filter2D(sigma)
+    ksize = kernel.shape[0]
+    half = ksize // 2
+    nz, nx = np.shape(s)
+
+    for z in prange(half, nz - half):
+        for x in prange(half, nx - half):
+
+            if water_mask[z, x]:
+                continue
+
+            new_value = 0.0
+            total = 0.0
+
+            for i in range(ksize):
+                for j in range(ksize):
+                    zz = z + i - half
+                    xx = x + j - half
+
+                    if water_mask[zz, xx]:
+                        continue
+
+                    new_value += kernel[i, j] * s_old[zz, xx]
+                    total += kernel[i, j]
+
+            if total > 0.0:
+                s[z, x] = new_value / total
+
+    for z in range(half):
+        s[z, :] = s[half, :]
+        s[nz - 1 - z, :] = s[nz - 1 - half, :]
+
+    for x in range(half):
+        s[:, x] = s[:, half]
+        s[:, nx - 1 - x] = s[:, nx - 1 - half]
+
+    for z in range(nz):
+        for x in range(nx):
+            if water_mask[z, x]:
+                s[z, x] = s_old[z, x]
+
+    return s
+
 def low_pass_filter(data, cutoff, dt, transition=0.3, axis=0): 
     data = np.asarray(data)
     nt = data.shape[axis]
@@ -477,7 +524,7 @@ def updateWaveEquationTTI(Uf, Uc, nx, nz, dt, dx, dz, vp, epsilon, delta, theta)
 
             num = -2.0*(epsilon[j,i]-delta[j,i])*((mx*np.cos(theta[j,i]) - mz*np.sin(theta[j,i]))**2)*((mx*np.sin(theta[j,i]) + mz*np.cos(theta[j,i]))**2)
             den = (1.0 + 2.0*epsilon[j,i])*(((mx*np.cos(theta[j,i]) - mz*np.sin(theta[j,i])))**4) + ((mx*np.sin(theta[j,i]) + mz*np.cos(theta[j,i]))**4) + 2.0*(1.0 + delta[j,i])*((mx*np.cos(theta[j,i]) - mz*np.sin(theta[j,i]))**2)*((mx*np.sin(theta[j,i]) + mz*np.cos(theta[j,i]))**2)
-        #colocar o mais recorrente primeiro
+
             if abs(den) < 1e-12:
                 Sd = 0.0
             else:

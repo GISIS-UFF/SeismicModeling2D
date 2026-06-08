@@ -229,7 +229,7 @@ class wavefield:
             self.seismogram_gpu[k, :] = self.current[rz, rx]
 
     def save_seismogram(self,shot):     
-        self.seismogramFile = f"{self.pmt.seismogramFolder}seismogram_shot_{shot+1}_Nt{self.pmt.nt}_Nrec{self.pmt.Nrec}.bin"
+        self.seismogramFile = f"{self.pmt.seismogramFolder}seismogram_shot_{shot+1}_Nt{self.pmt.nt}_Nrec{self.pmt.Nrec}_fcut{self.pmt.fcut}.bin"
         self.seismogram.tofile(self.seismogramFile)
         print(f"info: Seismogram saved to {self.seismogramFile}")
 

@@ -4,11 +4,11 @@ import matplotlib.pyplot as plt
 import numpy 
 
 pmt = parameters("../inputs/Parameters.json")
-shot_file = 30
+shot_file = 15
 shot_idx = shot_file - 1
 shift = 0.15
 window = 0.05
-seismogramFile = (f"{pmt.seismogramFolder}"f"seismogram_shot_{shot_file}_Nt{pmt.nt}_Nrec{pmt.Nrec}.bin")
+seismogramFile = (f"/home/juanmarques/workspace/SeismicModeling2D/outputs/seismograms/seismogram_shot_15_Nt5001_Nrec170_fcut30.0.bin")
 seismogram = numpy.fromfile(seismogramFile,dtype=numpy.float32).reshape(pmt.nt, pmt.Nrec)
 muted_seismogram = Mute(seismogram,shot_idx,pmt.rec_x,pmt.rec_z,pmt.shot_x,pmt.shot_z,pmt.dt,pmt.tlag,shift,window,v0=1500)
 

@@ -57,10 +57,16 @@ class fwi:
         grad = np.zeros_like(m)
         self.mig.ilum.fill(0)
         self.mig.migrated_image.fill(0)
+        if self.pmt.fwi == True and self.pmt.multiparameter == True:
+            if self.pmt.approximation in ["VTI", "TTI"]:
+                self.mig.epsilon_grad.fill(0)
+                self.mig.delta_grad.fill(0)
+            if self.pmt.approximation == "TTI":
+                self.mig.theta_grad.fill(0)
         self.mig.vp = 1.0 / np.sqrt(m)
         self.mig.SolveBackwardWaveEquation()
         grad = self.loadGradient()
-        water_mask = np.abs(self.wf.vp - 1500.0) < 1e-3
+        water_mask = np.abs(self.wf.vp - 1500) < 1e-3
         grad[water_mask] = 0.0
         return grad
     
@@ -128,13 +134,6 @@ class fwi:
             alpha *= 0.5
 
         return alpha
-    
-    def generateObsdata(self):
-        self.wf.createSourceWavelet()
-        self.wf.initializeWavefields()
-        self.wf.loadModels()
-        self.wf.checkDispersionAndStability()
-        self.wf.SolveWaveEquation()
 
     def loadGradient(self):
         gradientFile = f"{self.pmt.gradientsFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
@@ -142,7 +141,7 @@ class fwi:
         return grad
     
     def loadObsSeismogram(self,shot):
-        seismogramFile = f"{self.pmt.seismogramFolder}seismogram_shot_{shot+1}_Nt{self.pmt.nt}_Nrec{self.pmt.Nrec}.bin"
+        seismogramFile = f"{self.pmt.seismogramFolder}seismogram_shot_{shot+1}_Nt{self.pmt.nt}_Nrec{self.pmt.Nrec}_fcut{self.pmt.fcut}.bin"
         seismogram = np.fromfile(seismogramFile, dtype=np.float32).reshape(self.pmt.nt,self.pmt.Nrec) 
         return seismogram
 
@@ -156,7 +155,7 @@ class fwi:
         print("info: Solving Full Waveform Inversion")
         
         # Modelo inicial
-        water_mask = np.abs(self.wf.vp - 1500.0) < 1e-3
+        water_mask = np.abs(self.wf.vp - np.min(self.wf.vp)) < 1e-3
         self.m0 = smooth_model(self.wf.vp,self.pmt.sigma,water_mask).copy()
         smooth_model_file = (f"{self.pmt.modelFolder}fwi_vp_smooth_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
         self.m0.astype(np.float32).tofile(smooth_model_file)
@@ -170,9 +169,7 @@ class fwi:
             print(f"\033[31minfo: FWI frequency {fmax} of {self.pmt.freqs}\033[0m")
 
             self.pmt.fcut = fmax
-
-            # Gerar dados observados para a frequência atual
-            self.generateObsdata() 
+            self.wf.createSourceWavelet()
 
             s_store = []
             y_store = []
@@ -180,9 +177,8 @@ class fwi:
             # Gradiente e função objetivo no modelo atual
             X = self.objective_function(m, save_residual = True)
             g = self.calculate_gradient(m)
-
-            if fmax == self.pmt.freqs[0]:
-                X0 = X
+            
+            X0 = X
 
             for itr in range(self.pmt.niter):
                 print(f"\033[31minfo: FWI iteration {itr + 1}/{self.pmt.niter} for frequency {fmax}\033[0m")

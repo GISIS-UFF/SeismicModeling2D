@@ -101,6 +101,7 @@ class parameters:
         self.freqs = self.parameters['freqs']
         self.vmax = self.parameters['vmax']
         self.vmin = self.parameters['vmin']
+        self.multiparameter = self.parameters['multiparameter']
 
     def readAcquisitionGeometry(self):        
         # Read receiver and source coordinates from CSV files
