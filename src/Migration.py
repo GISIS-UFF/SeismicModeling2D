@@ -2,6 +2,7 @@ import numpy as np
 import time
 import random
 import cupy as cp
+from numba import jit,prange, njit
 
 from utils import updateWaveEquation
 from utils import updateWaveEquationCPML
@@ -22,6 +23,10 @@ from utils import updatePsiGPU
 from utils import updateZetaGPU
 from utils import smooth_model
 from utils import smooth_parameter
+from utils import calculateGradientVTI
+from utils import calculateGradientTTI
+from utils import calculateGradientVTICuda
+from utils import calculateGradientTTICuda
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 class migration: 
@@ -484,214 +489,6 @@ class migration:
         cbar.set_label("Amplitude")
         plt.show()
 
-    def calculateGradientVTI(self, save_field, t, u_next=None, u_prev=None):
-        if self.pmt.unit == "GPU":
-            xp = cp
-        else:
-            xp = np
-
-        c0 = -1435.0 / 504.0
-        c1 = 8.0 / 5.0
-        c2 = -1.0 / 5.0
-        c3 = 8.0 / 315.0
-        c4 = -1.0 / 560.0
-        a1 = 4.0 / 5.0
-        a2 = -1.0 / 5.0
-        a3 = 4.0 / 105.0
-        a4 = -1.0 / 280.0
-
-        if u_next is None and u_prev is None:
-            P = save_field[t,:,:]
-            d2P_dt2 = (save_field[t+1,:,:] - 2.0*save_field[t,:,:] + save_field[t-1,:,:]) / (self.pmt.dt*self.pmt.dt)
-        else:
-            P = save_field
-            d2P_dt2 = (u_next - 2.0*save_field + u_prev) / (self.pmt.dt*self.pmt.dt)
-
-        adj = self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
-        vp = self.wf.vp_exp[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
-        self.migrated_partial += adj*d2P_dt2
-
-        if self.pmt.multiparameter == True:
-            eps = self.wf.epsilon_exp[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
-            delta = self.wf.delta_exp[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
-
-            pxx = (c0 * P[4:-4, 4:-4] + 
-                    c1 * (P[4:-4, 5:-3] + P[4:-4, 3:-5]) + 
-                    c2 * (P[4:-4, 6:-2] + P[4:-4, 2:-6]) +
-                    c3 * (P[4:-4, 7:-1] + P[4:-4, 1:-7]) +
-                    c4 * (P[4:-4, 8:] + P[4:-4, :-8])) / (self.pmt.dx * self.pmt.dx)
-
-            pzz = (c0 * P[4:-4, 4:-4] + 
-                    c1 * (P[5:-3, 4:-4] + P[3:-5, 4:-4]) + 
-                    c2 * (P[6:-2, 4:-4] + P[2:-6, 4:-4]) + 
-                    c3 * (P[7:-1, 4:-4] + P[1:-7, 4:-4]) + 
-                    c4 * (P[8:, 4:-4] + P[:-8, 4:-4])) / (self.pmt.dz * self.pmt.dz)
-
-            px = (a1*(P[4:-4, 5:-3] - P[4:-4, 3:-5]) +
-                a2*(P[4:-4, 6:-2] - P[4:-4, 2:-6]) +
-                a3*(P[4:-4, 7:-1] - P[4:-4, 1:-7]) +
-                a4*(P[4:-4, 8:] - P[4:-4, :-8])) / self.pmt.dx
-
-            pz = (a1 * (P[5:-3, 4:-4] - P[3:-5, 4:-4]) +
-                a2 * (P[6:-2, 4:-4] - P[2:-6, 4:-4]) +
-                a3 * (P[7:-1, 4:-4] - P[1:-7, 4:-4]) +
-                a4 * (P[8:, 4:-4] - P[:-8, 4:-4])) / self.pmt.dz
-
-            num = -2.0*(eps[4:-4, 4:-4]-delta[4:-4, 4:-4])*(px*px)*(pz*pz)
-            den = (1.0 + 2.0*eps[4:-4, 4:-4])*(px*px*px*px) + (pz*pz*pz*pz) + 2.0*(1.0 + delta[4:-4, 4:-4])*(px*px)*(pz*pz)
-
-            dnum_deps = -2.0*px*px*pz*pz
-            dnum_ddelta = 2.0*px*px*pz*pz
-            dden_deps = 2.0*px*px*px*px
-            dden_ddelta = 2.0*px*px*pz*pz
-
-            mask = xp.abs(den) < 1e-12
-            den = xp.where(mask, 1.0, den)
-
-            dSd_deps = (dnum_deps*den - num*dden_deps)/(den*den)
-            dSd_ddelta = (dnum_ddelta*den - num*dden_ddelta)/(den*den)
-
-            dSd_deps = xp.where(mask, 0.0, dSd_deps)
-            dSd_ddelta = xp.where(mask, 0.0, dSd_ddelta) 
-
-            dP_deps = vp[4:-4, 4:-4]*vp[4:-4, 4:-4]*self.pmt.dt*self.pmt.dt * ((2.0 + dSd_deps)*pxx + dSd_deps*pzz)
-            dP_ddelta = vp[4:-4, 4:-4]*vp[4:-4, 4:-4]*self.pmt.dt*self.pmt.dt * (dSd_ddelta*(pxx + pzz))
-            
-            self.epsilon_partial[4:-4, 4:-4] += adj[4:-4, 4:-4]*dP_deps
-            self.delta_partial[4:-4, 4:-4] += adj[4:-4, 4:-4]*dP_ddelta
-    
-    def calculateGradientTTI(self, save_field, t, u_next=None, u_prev=None):
-        if self.pmt.unit == "GPU":
-            xp = cp
-        else:
-            xp = np
-
-        c0 = -1435.0 / 504.0
-        c1 = 8.0 / 5.0
-        c2 = -1.0 / 5.0
-        c3 = 8.0 / 315.0
-        c4 = -1.0 / 560.0
-        a1 = 4.0 / 5.0
-        a2 = -1.0 / 5.0
-        a3 = 4.0 / 105.0
-        a4 = -1.0 / 280.0
-
-        if u_next is None and u_prev is None:
-            P = save_field[t,:,:]
-            d2P_dt2 = (save_field[t+1,:,:] - 2.0*save_field[t,:,:] + save_field[t-1,:,:]) / (self.pmt.dt*self.pmt.dt)
-        else:
-            P = save_field
-            d2P_dt2 = (u_next - 2.0*save_field + u_prev) / (self.pmt.dt*self.pmt.dt)
-
-        adj = self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
-        vp = self.wf.vp_exp[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
-
-        self.migrated_partial += adj*d2P_dt2
-
-        if self.pmt.multiparameter == True:
-            eps = self.wf.epsilon_exp[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
-            delta = self.wf.delta_exp[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
-            theta = self.wf.theta_exp[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
-
-            pxx = (c0 * P[4:-4, 4:-4] + 
-                    c1 * (P[4:-4, 5:-3] + P[4:-4, 3:-5]) + 
-                    c2 * (P[4:-4, 6:-2] + P[4:-4, 2:-6]) +
-                    c3 * (P[4:-4, 7:-1] + P[4:-4, 1:-7]) +
-                    c4 * (P[4:-4, 8:] + P[4:-4, :-8])) / (self.pmt.dx * self.pmt.dx)
-
-            pzz = (c0 * P[4:-4, 4:-4] + 
-                    c1 * (P[5:-3, 4:-4] + P[3:-5, 4:-4]) + 
-                    c2 * (P[6:-2, 4:-4] + P[2:-6, 4:-4]) + 
-                    c3 * (P[7:-1, 4:-4] + P[1:-7, 4:-4]) + 
-                    c4 * (P[8:, 4:-4] + P[:-8, 4:-4])) / (self.pmt.dz * self.pmt.dz)
-
-            pxz = (a1*a1*(P[5:-3,5:-3] - P[3:-5,5:-3] + P[3:-5,3:-5] - P[5:-3,3:-5]) +
-                    a1*a2*(P[6:-2,5:-3] - P[2:-6,5:-3] + P[2:-6,3:-5] - P[6:-2,3:-5]) +
-                    a1*a3*(P[7:-1,5:-3] - P[1:-7,5:-3] + P[1:-7,3:-5] - P[7:-1,3:-5]) +
-                    a1*a4*(P[8:,5:-3] - P[:-8,5:-3] + P[:-8,3:-5] - P[8:,3:-5]) +
-
-                    a2*a1*(P[5:-3,6:-2] - P[3:-5,6:-2] + P[3:-5,2:-6] - P[5:-3,2:-6]) +
-                    a2*a2*(P[6:-2,6:-2] - P[2:-6,6:-2] + P[2:-6,2:-6] - P[6:-2,2:-6]) +
-                    a2*a3*(P[7:-1,6:-2] - P[1:-7,6:-2] + P[1:-7,2:-6] - P[7:-1,2:-6]) +
-                    a2*a4*(P[8:,6:-2] - P[:-8,6:-2] + P[:-8,2:-6] - P[8:,2:-6]) +
-
-                    a3*a1*(P[5:-3,7:-1] - P[3:-5,7:-1] + P[3:-5,1:-7] - P[5:-3,1:-7]) +
-                    a3*a2*(P[6:-2,7:-1] - P[2:-6,7:-1] + P[2:-6,1:-7] - P[6:-2,1:-7]) +
-                    a3*a3*(P[7:-1,7:-1] - P[1:-7,7:-1] + P[1:-7,1:-7] - P[7:-1,1:-7]) +
-                    a3*a4*(P[8:,7:-1] - P[:-8,7:-1] + P[:-8,1:-7] - P[8:,1:-7]) +
-
-                    a4*a1*(P[5:-3,8:] - P[3:-5,8:] + P[3:-5,:-8] - P[5:-3,:-8]) +
-                    a4*a2*(P[6:-2,8:] - P[2:-6,8:] + P[2:-6,:-8] - P[6:-2,:-8]) +
-                    a4*a3*(P[7:-1,8:] - P[1:-7,8:] + P[1:-7,:-8] - P[7:-1,:-8]) +
-                    a4*a4*(P[8:,8:] - P[:-8,8:] + P[:-8,:-8] - P[8:,:-8])) / (self.pmt.dz * self.pmt.dx)
-
-            px = (a1*(P[4:-4, 5:-3] - P[4:-4, 3:-5]) +
-                a2*(P[4:-4, 6:-2] - P[4:-4, 2:-6]) +
-                a3*(P[4:-4, 7:-1] - P[4:-4, 1:-7]) +
-                a4*(P[4:-4, 8:] - P[4:-4, :-8])) / self.pmt.dx
-
-            pz = (a1 * (P[5:-3, 4:-4] - P[3:-5, 4:-4]) +
-                a2 * (P[6:-2, 4:-4] - P[2:-6, 4:-4]) +
-                a3 * (P[7:-1, 4:-4] - P[1:-7, 4:-4]) +
-                a4 * (P[8:, 4:-4] - P[:-8, 4:-4])) / self.pmt.dz
-
-            norm = xp.sqrt(px*px + pz*pz)
-            mask_norm = norm > 1e-12
-            norm = xp.where(mask_norm, norm, 1.0)
-
-            mx = px / norm
-            mz = pz / norm
-
-            mx = xp.where(mask_norm, mx, 0.0)
-            mz = xp.where(mask_norm, mz, 0.0)
-
-            h = mx*xp.cos(theta[4:-4, 4:-4]) - mz*xp.sin(theta[4:-4, 4:-4])
-            q = mx*xp.sin(theta[4:-4, 4:-4]) + mz*xp.cos(theta[4:-4, 4:-4])
-
-            num = -2.0*(eps[4:-4, 4:-4]-delta[4:-4, 4:-4])*(h*h)*(q*q)
-            den = (1.0 + 2.0*eps[4:-4, 4:-4])*(h*h*h*h) + (q*q*q*q) + 2.0*(1.0 + delta[4:-4, 4:-4])*(h*h)*(q*q)
-
-            dnum_deps = -2.0*h*h*q*q
-            dnum_ddelta = 2.0*h*h*q*q
-            dden_deps = 2.0*h*h*h*h
-            dden_ddelta = 2.0*h*h*q*q
-
-            dH_dtheta = -2.0*h*q
-            dQ_dtheta = 2.0*h*q
-            dHQ_dtheta = dH_dtheta*(q*q) + (h*h)*dQ_dtheta
-
-            dnum_dtheta = -2.0*(eps[4:-4, 4:-4]-delta[4:-4, 4:-4])*dHQ_dtheta
-            dden_dtheta = ((1.0 + 2.0*eps[4:-4, 4:-4])*2.0*(h*h)*dH_dtheta + 2.0*(q*q)*dQ_dtheta + 2.0*(1.0 + delta[4:-4, 4:-4])*dHQ_dtheta)
-
-            mask = xp.abs(den) < 1e-12
-            den = xp.where(mask, 1.0, den)
-
-            Sd = num / den
-            dSd_deps = (dnum_deps*den - num*dden_deps)/(den*den)
-            dSd_ddelta = (dnum_ddelta*den - num*dden_ddelta)/(den*den)
-            dSd_dtheta = (dnum_dtheta*den - num*dden_dtheta)/(den*den)
-
-            Sd = xp.where(mask, 0.0, Sd)
-            dSd_deps = xp.where(mask, 0.0, dSd_deps)
-            dSd_ddelta = xp.where(mask, 0.0, dSd_ddelta)
-            dSd_dtheta = xp.where(mask, 0.0, dSd_dtheta)
-
-            A = (1.0 + 2.0*eps[4:-4, 4:-4])*(xp.cos(theta[4:-4, 4:-4])*xp.cos(theta[4:-4, 4:-4])) + (xp.sin(theta[4:-4, 4:-4])*xp.sin(theta[4:-4, 4:-4])) + Sd
-            B = (1.0 + 2.0*eps[4:-4, 4:-4])*(xp.sin(theta[4:-4, 4:-4])*xp.sin(theta[4:-4, 4:-4])) + (xp.cos(theta[4:-4, 4:-4])*xp.cos(theta[4:-4, 4:-4])) + Sd
-            C = -2.0*eps[4:-4, 4:-4]*xp.sin(2.0*theta[4:-4, 4:-4])
-
-            dA_dtheta = -2.0*eps[4:-4, 4:-4]*xp.sin(2.0*theta[4:-4, 4:-4]) + dSd_dtheta
-            dB_dtheta = 2.0*eps[4:-4, 4:-4]*xp.sin(2.0*theta[4:-4, 4:-4]) + dSd_dtheta
-            dC_dtheta = -4.0*eps[4:-4, 4:-4]*xp.cos(2.0*theta[4:-4, 4:-4])
-
-            dP_deps = vp[4:-4, 4:-4]*vp[4:-4, 4:-4]*self.pmt.dt*self.pmt.dt * ((2.0*xp.cos(theta[4:-4, 4:-4])*xp.cos(theta[4:-4, 4:-4]) + dSd_deps)*pxx + (2.0*xp.sin(theta[4:-4, 4:-4])*xp.sin(theta[4:-4, 4:-4]) + dSd_deps)*pzz - 2.0*xp.sin(2.0*theta[4:-4, 4:-4])*pxz)
-            dP_ddelta = vp[4:-4, 4:-4]*vp[4:-4, 4:-4]*self.pmt.dt*self.pmt.dt * (dSd_ddelta*(pxx + pzz))
-            dP_dtheta = vp[4:-4, 4:-4]*vp[4:-4, 4:-4]*self.pmt.dt*self.pmt.dt * (dA_dtheta*pxx + dB_dtheta*pzz + dC_dtheta*pxz)
-
-            self.epsilon_partial[4:-4, 4:-4] += adj[4:-4, 4:-4]*dP_deps
-            self.delta_partial[4:-4, 4:-4] += adj[4:-4, 4:-4]*dP_ddelta
-            self.theta_partial[4:-4, 4:-4] += adj[4:-4, 4:-4]*dP_dtheta
-
 ## CPU Migration Types
     #On the fly
     def solveBackwardWaveEquationOntheFly(self):
@@ -753,16 +550,23 @@ class migration:
             for t in range(self.pmt.nt - 2, 0, -1):
                 self.backward_step(t)
                 self.save_snapshotBCK(shot,t)
+                adj = self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
                 if self.pmt.fwi  == True:
                     if self.pmt.approximation == "acoustic":
                         d2Udt2 = (save_field[t+1,:,:] - 2.0*save_field[t,:,:] + save_field[t-1,:,:]) / (self.pmt.dt*self.pmt.dt)
-                        self.migrated_partial += d2Udt2 * self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
+                        self.migrated_partial += d2Udt2 * adj
                     elif self.pmt.approximation =="VTI":
-                        self.calculateGradientVTI(save_field, t)
+                        d2Udt2 = (save_field[t+1,:,:] - 2.0*save_field[t,:,:] + save_field[t-1,:,:]) / (self.pmt.dt*self.pmt.dt)
+                        self.migrated_partial += d2Udt2 * adj
+                        if self.pmt.multiparameter == True:
+                            self.epsilon_partial, self.delta_partial = calculateGradientVTI(save_field[t,:,:], adj, self.epsilon_partial, self.delta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta)
                     elif self.pmt.approximation =="TTI":
-                        self.calculateGradientTTI(save_field, t)
+                        d2Udt2 = (save_field[t+1,:,:] - 2.0*save_field[t,:,:] + save_field[t-1,:,:]) / (self.pmt.dt*self.pmt.dt)
+                        self.migrated_partial += d2Udt2 * adj
+                        if self.pmt.multiparameter == True:
+                            self.epsilon_partial, self.delta_partial, self.theta_partial = calculateGradientTTI(save_field[t,:,:], adj, self.epsilon_partial, self.delta_partial, self.theta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta,self.theta)
                 else:
-                    self.migrated_partial += (save_field[t,:,:] * self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc])
+                    self.migrated_partial += (save_field[t,:,:] * adj)
                 self.save_image(shot,t)
                 #swap
                 self.currentbck, self.futurebck = self.futurebck, self.currentbck
@@ -869,16 +673,23 @@ class migration:
                         u_prev = self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()
                     self.backward_step(t)
                     self.save_snapshotBCK(shot,t)
+                    adj = self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
                     if self.pmt.fwi  == True:
                         if self.pmt.approximation == "acoustic":
                             d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
-                            self.migrated_partial += d2Udt2 * self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
+                            self.migrated_partial += d2Udt2 * adj
                         elif self.pmt.approximation =="VTI":
-                            self.calculateGradientVTI(u_curr, t, u_next, u_prev)
+                            d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
+                            self.migrated_partial += d2Udt2 * adj
+                            if self.pmt.multiparameter == True:
+                                self.epsilon_partial, self.delta_partial = calculateGradientVTI(u_curr, adj, self.epsilon_partial, self.delta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta)
                         elif self.pmt.approximation =="TTI":
-                            self.calculateGradientTTI(u_curr, t, u_next, u_prev)
+                            d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
+                            self.migrated_partial += d2Udt2 * adj
+                            if self.pmt.multiparameter == True:    
+                                self.epsilon_partial, self.delta_partial, self.theta_partial = calculateGradientTTI(u_curr, adj, self.epsilon_partial, self.delta_partial, self.theta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta, self.theta)
                     else:
-                        self.migrated_partial += (self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc])
+                        self.migrated_partial += (self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * adj)
                     self.save_image(shot,t)
                     #swap
                     self.wf.current, self.wf.future = self.wf.future, self.wf.current
@@ -984,16 +795,23 @@ class migration:
                 self.apply_boundaries(t)           
                 self.backward_step(t)
                 self.save_snapshotBCK(shot,t)
+                adj = self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
                 if self.pmt.fwi  == True:
                     if self.pmt.approximation == "acoustic":
-                            d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
-                            self.migrated_partial += d2Udt2 * self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
+                        d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
+                        self.migrated_partial += d2Udt2 * adj
                     elif self.pmt.approximation =="VTI":
-                        self.calculateGradientVTI(u_curr, t, u_next, u_prev)
+                        d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
+                        self.migrated_partial += d2Udt2 * adj
+                        if self.pmt.multiparameter == True:    
+                            self.epsilon_partial, self.delta_partial = calculateGradientVTI(u_curr, adj, self.epsilon_partial, self.delta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta)
                     elif self.pmt.approximation =="TTI":
-                        self.calculateGradientTTI(u_curr, t, u_next, u_prev)
+                        d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
+                        self.migrated_partial += d2Udt2 * adj
+                        if self.pmt.multiparameter == True:    
+                            self.epsilon_partial, self.delta_partial, self.theta_partial = calculateGradientTTI(u_curr, adj, self.epsilon_partial, self.delta_partial, self.theta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta,self.theta)
                 else:
-                    self.migrated_partial += (self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc])
+                    self.migrated_partial += (self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * adj)
                 self.save_image(shot,t)
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
@@ -1101,16 +919,23 @@ class migration:
                     u_prev = self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()
                 self.backward_step(t) 
                 self.save_snapshotBCK(shot,t)
+                adj = self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
                 if self.pmt.fwi  == True:
                     if self.pmt.approximation == "acoustic":
-                            d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
-                            self.migrated_partial += d2Udt2 * self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
+                        d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
+                        self.migrated_partial += d2Udt2 * adj
                     elif self.pmt.approximation =="VTI":
-                        self.calculateGradientVTI(u_curr, t, u_next, u_prev)
+                        d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
+                        self.migrated_partial += d2Udt2 * adj
+                        if self.pmt.multiparameter == True:    
+                            self.epsilon_partial, self.delta_partial = calculateGradientVTI(u_curr, adj, self.epsilon_partial, self.delta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta)
                     elif self.pmt.approximation =="TTI":
-                        self.calculateGradientTTI(u_curr, t, u_next, u_prev)
+                        d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
+                        self.migrated_partial += d2Udt2 * adj
+                        if self.pmt.multiparameter == True:    
+                            self.epsilon_partial, self.delta_partial, self.theta_partial = calculateGradientTTI(u_curr, adj, self.epsilon_partial, self.delta_partial, self.theta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta, self.theta)
                 else:
-                    self.migrated_partial += (self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc])
+                    self.migrated_partial += (self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * adj)
                 self.save_image(shot,t)
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
@@ -1225,16 +1050,23 @@ class migration:
             for t in range(self.pmt.nt - 2, 0, -1):
                 self.backward_stepGPU(t)
                 self.store_snapshotBCKGPU(t)
+                adj = self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
                 if self.pmt.fwi  == True:
                     if self.pmt.approximation == "acoustic":
                         d2Udt2 = (save_field[t+1,:,:] - 2.0*save_field[t,:,:] + save_field[t-1,:,:]) / (self.pmt.dt*self.pmt.dt)
-                        self.migrated_partial += d2Udt2 * self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
+                        self.migrated_partial += d2Udt2 * adj
                     elif self.pmt.approximation =="VTI":
-                        self.calculateGradientVTI(save_field, t)
+                        d2Udt2 = (save_field[t+1,:,:] - 2.0*save_field[t,:,:] + save_field[t-1,:,:]) / (self.pmt.dt*self.pmt.dt)
+                        self.migrated_partial += d2Udt2 * adj
+                        if self.pmt.multiparameter == True:  
+                            self.epsilon_partial, self.delta_partial = calculateGradientVTICuda(save_field[t,:,:], adj, self.epsilon_partial, self.delta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta,self.theta)  
                     elif self.pmt.approximation =="TTI":
-                        self.calculateGradientTTI(save_field, t)
+                        d2Udt2 = (save_field[t+1,:,:] - 2.0*save_field[t,:,:] + save_field[t-1,:,:]) / (self.pmt.dt*self.pmt.dt)
+                        self.migrated_partial += d2Udt2 * adj
+                        if self.pmt.multiparameter == True:    
+                            self.epsilon_partial, self.delta_partial, self.theta_partial = calculateGradientTTICuda(save_field[t,:,:], adj, self.epsilon_partial, self.delta_partial, self.theta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta,self.theta)  
                 else:
-                    self.migrated_partial += (save_field[t,:,:] * self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc])
+                    self.migrated_partial += (save_field[t,:,:] * adj)
                 self.store_imageGPU(t)
                 #swap
                 self.currentbck, self.futurebck = self.futurebck, self.currentbck
@@ -1364,16 +1196,23 @@ class migration:
                         u_prev = self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()                
                     self.backward_stepGPU(t)
                     self.store_snapshotBCKGPU(t)
+                    adj = self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
                     if self.pmt.fwi  == True:
                         if self.pmt.approximation == "acoustic":
                             d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
-                            self.migrated_partial += d2Udt2 * self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
+                            self.migrated_partial += d2Udt2 * adj
                         elif self.pmt.approximation =="VTI":
-                            self.calculateGradientVTI(u_curr, t, u_next, u_prev)
+                            d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
+                            self.migrated_partial += d2Udt2 * adj
+                            if self.pmt.multiparameter == True:    
+                                self.epsilon_partial, self.delta_partial = calculateGradientVTICuda(u_curr, adj, self.epsilon_partial, self.delta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta)  
                         elif self.pmt.approximation =="TTI":
-                            self.calculateGradientTTI(u_curr, t, u_next, u_prev)
+                            d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
+                            self.migrated_partial += d2Udt2 * adj
+                            if self.pmt.multiparameter == True:    
+                                self.epsilon_partial, self.delta_partial, self.theta_partial = calculateGradientTTICuda(u_curr, adj, self.epsilon_partial, self.delta_partial, self.theta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta,self.theta)  
                     else:
-                        self.migrated_partial += (self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc])
+                        self.migrated_partial += (self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * adj)
                     self.store_imageGPU(t)
                     #swap
                     self.wf.current, self.wf.future = self.wf.future, self.wf.current
@@ -1501,16 +1340,23 @@ class migration:
                 self.apply_boundaries(t)           
                 self.backward_stepGPU(t)
                 self.store_snapshotBCKGPU(t)
+                adj = self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
                 if self.pmt.fwi  == True:
                     if self.pmt.approximation == "acoustic":
                         d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
-                        self.migrated_partial += d2Udt2 * self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
+                        self.migrated_partial += d2Udt2 * adj
                     elif self.pmt.approximation =="VTI":
-                        self.calculateGradientVTI(u_curr, t, u_next, u_prev)
+                        d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
+                        self.migrated_partial += d2Udt2 * adj
+                        if self.pmt.multiparameter == True:    
+                            self.epsilon_partial, self.delta_partial = calculateGradientVTICuda(u_curr, adj, self.epsilon_partial, self.delta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta)  
                     elif self.pmt.approximation =="TTI":
-                        self.calculateGradientTTI(u_curr, t, u_next, u_prev)
+                        d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
+                        self.migrated_partial += d2Udt2 * adj
+                        if self.pmt.multiparameter == True:    
+                            self.epsilon_partial, self.delta_partial, self.theta_partial = calculateGradientTTICuda(u_curr, adj, self.epsilon_partial, self.delta_partial,self.theta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta,self.theta)  
                 else:
-                    self.migrated_partial += (self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc])
+                    self.migrated_partial += (self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * adj)
                 self.store_imageGPU(t)
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
@@ -1639,17 +1485,24 @@ class migration:
                 if self.pmt.fwi == True:
                     u_prev = self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()                
                 self.backward_stepGPU(t)
-                self.store_snapshotBCKGPU(t) 
+                self.store_snapshotBCKGPU(t)
+                adj = self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] 
                 if self.pmt.fwi  == True:
                     if self.pmt.approximation == "acoustic":
                         d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
-                        self.migrated_partial += d2Udt2 * self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
+                        self.migrated_partial += d2Udt2 * adj
                     elif self.pmt.approximation =="VTI":
-                        self.calculateGradientVTI(u_curr, t, u_next, u_prev)
+                        d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
+                        self.migrated_partial += d2Udt2 * adj
+                        if self.pmt.multiparameter == True:    
+                            self.epsilon_partial, self.delta_partial = calculateGradientVTICuda(u_curr, adj, self.epsilon_partial, self.delta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta)  
                     elif self.pmt.approximation =="TTI":
-                        self.calculateGradientTTI(u_curr, t, u_next, u_prev)
+                        d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
+                        self.migrated_partial += d2Udt2 * adj
+                        if self.pmt.multiparameter == True:    
+                            self.epsilon_partial, self.delta_partial, self.theta_partial = calculateGradientTTICuda(u_curr, adj, self.epsilon_partial, self.delta_partial, self.theta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta,self.theta)  
                 else:
-                    self.migrated_partial += (self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc])
+                    self.migrated_partial += (self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * adj)
                 self.store_imageGPU(t)
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current

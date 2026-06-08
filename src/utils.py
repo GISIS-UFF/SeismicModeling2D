@@ -10,6 +10,8 @@ from CudaKernels import updatePsiKernel
 from CudaKernels import updateZetaKernel
 from CudaKernels import updateWaveEquationCPMLKernel
 from CudaKernels import updateWaveEquationVTICPMLKernel
+from CudaKernels import calculateGradientVTIKernel
+from CudaKernels import calculateGradientTTIKernel
 
 #Auxiliar Functions
 def ricker(f0, t, t_lag):
@@ -1074,6 +1076,161 @@ def updateWaveEquationVTICPML(Uf, Uc, dt, dx, dz, vp, epsilon, delta,
 
     return Uf
 
+#Anisotropic Gradients
+@jit(nopython=True,parallel=True)
+def calculateGradientVTI(current, adj, epsilon_partial, delta_partial, dx, dz, nx, nz,epsilon,delta):
+    c0 = -1435.0 / 504.0
+    c1 = 8.0 / 5.0
+    c2 = -1.0 / 5.0
+    c3 = 8.0 / 315.0
+    c4 = -1.0 / 560.0
+    a1 = 4.0 / 5.0
+    a2 = -1.0 / 5.0
+    a3 = 4.0 / 105.0
+    a4 = -1.0 / 280.0
+
+    for i in prange(4,nx-4):
+        for j in prange(4,nz-4):
+            pxx = (c0 * current[j, i] + 
+                c1 * (current[j, i+1] + current[j, i-1]) + 
+                c2 * (current[j, i+2] + current[j, i-2]) +
+                c3 * (current[j, i+3] + current[j, i-3]) +
+                c4 * (current[j, i+4] + current[j, i-4])) / (dx * dx)
+            pzz = (c0 * current[j, i] + 
+                c1 * (current[j+1, i] + current[j-1, i]) + 
+                c2 * (current[j+2, i] + current[j-2, i]) + 
+                c3 * (current[j+3, i] + current[j-3, i]) + 
+                c4 * (current[j+4, i] + current[j-4, i])) / (dz * dz)
+            px = (a1*(current[j, i+1] - current[j, i-1]) +
+                a2*(current[j, i+2] - current[j, i-2]) +
+                a3*(current[j, i+3] - current[j, i-3]) +
+                a4*(current[j, i+4] - current[j, i-4])) / dx
+            pz = (a1 * (current[j+1, i] - current[j-1, i]) +
+                a2 * (current[j+2, i] - current[j-2, i]) +
+                a3 * (current[j+3, i] - current[j-3, i]) +
+                a4 * (current[j+4, i] - current[j-4, i])) / dz
+
+            num = -2.0*(epsilon[j,i]-delta[j,i])*(px*px)*(pz*pz)
+            den = (1.0 + 2.0*epsilon[j,i])*(px*px*px*px) + (pz*pz*pz*pz) + 2.0*(1.0 + delta[j,i])*(px*px)*(pz*pz)
+
+            dnum_deps = -2.0*px*px*pz*pz
+            dnum_ddelta = 2.0*px*px*pz*pz
+            dden_deps = 2.0*px*px*px*px
+            dden_ddelta = 2.0*px*px*pz*pz
+
+            if abs(den) < 1e-12:
+                dSd_deps = 0.0
+                dSd_ddelta = 0.0                    
+            else:
+                dSd_deps = (dnum_deps*den - num*dden_deps)/(den*den)
+                dSd_ddelta = (dnum_ddelta*den - num*dden_ddelta)/(den*den)
+
+            dP_deps = ((2.0 + dSd_deps)*pxx + dSd_deps*pzz)
+            dP_ddelta = (dSd_ddelta*(pxx + pzz))
+
+            epsilon_partial[j,i] += adj[j,i]*dP_deps
+            delta_partial[j,i] += adj[j,i]*dP_ddelta
+    
+    return epsilon_partial,delta_partial
+
+@jit(nopython=True,parallel=True)
+def calculateGradientTTI(current, adj, epsilon_partial, delta_partial, theta_partial, dx, dz, nx, nz, epsilon, delta, theta):
+    c0 = -1435.0 / 504.0
+    c1 = 8.0 / 5.0
+    c2 = -1.0 / 5.0
+    c3 = 8.0 / 315.0
+    c4 = -1.0 / 560.0
+    a1 = 4.0 / 5.0
+    a2 = -1.0 / 5.0
+    a3 = 4.0 / 105.0
+    a4 = -1.0 / 280.0
+
+    for i in prange(4,nx-4):
+        for j in prange(4,nz-4):
+            pxx = (c0 * current[j, i] + 
+                c1 * (current[j, i+1] + current[j, i-1]) + 
+                c2 * (current[j, i+2] + current[j, i-2]) +
+                c3 * (current[j, i+3] + current[j, i-3]) +
+                c4 * (current[j, i+4] + current[j, i-4])) / (dx * dx)
+            pzz = (c0 * current[j, i] + 
+                c1 * (current[j+1, i] + current[j-1, i]) + 
+                c2 * (current[j+2, i] + current[j-2, i]) + 
+                c3 * (current[j+3, i] + current[j-3, i]) + 
+                c4 * (current[j+4, i] + current[j-4, i])) / (dz * dz)
+            pxz = (a1*a1*(current[j+1,i+1] - current[j-1,i+1] + current[j-1,i-1] - current[j+1,i-1]) +
+                    a1*a2*(current[j+2,i+1] - current[j-2,i+1] + current[j-2,i-1] - current[j+2,i-1]) +
+                    a1*a3*(current[j+3,i+1] - current[j-3,i+1] + current[j-3,i-1] - current[j+3,i-1]) +
+                    a1*a4*(current[j+4,i+1] - current[j-4,i+1] + current[j-4,i-1] - current[j+4,i-1]) +
+
+                    a2*a1*(current[j+1,i+2] - current[j-1,i+2] + current[j-1,i-2] - current[j+1,i-2]) +
+                    a2*a2*(current[j+2,i+2] - current[j-2,i+2] + current[j-2,i-2] - current[j+2,i-2]) +
+                    a2*a3*(current[j+3,i+2] - current[j-3,i+2] + current[j-3,i-2] - current[j+3,i-2]) +
+                    a2*a4*(current[j+4,i+2] - current[j-4,i+2] + current[j-4,i-2] - current[j+4,i-2]) +
+
+                    a3*a1*(current[j+1,i+3] - current[j-1,i+3] + current[j-1,i-3] - current[j+1,i-3]) +
+                    a3*a2*(current[j+2,i+3] - current[j-2,i+3] + current[j-2,i-3] - current[j+2,i-3]) +
+                    a3*a3*(current[j+3,i+3] - current[j-3,i+3] + current[j-3,i-3] - current[j+3,i-3]) +
+                    a3*a4*(current[j+4,i+3] - current[j-4,i+3] + current[j-4,i-3] - current[j+4,i-3]) +
+
+                    a4*a1*(current[j+1,i+4] - current[j-1,i+4] + current[j-1,i-4] - current[j+1,i-4]) +
+                    a4*a2*(current[j+2,i+4] - current[j-2,i+4] + current[j-2,i-4] - current[j+2,i-4]) +
+                    a4*a3*(current[j+3,i+4] - current[j-3,i+4] + current[j-3,i-4] - current[j+3,i-4]) +
+                    a4*a4*(current[j+4,i+4] - current[j-4,i+4] + current[j-4,i-4] - current[j+4,i-4])) / (dz * dx)
+            px = (a1*(current[j, i+1] - current[j, i-1]) +
+                a2*(current[j, i+2] - current[j, i-2]) +
+                a3*(current[j, i+3] - current[j, i-3]) +
+                a4*(current[j, i+4] - current[j, i-4])) / dx
+            pz = (a1 * (current[j+1, i] - current[j-1, i]) +
+                a2 * (current[j+2, i] - current[j-2, i]) +
+                a3 * (current[j+3, i] - current[j-3, i]) +
+                a4 * (current[j+4, i] - current[j-4, i])) / dz
+            
+            norm = np.sqrt(px*px + pz*pz)
+            if norm > 1e-12:
+                mx = px / norm
+                mz = pz / norm
+            else:
+                mx, mz = 0.0, 0.0
+
+            h = mx*np.cos(theta[j, i]) - mz*np.sin(theta[j, i])
+            q = mx*np.sin(theta[j, i]) + mz*np.cos(theta[j, i])
+
+            num = -2.0*(epsilon[j,i]-delta[j,i])*(h*h)*(q*q)
+            den = (1.0 + 2.0*epsilon[j,i])*(h*h*h*h) + (q*q*q*q) + 2.0*(1.0 + delta[j,i])*(h*h)*(q*q)
+
+            dnum_deps = -2.0*h*h*q*q
+            dnum_ddelta = 2.0*h*h*q*q
+            dden_deps = 2.0*h*h*h*h
+            dden_ddelta = 2.0*h*h*q*q
+
+            dnum_dtheta = -2.0*(epsilon[j,i]-delta[j,i])*(-2.0*h*q*q*q + 2.0*h*h*h*q)
+            dden_dtheta = (-4.0*(1.0 + 2.0*epsilon[j,i])*h*h*h*q+ 4.0*h*q*q*q+ 2.0*(1.0 + delta[j,i])*(-2.0*h*q*q*q + 2.0*h*h*h*q))
+
+            if abs(den) < 1e-12:
+                Sd = 0.0
+                dSd_deps = 0.0
+                dSd_ddelta = 0.0
+                dSd_dtheta = 0.0
+            else:
+                Sd = num / den
+                dSd_deps = (dnum_deps*den - num*dden_deps)/(den*den)
+                dSd_ddelta = (dnum_ddelta*den - num*dden_ddelta)/(den*den)
+                dSd_dtheta = (dnum_dtheta*den - num*dden_dtheta)/(den*den)
+
+            dA_dtheta = -2.0*epsilon[j,i]*np.sin(2.0*theta[j,i]) + dSd_dtheta
+            dB_dtheta = 2.0*epsilon[j,i]*np.sin(2.0*theta[j,i]) + dSd_dtheta
+            dC_dtheta = 4.0*epsilon[j,i]*np.cos(2.0*theta[j,i])
+
+            dP_deps = ((2.0*np.cos(theta[j,i])*np.cos(theta[j,i]) + dSd_deps)*pxx + (2.0*np.sin(theta[j,i])*np.sin(theta[j,i]) + dSd_deps)*pzz - 2.0*np.sin(2.0*theta[j,i])*pxz)
+            dP_ddelta = (dSd_ddelta*(pxx + pzz))
+            dP_dtheta = (dA_dtheta*pxx + dB_dtheta*pzz - dC_dtheta*pxz)
+
+            epsilon_partial[j,i] += adj[j,i]*dP_deps
+            delta_partial[j,i] += adj[j,i]*dP_ddelta
+            theta_partial[j,i] += adj[j,i]*dP_dtheta
+    
+    return epsilon_partial, delta_partial, theta_partial
+
 #GPU Cerjan Apply
 def AbsorbingBoundaryGPU(Uf,Uc,N_abc,nx,nz,A):
     total_size = nz * nx
@@ -1136,3 +1293,19 @@ def updateWaveEquationVTICPMLGPU(Uf, Uc, dt, dx, dz, vp, epsilon, delta,nx_abc, 
     blocks_per_grid = (total_pixels + threads_per_block - 1) // threads_per_block
 
     updateWaveEquationVTICPMLKernel((blocks_per_grid,),(threads_per_block,),(Uf, Uc, vp, epsilon, delta,np.int32(nx_abc), np.int32(nz_abc),np.float32(dz), np.float32(dx), np.float32(dt),PsixFR, PsixFL, PsizFU, PsizFD,ZetaxFR, ZetaxFL, ZetazFU, ZetazFD,np.int32(N_abc)))
+
+#Anisotropic Gradients Cuda
+def calculateGradientVTICuda(current, adj, epsilon_partial, delta_partial, dx, dz, nx, nz,epsilon,delta)
+    total_pixels = nz * nx
+    threads_per_block = 256
+    blocks_per_grid = (total_pixels + threads_per_block - 1) // threads_per_block
+
+    calculateGradientVTIKernel((blocks_per_grid,),(threads_per_block,),(current, adj, epsilon_partial, delta_partial, np.int32(dx), np.int32(dz), np.int32(nx), np.int32(nz),epsilon,delta))
+
+def calculateGradientTTICuda(current, adj, epsilon_partial, delta_partial, theta_partial, dx, dz, nx, nz, epsilon, delta, theta)
+    total_pixels = nz * nx
+    threads_per_block = 256
+    blocks_per_grid = (total_pixels + threads_per_block - 1) // threads_per_block
+
+    calculateGradientVTIKernel((blocks_per_grid,),(threads_per_block,),(current, adj, epsilon_partial, delta_partial, theta_partial, np.int32(dx), np.int32(dz), np.int32(nx), np.int32(nz),epsilon,delta,theta))    
+
