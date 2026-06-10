@@ -117,7 +117,7 @@ def smooth_model(f, sigma, water_mask):
     return 1.0 / s
 
 @jit(nopython=True, parallel=True)
-def smooth_parameter(f, sigma, water_mask):
+def smooth_parameter(f, sigma):
     s = f.copy()
     s_old = s.copy()
     kernel = gaussian_filter2D(sigma)
@@ -128,9 +128,6 @@ def smooth_parameter(f, sigma, water_mask):
     for z in prange(half, nz - half):
         for x in prange(half, nx - half):
 
-            if water_mask[z, x]:
-                continue
-
             new_value = 0.0
             total = 0.0
 
@@ -138,9 +135,6 @@ def smooth_parameter(f, sigma, water_mask):
                 for j in range(ksize):
                     zz = z + i - half
                     xx = x + j - half
-
-                    if water_mask[zz, xx]:
-                        continue
 
                     new_value += kernel[i, j] * s_old[zz, xx]
                     total += kernel[i, j]
@@ -155,11 +149,6 @@ def smooth_parameter(f, sigma, water_mask):
     for x in range(half):
         s[:, x] = s[:, half]
         s[:, nx - 1 - x] = s[:, nx - 1 - half]
-
-    for z in range(nz):
-        for x in range(nx):
-            if water_mask[z, x]:
-                s[z, x] = s_old[z, x]
 
     return s
 
@@ -1295,14 +1284,14 @@ def updateWaveEquationVTICPMLGPU(Uf, Uc, dt, dx, dz, vp, epsilon, delta,nx_abc, 
     updateWaveEquationVTICPMLKernel((blocks_per_grid,),(threads_per_block,),(Uf, Uc, vp, epsilon, delta,np.int32(nx_abc), np.int32(nz_abc),np.float32(dz), np.float32(dx), np.float32(dt),PsixFR, PsixFL, PsizFU, PsizFD,ZetaxFR, ZetaxFL, ZetazFU, ZetazFD,np.int32(N_abc)))
 
 #Anisotropic Gradients Cuda
-def calculateGradientVTICuda(current, adj, epsilon_partial, delta_partial, dx, dz, nx, nz,epsilon,delta)
+def calculateGradientVTICuda(current, adj, epsilon_partial, delta_partial, dx, dz, nx, nz,epsilon,delta):
     total_pixels = nz * nx
     threads_per_block = 256
     blocks_per_grid = (total_pixels + threads_per_block - 1) // threads_per_block
 
     calculateGradientVTIKernel((blocks_per_grid,),(threads_per_block,),(current, adj, epsilon_partial, delta_partial, np.int32(dx), np.int32(dz), np.int32(nx), np.int32(nz),epsilon,delta))
 
-def calculateGradientTTICuda(current, adj, epsilon_partial, delta_partial, theta_partial, dx, dz, nx, nz, epsilon, delta, theta)
+def calculateGradientTTICuda(current, adj, epsilon_partial, delta_partial, theta_partial, dx, dz, nx, nz, epsilon, delta, theta):
     total_pixels = nz * nx
     threads_per_block = 256
     blocks_per_grid = (total_pixels + threads_per_block - 1) // threads_per_block

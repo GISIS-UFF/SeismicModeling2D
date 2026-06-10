@@ -1,6 +1,6 @@
 {
     "unit": "GPU",
-    "approximation": "VTI",
+    "approximation": "TTI",
     "migration": "onthefly",
     "ABC": "cerjan",
     "dx": 25,

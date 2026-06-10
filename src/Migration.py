@@ -495,7 +495,7 @@ class migration:
         start_time = time.time()
         print(f"info: Solving backward acoustic wave equation")
         # Expand velocity model and Create absorbing layers
-        water_mask = np.abs(self.wf.vp - np.min(self.wf.vp)) < 1e-3
+        water_mask = np.abs(self.wf.vp - 1500) < 1e-3
         if self.pmt.fwi == False:
             self.vp = smooth_model(self.wf.vp, self.pmt.sigma, water_mask)
         self.wf.vp_exp = self.wf.ExpandModel(self.vp)
@@ -505,16 +505,13 @@ class migration:
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
             if self.pmt.multiparameter == False:
-                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma, water_mask)
-                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma, water_mask)
-                self.epsilon[water_mask] = 0.0
-                self.delta[water_mask] = 0.0
+                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma)
+                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma)
             self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
             self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             if self.pmt.approximation == "TTI":
                 if self.pmt.multiparameter == False:
-                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma, water_mask)
-                    self.theta[water_mask] = 0.0
+                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma)
                 self.wf.theta_exp = self.wf.ExpandModel(self.theta)
 
         save_field = np.zeros([self.pmt.nt,self.pmt.nz,self.pmt.nx],dtype=np.float32)
@@ -610,7 +607,7 @@ class migration:
         start_time = time.time()
         print(f"info: Solving backward acoustic wave equation")
         # Expand velocity model and Create absorbing layers
-        water_mask = np.abs(self.wf.vp - np.min(self.wf.vp)) < 1e-3
+        water_mask = np.abs(self.wf.vp - 1500) < 1e-3
         if self.pmt.fwi == False:
             self.vp = smooth_model(self.wf.vp, self.pmt.sigma, water_mask)
         self.wf.vp_exp = self.wf.ExpandModel(self.vp)
@@ -620,16 +617,13 @@ class migration:
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
             if self.pmt.multiparameter == False:
-                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma, water_mask)
-                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma, water_mask)
-                self.epsilon[water_mask] = 0.0
-                self.delta[water_mask] = 0.0
+                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma)
+                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma)
             self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
             self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             if self.pmt.approximation == "TTI":
                 if self.pmt.multiparameter == False:
-                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma, water_mask)
-                    self.theta[water_mask] = 0.0
+                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma)
                 self.wf.theta_exp = self.wf.ExpandModel(self.theta)
         
         for shot in range(self.pmt.Nshot):
@@ -734,7 +728,7 @@ class migration:
         start_time = time.time()
         print(f"info: Solving backward acoustic wave equation")
         # Expand velocity model and Create absorbing layers
-        water_mask = np.abs(self.wf.vp - np.min(self.wf.vp)) < 1e-3
+        water_mask = np.abs(self.wf.vp - 1500) < 1e-3
         if self.pmt.fwi == False:
             self.vp = smooth_model(self.wf.vp, self.pmt.sigma, water_mask)
         self.wf.vp_exp = self.wf.ExpandModel(self.vp)
@@ -744,16 +738,13 @@ class migration:
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
             if self.pmt.multiparameter == False:
-                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma, water_mask)
-                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma, water_mask)
-                self.epsilon[water_mask] = 0.0
-                self.delta[water_mask] = 0.0
+                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma)
+                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma)
             self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
             self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             if self.pmt.approximation == "TTI":
                 if self.pmt.multiparameter == False:
-                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma, water_mask)
-                    self.theta[water_mask] = 0.0
+                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma)
                 self.wf.theta_exp = self.wf.ExpandModel(self.theta)
 
         for shot in range(self.pmt.Nshot):
@@ -856,7 +847,7 @@ class migration:
         start_time = time.time()
         print(f"info: Solving backward acoustic wave equation")
         # Expand velocity model and Create absorbing layers
-        water_mask = np.abs(self.wf.vp - np.min(self.wf.vp)) < 1e-3
+        water_mask = np.abs(self.wf.vp - 1500) < 1e-3
         if self.pmt.fwi == False:
             self.vp = smooth_model(self.wf.vp, self.pmt.sigma, water_mask)
         self.wf.vp_exp = self.wf.ExpandModel(self.vp)
@@ -867,16 +858,13 @@ class migration:
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
             if self.pmt.multiparameter == False:
-                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma, water_mask)
-                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma, water_mask)
-                self.epsilon[water_mask] = 0.0
-                self.delta[water_mask] = 0.0
+                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma)
+                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma)
             self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
             self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             if self.pmt.approximation == "TTI":
                 if self.pmt.multiparameter == False:
-                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma, water_mask)
-                    self.theta[water_mask] = 0.0
+                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma)
                 self.wf.theta_exp = self.wf.ExpandModel(self.theta)
 
         for shot in range(self.pmt.Nshot):
@@ -981,7 +969,7 @@ class migration:
         start_time = time.time()
         print(f"info: Solving backward acoustic wave equation")
         # Expand velocity model and Create absorbing layers
-        water_mask = np.abs(self.wf.vp - np.min(self.wf.vp)) < 1e-3
+        water_mask = np.abs(self.wf.vp - 1500) < 1e-3
         if self.pmt.fwi == False:
             self.vp = smooth_model(self.wf.vp, self.pmt.sigma, water_mask)
         self.wf.vp_exp = self.wf.ExpandModel(self.vp)
@@ -993,18 +981,15 @@ class migration:
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
             if self.pmt.multiparameter == False:
-                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma, water_mask)
-                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma, water_mask)
-                self.epsilon[water_mask] = 0.0
-                self.delta[water_mask] = 0.0
+                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma)
+                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma)
             self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
             self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             self.wf.epsilon_exp  = cp.asarray(self.wf.epsilon_exp, dtype=cp.float32)
             self.wf.delta_exp  = cp.asarray(self.wf.delta_exp, dtype=cp.float32)
             if self.pmt.approximation == "TTI":
                 if self.pmt.multiparameter == False:
-                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma, water_mask)
-                    self.theta[water_mask] = 0.0
+                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma)
                 self.wf.theta_exp = self.wf.ExpandModel(self.theta)
                 self.wf.theta_exp  = cp.asarray(self.wf.theta_exp, dtype=cp.float32)
 
@@ -1059,7 +1044,7 @@ class migration:
                         d2Udt2 = (save_field[t+1,:,:] - 2.0*save_field[t,:,:] + save_field[t-1,:,:]) / (self.pmt.dt*self.pmt.dt)
                         self.migrated_partial += d2Udt2 * adj
                         if self.pmt.multiparameter == True:  
-                            self.epsilon_partial, self.delta_partial = calculateGradientVTICuda(save_field[t,:,:], adj, self.epsilon_partial, self.delta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta,self.theta)  
+                            self.epsilon_partial, self.delta_partial = calculateGradientVTICuda(save_field[t,:,:], adj, self.epsilon_partial, self.delta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta)  
                     elif self.pmt.approximation =="TTI":
                         d2Udt2 = (save_field[t+1,:,:] - 2.0*save_field[t,:,:] + save_field[t-1,:,:]) / (self.pmt.dt*self.pmt.dt)
                         self.migrated_partial += d2Udt2 * adj
@@ -1072,13 +1057,13 @@ class migration:
                 self.currentbck, self.futurebck = self.futurebck, self.currentbck
 
             self.migrated_image += self.migrated_partial
+            self.ilum += self.ilum_partial
             if self.pmt.fwi == True and self.pmt.multiparameter == True:
                 if self.pmt.approximation in ["VTI", "TTI"]:
                     self.epsilon_grad += self.epsilon_partial
                     self.delta_grad += self.delta_partial
                 if self.pmt.approximation == "TTI":
-                    self.theta_grad += self.theta_partial
-            self.ilum += self.ilum_partial 
+                    self.theta_grad += self.theta_partial 
             self.wf.save_snapshotGPU(shot)
             self.save_snapshotBCKGPU(shot)
             self.save_imageGPU(shot)
@@ -1116,7 +1101,7 @@ class migration:
         start_time = time.time()
         print(f"info: Solving backward acoustic wave equation")
         # Expand velocity model and Create absorbing layers
-        water_mask = np.abs(self.wf.vp - np.min(self.wf.vp)) < 1e-3
+        water_mask = np.abs(self.wf.vp - 1500) < 1e-3
         if self.pmt.fwi == False:
             self.vp = smooth_model(self.wf.vp, self.pmt.sigma, water_mask)
         self.wf.vp_exp = self.wf.ExpandModel(self.vp)
@@ -1128,18 +1113,15 @@ class migration:
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
             if self.pmt.multiparameter == False:
-                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma, water_mask)
-                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma, water_mask)
-                self.epsilon[water_mask] = 0.0
-                self.delta[water_mask] = 0.0
+                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma)
+                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma)
             self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
             self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             self.wf.epsilon_exp  = cp.asarray(self.wf.epsilon_exp, dtype=cp.float32)
             self.wf.delta_exp  = cp.asarray(self.wf.delta_exp, dtype=cp.float32)
             if self.pmt.approximation == "TTI":
                 if self.pmt.multiparameter == False:
-                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma, water_mask)
-                    self.theta[water_mask] = 0.0
+                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma)
                 self.wf.theta_exp = self.wf.ExpandModel(self.theta)
                 self.wf.theta_exp  = cp.asarray(self.wf.theta_exp, dtype=cp.float32)
         
@@ -1263,7 +1245,7 @@ class migration:
         start_time = time.time()
         print(f"info: Solving backward acoustic wave equation")
         # Expand velocity model and Create absorbing layers
-        water_mask = np.abs(self.wf.vp - np.min(self.wf.vp)) < 1e-3
+        water_mask = np.abs(self.wf.vp - 1500) < 1e-3
         if self.pmt.fwi == False:
             self.vp = smooth_model(self.wf.vp, self.pmt.sigma, water_mask)
         self.wf.vp_exp = self.wf.ExpandModel(self.vp)
@@ -1275,18 +1257,15 @@ class migration:
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
             if self.pmt.multiparameter == False:
-                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma, water_mask)
-                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma, water_mask)
-                self.epsilon[water_mask] = 0.0
-                self.delta[water_mask] = 0.0
+                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma)
+                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma)
             self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
             self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             self.wf.epsilon_exp  = cp.asarray(self.wf.epsilon_exp, dtype=cp.float32)
             self.wf.delta_exp  = cp.asarray(self.wf.delta_exp, dtype=cp.float32)
             if self.pmt.approximation == "TTI":
                 if self.pmt.multiparameter == False:
-                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma, water_mask)
-                    self.theta[water_mask] = 0.0
+                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma)
                 self.wf.theta_exp = self.wf.ExpandModel(self.theta)
                 self.wf.theta_exp  = cp.asarray(self.wf.theta_exp, dtype=cp.float32)
 
@@ -1406,7 +1385,7 @@ class migration:
         start_time = time.time()
         print(f"info: Solving backward acoustic wave equation")
         # Expand velocity model and Create absorbing layers
-        water_mask = np.abs(self.wf.vp - np.min(self.wf.vp)) < 1e-3
+        water_mask = np.abs(self.wf.vp - 1500) < 1e-3
         if self.pmt.fwi == False:
             self.vp = smooth_model(self.wf.vp, self.pmt.sigma, water_mask)
         self.wf.vp_exp = self.wf.ExpandModel(self.vp)
@@ -1419,18 +1398,15 @@ class migration:
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
             if self.pmt.multiparameter == False:
-                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma, water_mask)
-                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma, water_mask)
-                self.epsilon[water_mask] = 0.0
-                self.delta[water_mask] = 0.0
+                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma)
+                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma)
             self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
             self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             self.wf.epsilon_exp  = cp.asarray(self.wf.epsilon_exp, dtype=cp.float32)
             self.wf.delta_exp  = cp.asarray(self.wf.delta_exp, dtype=cp.float32)
             if self.pmt.approximation == "TTI":
                 if self.pmt.multiparameter == False:
-                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma, water_mask)
-                    self.theta[water_mask] = 0.0
+                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma)
                 self.wf.theta_exp = self.wf.ExpandModel(self.theta)
                 self.wf.theta_exp  = cp.asarray(self.wf.theta_exp, dtype=cp.float32)
 

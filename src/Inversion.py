@@ -2,6 +2,7 @@ import numpy as np
 import time
 import cupy as cp
 from utils import smooth_model
+from utils import smooth_parameter
 # from utils import low_pass_filter
 from utils import ricker
 
@@ -13,9 +14,9 @@ class fwi:
 
     def objective_function(self, m, save_residual):
         X = 0.0
-        self.wf.vp = 1.0 / np.sqrt(m)      
+        self.vp = 1.0 / np.sqrt(m)   
         self.wf.source = cp.asarray(self.wf.source, dtype=cp.float32)
-        self.wf.vp_exp = self.wf.ExpandModel(self.wf.vp)
+        self.wf.vp_exp = self.wf.ExpandModel(self.vp)
         self.wf.vp_exp = cp.asarray(self.wf.vp_exp, dtype=cp.float32)
         if self.pmt.ABC == "cerjan":
             self.wf.A = self.wf.createCerjanVector()
@@ -23,12 +24,17 @@ class fwi:
         elif self.pmt.ABC == "CPML":
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
-            self.wf.epsilon_exp = self.wf.ExpandModel(self.wf.epsilon)
-            self.wf.delta_exp = self.wf.ExpandModel(self.wf.delta)
+            if self.pmt.multiparameter == False:
+                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma)
+                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma)
+            self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
+            self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             self.wf.epsilon_exp  = cp.asarray(self.wf.epsilon_exp, dtype=cp.float32)
             self.wf.delta_exp  = cp.asarray(self.wf.delta_exp, dtype=cp.float32)
             if self.pmt.approximation == "TTI":
-                self.wf.theta_exp = self.wf.ExpandModel(self.wf.theta)
+                if self.pmt.multiparameter == False:
+                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma)
+                self.wf.theta_exp = self.wf.ExpandModel(self.theta)
                 self.wf.theta_exp  = cp.asarray(self.wf.theta_exp, dtype=cp.float32)
         
         self.pmt.rx = cp.asarray(self.pmt.rx)
@@ -48,12 +54,21 @@ class fwi:
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
             self.seismogram = cp.asnumpy(self.wf.seismogram_gpu)
             residual = dobs - self.seismogram
+            import matplotlib.pyplot as plt
+            plt.figure()
+            plt.imshow(residual,aspect='auto')
+            plt.figure()
+            plt.imshow(self.seismogram,aspect='auto')
+            plt.figure()
+            plt.imshow(dobs,aspect='auto')
+            plt.show()
             if save_residual==True:
                 self.save_residual(shot,residual) 
             X += 0.5 * np.sum(residual * residual)
         return X
 
     def calculate_gradient(self, m):
+        self.mig.vp = 1.0 / np.sqrt(m)
         grad = np.zeros_like(m)
         self.mig.ilum.fill(0)
         self.mig.migrated_image.fill(0)
@@ -63,7 +78,6 @@ class fwi:
                 self.mig.delta_grad.fill(0)
             if self.pmt.approximation == "TTI":
                 self.mig.theta_grad.fill(0)
-        self.mig.vp = 1.0 / np.sqrt(m)
         self.mig.SolveBackwardWaveEquation()
         grad = self.loadGradient()
         water_mask = np.abs(self.wf.vp - 1500) < 1e-3
@@ -155,8 +169,8 @@ class fwi:
         print("info: Solving Full Waveform Inversion")
         
         # Modelo inicial
-        water_mask = np.abs(self.wf.vp - np.min(self.wf.vp)) < 1e-3
-        self.m0 = smooth_model(self.wf.vp,self.pmt.sigma,water_mask).copy()
+        mask = np.abs(self.wf.vp - np.min(self.wf.vp)) < 1e-3
+        self.m0 = smooth_model(self.wf.vp,self.pmt.sigma,mask).copy()
         smooth_model_file = (f"{self.pmt.modelFolder}fwi_vp_smooth_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
         self.m0.astype(np.float32).tofile(smooth_model_file)
 
@@ -179,6 +193,8 @@ class fwi:
             g = self.calculate_gradient(m)
             
             X0 = X
+
+            self.history.append([X/X0, fmax])
 
             for itr in range(self.pmt.niter):
                 print(f"\033[31minfo: FWI iteration {itr + 1}/{self.pmt.niter} for frequency {fmax}\033[0m")
