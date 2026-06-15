@@ -4,22 +4,22 @@ from survey import parameters
 pmt = parameters("../inputs/Parameters.json")
 plt = plotting(pmt)
 
-# plt.viewModel(f"../outputs/estimated_models/fwi_vp_TTI_Nx751_Nz451_itr4_freq7.5.bin")
-# plt.viewHistory()
+plt.viewModel(f"../outputs/estimated_models/fwi_vp_acoustic_Nx681_Nz141_itr25_freq30.0.bin")
+plt.viewHistory()
 # plt.viewSnapshot("acousticforward_shot_3_Nx201_Nz201_Nt8001_frame_","../inputs/diffractorvp_Nz201_Nx201.bin")
 # plt.movieSnapshot(f"acousticforward_shot_10_Nx681_Nz141_Nt5001_frame", f"/home/juanmarques/workspace/SeismicModeling2D/inputs/models/diffractorvp_Nz141_Nx681.bin", savegif = True)
-# plt.viewSeismogram(f"../outputs/seismograms/seismogram_shot_1_Nt5001_Nrec170_fcut3.5.bin", perc=99)
+# plt.viewSeismogram(f"/home/juanmarques/workspace/SeismicModeling2D/outputs/seismograms/residual_shot_1_Nt5001_Nrec170.bin", perc=99)
 # plt.viewSeismogramComparison(95,0,"../outputs/seismograms/VTIseismogram_shot_1_Nt20001_Nrec501.bin", "../outputs/seismograms/VTINewseismogram_shot_1_Nt20001_Nrec501.bin")
-plt.viewImage(f"../outputs/gradients/gradient_fwi_iter_1_VTI_Nx751_Nz451_freq7.5.bin",laplacian=True,perc=98)
+plt.viewImage(f"../outputs/images/migrated_image_acoustic_Nx681_Nz141.bin",laplacian=True,perc=99)
 # plt.plotImageTrace(f"{pmt.migratedimageFolder}migrated_image_{pmt.approximation}_Nx{pmt.nx}_Nz{pmt.nz}.bin", f"../inputs/layer2vp_Nz{pmt.nz}_Nx{pmt.nx}.bin", laplacian = True, ix=None, perc=99)
 # plt.movieImage(f"{pmt.approximation}shot_1_Nx{pmt.nx}_Nz{pmt.nz}_frame", f"../inputs/layer2vp_Nz301_Nx301.bin",laplacian = True, interval=200, savegif = False)
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-model_smooth = np.fromfile("/home/juanmarques/workspace/SeismicModeling2D/inputs/models/fwi_vp_smooth_acoustic_Nx751_Nz451.bin", dtype=np.float32).reshape(pmt.nz,pmt.nx)
-model_ref = np.fromfile("/home/juanmarques/workspace/SeismicModeling2D/inputs/models/bptti2007/Vp_Model_shape_(1801, 12596)_dh25m_Nz451_Nx751.bin", dtype=np.float32).reshape(pmt.nz,pmt.nx)
-model_fwi = np.fromfile("../outputs/estimated_models/fwi_vp_TTI_Nx751_Nz451_itr4_freq7.5.bin", dtype=np.float32).reshape(pmt.nz,pmt.nx)
+model_smooth = np.fromfile("/home/juanmarques/workspace/SeismicModeling2D/inputs/models/fwi_vp_smooth_acoustic_Nx681_Nz141.bin", dtype=np.float32).reshape(pmt.nz,pmt.nx)
+model_ref = np.fromfile("/home/juanmarques/workspace/SeismicModeling2D/inputs/models/vp_marmousi-ii_shape_(2801, 13601)_dh25m_Nz141_Nx681.bin", dtype=np.float32).reshape(pmt.nz,pmt.nx)
+model_fwi = np.fromfile("../outputs/estimated_models/fwi_vp_acoustic_Nx681_Nz141_itr25_freq30.0.bin", dtype=np.float32).reshape(pmt.nz,pmt.nx)
 
 D = np.linspace(0, pmt.nz * pmt.dz, pmt.nz, endpoint = False)
 plt.figure()

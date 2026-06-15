@@ -81,9 +81,6 @@ def smooth_model(f, sigma, water_mask):
     for z in prange(half, nz - half):
         for x in prange(half, nx - half):
 
-            if water_mask[z, x]:
-                continue
-
             new_value = 0.0
             total = 0.0
 
@@ -91,9 +88,6 @@ def smooth_model(f, sigma, water_mask):
                 for j in range(ksize):
                     zz = z + i - half
                     xx = x + j - half
-
-                    if water_mask[zz, xx]:
-                        continue
 
                     new_value += kernel[i, j] * s_old[zz, xx]
                     total += kernel[i, j]
@@ -194,6 +188,29 @@ def low_pass_filter(data, cutoff, dt, transition=0.3, axis=0):
         data_filt = data_filt_pad[:nt, :]
 
     return data_filt.astype(data.dtype)
+
+@jit(nopython=True, parallel=True)
+def AGC(data, dt, window=0.2):
+    nt, nrec = data.shape
+    window_samples = int(round(window / dt))
+    half_window = window_samples // 2
+    agc_data = np.zeros_like(data, dtype=np.float32)
+
+    for i in prange(nt):
+        start = max(0, i - half_window)
+        end = min(nt, i + half_window + 1)
+
+        for rec in prange(nrec):
+            soma = 0.0
+
+            for k in prange(start, end):
+                soma += abs(data[k, rec])
+
+            amplitude = soma / (end - start)
+
+            agc_data[i, rec] = data[i, rec] / (amplitude + 1e-10)
+
+    return agc_data
 
 # CPML Auxiliar Functions
 @njit(inline = "always")

@@ -5,6 +5,7 @@ from utils import smooth_model
 from utils import smooth_parameter
 # from utils import low_pass_filter
 from utils import ricker
+from utils import AGC
 
 class fwi:
     def __init__(self,parameters,wavefield,migration):
@@ -12,7 +13,7 @@ class fwi:
         self.wf = wavefield
         self.mig = migration
 
-    def objective_function(self, m, save_residual):
+    def objective_function(self, m, itr, save_residual):
         X = 0.0
         self.vp = 1.0 / np.sqrt(m)   
         self.wf.source = cp.asarray(self.wf.source, dtype=cp.float32)
@@ -25,15 +26,15 @@ class fwi:
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
             if self.pmt.multiparameter == False:
-                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma)
-                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma)
+                self.epsilon = smooth_parameter(self.wf.epsilon,20)
+                self.delta = smooth_parameter(self.wf.delta, 20)
             self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
             self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             self.wf.epsilon_exp  = cp.asarray(self.wf.epsilon_exp, dtype=cp.float32)
             self.wf.delta_exp  = cp.asarray(self.wf.delta_exp, dtype=cp.float32)
             if self.pmt.approximation == "TTI":
                 if self.pmt.multiparameter == False:
-                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma)
+                    self.theta = smooth_parameter(self.wf.theta, 20)
                 self.wf.theta_exp = self.wf.ExpandModel(self.theta)
                 self.wf.theta_exp  = cp.asarray(self.wf.theta_exp, dtype=cp.float32)
         
@@ -53,15 +54,10 @@ class fwi:
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
             self.seismogram = cp.asnumpy(self.wf.seismogram_gpu)
+            if 10 <= itr < 15:
+                dobs = AGC(dobs, self.pmt.dt)
+                self.seismogram = AGC(self.seismogram, self.pmt.dt)
             residual = dobs - self.seismogram
-            import matplotlib.pyplot as plt
-            plt.figure()
-            plt.imshow(residual,aspect='auto')
-            plt.figure()
-            plt.imshow(self.seismogram,aspect='auto')
-            plt.figure()
-            plt.imshow(dobs,aspect='auto')
-            plt.show()
             if save_residual==True:
                 self.save_residual(shot,residual) 
             X += 0.5 * np.sum(residual * residual)
@@ -121,7 +117,7 @@ class fwi:
 
         return r
     
-    def step_length(self, m, p, g, X):
+    def step_length(self, m, p, g, X, itr):
         c1 = 1e-4
         gTp0 = np.sum(g * p)
         vmin = np.min(self.m0)
@@ -132,7 +128,7 @@ class fwi:
             m_new = m + alpha * p
             m_new = np.clip(m_new, m_min, m_max)
 
-            X_new = self.objective_function(m_new, save_residual=False)
+            X_new = self.objective_function(m_new, itr, save_residual=False)
 
             armijo = X_new <= X + c1 * alpha * gTp0
 
@@ -169,7 +165,7 @@ class fwi:
         print("info: Solving Full Waveform Inversion")
         
         # Modelo inicial
-        mask = np.abs(self.wf.vp - np.min(self.wf.vp)) < 1e-3
+        mask = np.abs(self.wf.vp - 1500) < 1e-3
         self.m0 = smooth_model(self.wf.vp,self.pmt.sigma,mask).copy()
         smooth_model_file = (f"{self.pmt.modelFolder}fwi_vp_smooth_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
         self.m0.astype(np.float32).tofile(smooth_model_file)
@@ -189,7 +185,7 @@ class fwi:
             y_store = []
 
             # Gradiente e função objetivo no modelo atual
-            X = self.objective_function(m, save_residual = True)
+            X = self.objective_function(m, 0, save_residual = True)
             g = self.calculate_gradient(m)
             
             X0 = X
@@ -198,6 +194,17 @@ class fwi:
 
             for itr in range(self.pmt.niter):
                 print(f"\033[31minfo: FWI iteration {itr + 1}/{self.pmt.niter} for frequency {fmax}\033[0m")
+
+                if itr in [10, 15]:
+                    if itr == 10:
+                        print(f"\033[31minfo: Applying AGC to residuals for iteration {itr + 1}\033[0m")
+                    elif itr == 15:
+                        print(f"\033[31minfo: Removing AGC from residuals for iteration {itr + 1}\033[0m")
+                    s_store.clear()
+                    y_store.clear()
+
+                    X = self.objective_function(m, itr, save_residual=True)
+                    g = self.calculate_gradient(m)
 
                 # Salvar gradiente da iteração atual
                 gradient_file = (f"{self.pmt.gradientsFolder}gradient_fwi_iter_{itr+1}_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}_freq{fmax}.bin")
@@ -209,7 +216,7 @@ class fwi:
                 p = p/np.max(np.abs(p))
 
                 # Line search
-                alpha = self.step_length(m, p, g, X)
+                alpha = self.step_length(m, p, g, X, itr)
 
                 # Atualização do modelo
                 m_min = 1.0/(self.pmt.vmax*self.pmt.vmax)
@@ -218,7 +225,7 @@ class fwi:
                 m_new = m + alpha * p
                 m_new = np.clip(m_new, m_min, m_max)
 
-                X_new = self.objective_function(m_new, save_residual = True)
+                X_new = self.objective_function(m_new, itr, save_residual = True)
                 g_new = self.calculate_gradient(m_new)
 
                 self.history.append([X_new/X0, fmax])
