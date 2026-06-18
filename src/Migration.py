@@ -971,7 +971,7 @@ class migration:
         # Expand velocity model and Create absorbing layers
         water_mask = np.abs(self.wf.vp - 1500) < 1e-3
         if self.pmt.fwi == False:
-            self.vp = self.wf.vp #smooth_model(self.wf.vp, self.pmt.sigma, water_mask)
+            self.vp = smooth_model(self.wf.vp, self.pmt.sigma, water_mask)
         self.wf.vp_exp = self.wf.ExpandModel(self.vp)
         self.wf.vp_exp = cp.asarray(self.wf.vp_exp, dtype=cp.float32)
         if self.pmt.ABC == "cerjan":
@@ -981,15 +981,15 @@ class migration:
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
             if self.pmt.multiparameter == False:
-                self.epsilon = smooth_parameter(self.wf.epsilon, 20)
-                self.delta = smooth_parameter(self.wf.delta, 20)
+                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma)
+                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma)
             self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
             self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             self.wf.epsilon_exp  = cp.asarray(self.wf.epsilon_exp, dtype=cp.float32)
             self.wf.delta_exp  = cp.asarray(self.wf.delta_exp, dtype=cp.float32)
             if self.pmt.approximation == "TTI":
                 if self.pmt.multiparameter == False:
-                    self.theta = smooth_parameter(self.wf.theta, 20)
+                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma)
                 self.wf.theta_exp = self.wf.ExpandModel(self.theta)
                 self.wf.theta_exp  = cp.asarray(self.wf.theta_exp, dtype=cp.float32)
 

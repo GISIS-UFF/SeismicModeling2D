@@ -4,8 +4,8 @@ from survey import parameters
 pmt = parameters("../inputs/Parameters.json")
 plt = plotting(pmt)
 
-plt.viewModel(f"../outputs/estimated_models/fwi_vp_acoustic_Nx681_Nz141_itr25_freq30.0.bin")
-plt.viewHistory()
+# plt.viewModel(f"../outputs/estimated_models/fwi_vp_acoustic_Nx681_Nz141_itr25_freq30.0.bin")
+# plt.viewHistory()
 # plt.viewSnapshot("acousticforward_shot_3_Nx201_Nz201_Nt8001_frame_","../inputs/diffractorvp_Nz201_Nx201.bin")
 # plt.movieSnapshot(f"acousticforward_shot_10_Nx681_Nz141_Nt5001_frame", f"/home/juanmarques/workspace/SeismicModeling2D/inputs/models/diffractorvp_Nz141_Nx681.bin", savegif = True)
 # plt.viewSeismogram(f"/home/juanmarques/workspace/SeismicModeling2D/outputs/seismograms/residual_shot_1_Nt5001_Nrec170.bin", perc=99)

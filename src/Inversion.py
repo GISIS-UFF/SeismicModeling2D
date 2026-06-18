@@ -26,15 +26,15 @@ class fwi:
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
             if self.pmt.multiparameter == False:
-                self.epsilon = smooth_parameter(self.wf.epsilon,20)
-                self.delta = smooth_parameter(self.wf.delta, 20)
+                self.epsilon = smooth_parameter(self.wf.epsilon,self.pmt.sigma)
+                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma)
             self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
             self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             self.wf.epsilon_exp  = cp.asarray(self.wf.epsilon_exp, dtype=cp.float32)
             self.wf.delta_exp  = cp.asarray(self.wf.delta_exp, dtype=cp.float32)
             if self.pmt.approximation == "TTI":
                 if self.pmt.multiparameter == False:
-                    self.theta = smooth_parameter(self.wf.theta, 20)
+                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma)
                 self.wf.theta_exp = self.wf.ExpandModel(self.theta)
                 self.wf.theta_exp  = cp.asarray(self.wf.theta_exp, dtype=cp.float32)
         
@@ -54,7 +54,7 @@ class fwi:
                 #swap
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
             self.seismogram = cp.asnumpy(self.wf.seismogram_gpu)
-            if 10 <= itr < 15:
+            if self.pmt.AGC == True and self.pmt.agc1itr <= itr < self.pmt.agc2itr:
                 dobs = AGC(dobs, self.pmt.dt)
                 self.seismogram = AGC(self.seismogram, self.pmt.dt)
             residual = dobs - self.seismogram
