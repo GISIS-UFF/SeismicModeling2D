@@ -26,15 +26,15 @@ class fwi:
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
             if self.pmt.multiparameter == False:
-                self.epsilon = smooth_parameter(self.wf.epsilon,20)
-                self.delta = smooth_parameter(self.wf.delta, 20)
+                self.epsilon = self.wf.epsilon#smooth_parameter(self.wf.epsilon,20)
+                self.delta = self.wf.delta#smooth_parameter(self.wf.delta, 20)
             self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
             self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             self.wf.epsilon_exp  = cp.asarray(self.wf.epsilon_exp, dtype=cp.float32)
             self.wf.delta_exp  = cp.asarray(self.wf.delta_exp, dtype=cp.float32)
             if self.pmt.approximation == "TTI":
                 if self.pmt.multiparameter == False:
-                    self.theta = smooth_parameter(self.wf.theta, 20)
+                    self.theta = self.wf.theta#smooth_parameter(self.wf.theta, 20)
                 self.wf.theta_exp = self.wf.ExpandModel(self.theta)
                 self.wf.theta_exp  = cp.asarray(self.wf.theta_exp, dtype=cp.float32)
         
@@ -143,7 +143,7 @@ class fwi:
 
             alpha *= 0.5
 
-        return alpha
+        return 0.0
 
     def loadGradient(self):
         gradientFile = f"{self.pmt.gradientsFolder}gradient_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin"
@@ -165,7 +165,7 @@ class fwi:
         print("info: Solving Full Waveform Inversion")
         
         # Modelo inicial
-        mask = np.abs(self.wf.vp - 1500) < 1e-3
+        mask = np.abs(self.wf.vp - np.min(self.wf.vp)) < 1e-3 
         self.m0 = smooth_model(self.wf.vp,self.pmt.sigma,mask).copy()
         smooth_model_file = (f"{self.pmt.modelFolder}fwi_vp_smooth_{self.pmt.approximation}_Nx{self.pmt.nx}_Nz{self.pmt.nz}.bin")
         self.m0.astype(np.float32).tofile(smooth_model_file)
