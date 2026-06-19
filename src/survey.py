@@ -102,6 +102,9 @@ class parameters:
         self.vmax = self.parameters['vmax']
         self.vmin = self.parameters['vmin']
         self.multiparameter = self.parameters['multiparameter']
+        self.AGC = self.parameters['AGC']
+        self.agc1itr = self.parameters['agc1itr']
+        self.agc2itr = self.parameters['agc2itr']
 
     def readAcquisitionGeometry(self):        
         # Read receiver and source coordinates from CSV files
@@ -117,8 +120,8 @@ class parameters:
         self.shot_z = sourceTable['coordz'].to_numpy()
 
         if self.reciprocity == True:
-            self.shot_x, self.shot_z = self.rec_x.copy(), self.rec_z.copy()
-            self.rec_x, self.rec_z = self.shot_x.copy(), self.shot_z.copy()
+            self.shot_x, self.rec_x = self.rec_x.copy(), self.shot_x.copy()
+            self.shot_z, self.rec_z = self.rec_z.copy(), self.shot_z.copy()
 
         self.rx = np.int32(self.rec_x / self.dx) + self.N_abc 
         self.rz = np.int32(self.rec_z / self.dz) + self.N_abc 
