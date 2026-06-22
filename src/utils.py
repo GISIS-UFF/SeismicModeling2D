@@ -107,11 +107,13 @@ def smooth_model(f, sigma, water_mask):
         for x in range(nx):
             if water_mask[z, x]:
                 s[z, x] = s_old[z, x]
+            else:
+                break
 
     return 1.0 / s
 
 @jit(nopython=True, parallel=True)
-def smooth_parameter(f, sigma):
+def smooth_parameter(f, sigma, mask):
     s = f.copy()
     s_old = s.copy()
     kernel = gaussian_filter2D(sigma)
@@ -143,6 +145,13 @@ def smooth_parameter(f, sigma):
     for x in range(half):
         s[:, x] = s[:, half]
         s[:, nx - 1 - x] = s[:, nx - 1 - half]
+    
+    for z in range(nz):
+        for x in range(nx):
+            if mask[z, x]:
+                s[z, x] = s_old[z, x]
+            else:
+                break
 
     return s
 
@@ -1115,16 +1124,19 @@ def calculateGradientVTI(current, adj, epsilon_partial, delta_partial, dx, dz, n
                 a2 * (current[j+2, i] - current[j-2, i]) +
                 a3 * (current[j+3, i] - current[j-3, i]) +
                 a4 * (current[j+4, i] - current[j-4, i])) / dz
+            
+            eps = np.float64(epsilon[j, i])
+            delta = np.float64(delta[j, i])
 
-            num = -2.0*(epsilon[j,i]-delta[j,i])*(px*px)*(pz*pz)
-            den = (1.0 + 2.0*epsilon[j,i])*(px*px*px*px) + (pz*pz*pz*pz) + 2.0*(1.0 + delta[j,i])*(px*px)*(pz*pz)
+            num = -2.0*(eps-delta)*(px*px)*(pz*pz)
+            den = (1.0 + 2.0*eps)*(px*px*px*px) + (pz*pz*pz*pz) + 2.0*(1.0 + delta)*(px*px)*(pz*pz)
 
             dnum_deps = -2.0*px*px*pz*pz
             dnum_ddelta = 2.0*px*px*pz*pz
             dden_deps = 2.0*px*px*px*px
             dden_ddelta = 2.0*px*px*pz*pz
 
-            if abs(den) < 1e-12:
+            if abs(den) < 1e-150:
                 dSd_deps = 0.0
                 dSd_ddelta = 0.0                    
             else:
@@ -1191,28 +1203,32 @@ def calculateGradientTTI(current, adj, epsilon_partial, delta_partial, theta_par
                 a3 * (current[j+3, i] - current[j-3, i]) +
                 a4 * (current[j+4, i] - current[j-4, i])) / dz
             
+            eps = np.float64(epsilon[j, i])
+            delt = np.float64(delta[j, i])
+            th = np.float64(theta[j, i])
+            
             norm = np.sqrt(px*px + pz*pz)
-            if norm > 1e-12:
+            if norm > 1e-150:
                 mx = px / norm
                 mz = pz / norm
             else:
                 mx, mz = 0.0, 0.0
 
-            h = mx*np.cos(theta[j, i]) - mz*np.sin(theta[j, i])
-            q = mx*np.sin(theta[j, i]) + mz*np.cos(theta[j, i])
+            h = mx*np.cos(th) - mz*np.sin(th)
+            q = mx*np.sin(th) + mz*np.cos(th)
 
-            num = -2.0*(epsilon[j,i]-delta[j,i])*(h*h)*(q*q)
-            den = (1.0 + 2.0*epsilon[j,i])*(h*h*h*h) + (q*q*q*q) + 2.0*(1.0 + delta[j,i])*(h*h)*(q*q)
+            num = -2.0*(eps-delt)*(h*h)*(q*q)
+            den = (1.0 + 2.0*eps)*(h*h*h*h) + (q*q*q*q) + 2.0*(1.0 + delt)*(h*h)*(q*q)
 
             dnum_deps = -2.0*h*h*q*q
             dnum_ddelta = 2.0*h*h*q*q
             dden_deps = 2.0*h*h*h*h
             dden_ddelta = 2.0*h*h*q*q
 
-            dnum_dtheta = -2.0*(epsilon[j,i]-delta[j,i])*(-2.0*h*q*q*q + 2.0*h*h*h*q)
-            dden_dtheta = (-4.0*(1.0 + 2.0*epsilon[j,i])*h*h*h*q+ 4.0*h*q*q*q+ 2.0*(1.0 + delta[j,i])*(-2.0*h*q*q*q + 2.0*h*h*h*q))
+            dnum_dtheta = -2.0*(eps-delt)*(-2.0*h*q*q*q + 2.0*h*h*h*q)
+            dden_dtheta = (-4.0*(1.0 + 2.0*eps)*h*h*h*q+ 4.0*h*q*q*q+ 2.0*(1.0 + delt)*(-2.0*h*q*q*q + 2.0*h*h*h*q))
 
-            if abs(den) < 1e-12:
+            if abs(den) < 1e-150:
                 Sd = 0.0
                 dSd_deps = 0.0
                 dSd_ddelta = 0.0
@@ -1223,11 +1239,11 @@ def calculateGradientTTI(current, adj, epsilon_partial, delta_partial, theta_par
                 dSd_ddelta = (dnum_ddelta*den - num*dden_ddelta)/(den*den)
                 dSd_dtheta = (dnum_dtheta*den - num*dden_dtheta)/(den*den)
 
-            dA_dtheta = -2.0*epsilon[j,i]*np.sin(2.0*theta[j,i]) + dSd_dtheta
-            dB_dtheta = 2.0*epsilon[j,i]*np.sin(2.0*theta[j,i]) + dSd_dtheta
-            dC_dtheta = 4.0*epsilon[j,i]*np.cos(2.0*theta[j,i])
+            dA_dtheta = -2.0*eps*np.sin(2.0*th) + dSd_dtheta
+            dB_dtheta = 2.0*eps*np.sin(2.0*th) + dSd_dtheta
+            dC_dtheta = 4.0*eps*np.cos(2.0*th)
 
-            dP_deps = ((2.0*np.cos(theta[j,i])*np.cos(theta[j,i]) + dSd_deps)*pxx + (2.0*np.sin(theta[j,i])*np.sin(theta[j,i]) + dSd_deps)*pzz - 2.0*np.sin(2.0*theta[j,i])*pxz)
+            dP_deps = ((2.0*np.cos(th)*np.cos(th) + dSd_deps)*pxx + (2.0*np.sin(th)*np.sin(th) + dSd_deps)*pzz - 2.0*np.sin(2.0*th)*pxz)
             dP_ddelta = (dSd_ddelta*(pxx + pzz))
             dP_dtheta = (dA_dtheta*pxx + dB_dtheta*pzz - dC_dtheta*pxz)
 
@@ -1306,12 +1322,12 @@ def calculateGradientVTICuda(current, adj, epsilon_partial, delta_partial, dx, d
     threads_per_block = 256
     blocks_per_grid = (total_pixels + threads_per_block - 1) // threads_per_block
 
-    calculateGradientVTIKernel((blocks_per_grid,),(threads_per_block,),(current, adj, epsilon_partial, delta_partial, np.int32(dx), np.int32(dz), np.int32(nx), np.int32(nz),epsilon,delta))
+    calculateGradientVTIKernel((blocks_per_grid,),(threads_per_block,),(current, adj, epsilon_partial, delta_partial, np.float32(dx), np.float32(dz), np.int32(nx), np.int32(nz),epsilon,delta))
 
 def calculateGradientTTICuda(current, adj, epsilon_partial, delta_partial, theta_partial, dx, dz, nx, nz, epsilon, delta, theta):
     total_pixels = nz * nx
     threads_per_block = 256
     blocks_per_grid = (total_pixels + threads_per_block - 1) // threads_per_block
 
-    calculateGradientVTIKernel((blocks_per_grid,),(threads_per_block,),(current, adj, epsilon_partial, delta_partial, theta_partial, np.int32(dx), np.int32(dz), np.int32(nx), np.int32(nz),epsilon,delta,theta))    
+    calculateGradientTTIKernel((blocks_per_grid,),(threads_per_block,),(current, adj, epsilon_partial, delta_partial, theta_partial, np.float32(dx), np.float32(dz), np.int32(nx), np.int32(nz),epsilon,delta,theta))    
 

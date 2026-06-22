@@ -505,13 +505,16 @@ class migration:
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
             if self.pmt.multiparameter == False:
-                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma)
-                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma)
+                mask_eps = np.abs(self.wf.epsilon - np.min(self.wf.epsilon)) < 1e-3 
+                self.epsilon = smooth_parameter(self.wf.epsilon,self.pmt.sigma,mask_eps)
+                mask_delta = np.abs(self.wf.delta - np.min(self.wf.delta)) < 1e-3 
+                self.delta = smooth_parameter(self.wf.delta,self.pmt.sigma,mask_delta)
             self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
             self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             if self.pmt.approximation == "TTI":
                 if self.pmt.multiparameter == False:
-                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma)
+                    mask_theta = np.abs(self.wf.theta - np.min(self.wf.theta)) < 1e-3 
+                    self.theta = smooth_parameter(self.wf.theta,self.pmt.sigma,mask_theta)
                 self.wf.theta_exp = self.wf.ExpandModel(self.theta)
 
         save_field = np.zeros([self.pmt.nt,self.pmt.nz,self.pmt.nx],dtype=np.float32)
@@ -541,13 +544,13 @@ class migration:
             for k in range(self.pmt.nt):
                 self.wf.forward_step(k)
                 self.wf.save_snapshot(shot, k)
-                save_field[k,:,:] = self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
+                save_field[k,:,:] = self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()
                 self.ilum_partial += save_field[k,:,:] * save_field[k,:,:] 
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
             for t in range(self.pmt.nt - 2, 0, -1):
                 self.backward_step(t)
                 self.save_snapshotBCK(shot,t)
-                adj = self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
+                adj = self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()
                 if self.pmt.fwi  == True:
                     if self.pmt.approximation == "acoustic":
                         d2Udt2 = (save_field[t+1,:,:] - 2.0*save_field[t,:,:] + save_field[t-1,:,:]) / (self.pmt.dt*self.pmt.dt)
@@ -617,13 +620,16 @@ class migration:
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
             if self.pmt.multiparameter == False:
-                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma)
-                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma)
+                mask_eps = np.abs(self.wf.epsilon - np.min(self.wf.epsilon)) < 1e-3 
+                self.epsilon = smooth_parameter(self.wf.epsilon,self.pmt.sigma,mask_eps)
+                mask_delta = np.abs(self.wf.delta - np.min(self.wf.delta)) < 1e-3 
+                self.delta = smooth_parameter(self.wf.delta,self.pmt.sigma,mask_delta)
             self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
             self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             if self.pmt.approximation == "TTI":
                 if self.pmt.multiparameter == False:
-                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma)
+                    mask_theta = np.abs(self.wf.theta - np.min(self.wf.theta)) < 1e-3 
+                    self.theta = smooth_parameter(self.wf.theta,self.pmt.sigma,mask_theta)
                 self.wf.theta_exp = self.wf.ExpandModel(self.theta)
         
         for shot in range(self.pmt.Nshot):
@@ -667,7 +673,7 @@ class migration:
                         u_prev = self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()
                     self.backward_step(t)
                     self.save_snapshotBCK(shot,t)
-                    adj = self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
+                    adj = self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()
                     if self.pmt.fwi  == True:
                         if self.pmt.approximation == "acoustic":
                             d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
@@ -738,13 +744,16 @@ class migration:
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
             if self.pmt.multiparameter == False:
-                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma)
-                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma)
+                mask_eps = np.abs(self.wf.epsilon - np.min(self.wf.epsilon)) < 1e-3 
+                self.epsilon = smooth_parameter(self.wf.epsilon,self.pmt.sigma,mask_eps)
+                mask_delta = np.abs(self.wf.delta - np.min(self.wf.delta)) < 1e-3 
+                self.delta = smooth_parameter(self.wf.delta,self.pmt.sigma,mask_delta)
             self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
             self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             if self.pmt.approximation == "TTI":
                 if self.pmt.multiparameter == False:
-                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma)
+                    mask_theta = np.abs(self.wf.theta - np.min(self.wf.theta)) < 1e-3 
+                    self.theta = smooth_parameter(self.wf.theta,self.pmt.sigma,mask_theta)
                 self.wf.theta_exp = self.wf.ExpandModel(self.theta)
 
         for shot in range(self.pmt.Nshot):
@@ -786,7 +795,7 @@ class migration:
                 self.apply_boundaries(t)           
                 self.backward_step(t)
                 self.save_snapshotBCK(shot,t)
-                adj = self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
+                adj = self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()
                 if self.pmt.fwi  == True:
                     if self.pmt.approximation == "acoustic":
                         d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
@@ -858,13 +867,16 @@ class migration:
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
             if self.pmt.multiparameter == False:
-                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma)
-                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma)
+                mask_eps = np.abs(self.wf.epsilon - np.min(self.wf.epsilon)) < 1e-3 
+                self.epsilon = smooth_parameter(self.wf.epsilon,self.pmt.sigma,mask_eps)
+                mask_delta = np.abs(self.wf.delta - np.min(self.wf.delta)) < 1e-3 
+                self.delta = smooth_parameter(self.wf.delta,self.pmt.sigma,mask_delta)
             self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
             self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             if self.pmt.approximation == "TTI":
                 if self.pmt.multiparameter == False:
-                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma)
+                    mask_theta = np.abs(self.wf.theta - np.min(self.wf.theta)) < 1e-3 
+                    self.theta = smooth_parameter(self.wf.theta,self.pmt.sigma,mask_theta)
                 self.wf.theta_exp = self.wf.ExpandModel(self.theta)
 
         for shot in range(self.pmt.Nshot):
@@ -907,7 +919,7 @@ class migration:
                     u_prev = self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()
                 self.backward_step(t) 
                 self.save_snapshotBCK(shot,t)
-                adj = self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
+                adj = self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()
                 if self.pmt.fwi  == True:
                     if self.pmt.approximation == "acoustic":
                         d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
@@ -981,15 +993,18 @@ class migration:
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
             if self.pmt.multiparameter == False:
-                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma)
-                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma)
+                mask_eps = np.abs(self.wf.epsilon - np.min(self.wf.epsilon)) < 1e-3 
+                self.epsilon = smooth_parameter(self.wf.epsilon,self.pmt.sigma,mask_eps)
+                mask_delta = np.abs(self.wf.delta - np.min(self.wf.delta)) < 1e-3 
+                self.delta = smooth_parameter(self.wf.delta,self.pmt.sigma,mask_delta)
             self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
             self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             self.wf.epsilon_exp  = cp.asarray(self.wf.epsilon_exp, dtype=cp.float32)
             self.wf.delta_exp  = cp.asarray(self.wf.delta_exp, dtype=cp.float32)
             if self.pmt.approximation == "TTI":
                 if self.pmt.multiparameter == False:
-                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma)
+                    mask_theta = np.abs(self.wf.theta - np.min(self.wf.theta)) < 1e-3 
+                    self.theta = smooth_parameter(self.wf.theta,self.pmt.sigma,mask_theta)
                 self.wf.theta_exp = self.wf.ExpandModel(self.theta)
                 self.wf.theta_exp  = cp.asarray(self.wf.theta_exp, dtype=cp.float32)
 
@@ -1029,13 +1044,13 @@ class migration:
             for k in range(self.pmt.nt):
                 self.wf.forward_stepGPU(k)
                 self.wf.store_snapshotGPU(k) 
-                save_field[k,:,:] = self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
+                save_field[k,:,:] = self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()
                 self.ilum_partial += save_field[k,:,:] * save_field[k,:,:] 
                 self.wf.current, self.wf.future = self.wf.future, self.wf.current
             for t in range(self.pmt.nt - 2, 0, -1):
                 self.backward_stepGPU(t)
                 self.store_snapshotBCKGPU(t)
-                adj = self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
+                adj = self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy().copy()
                 if self.pmt.fwi  == True:
                     if self.pmt.approximation == "acoustic":
                         d2Udt2 = (save_field[t+1,:,:] - 2.0*save_field[t,:,:] + save_field[t-1,:,:]) / (self.pmt.dt*self.pmt.dt)
@@ -1043,13 +1058,18 @@ class migration:
                     elif self.pmt.approximation =="VTI":
                         d2Udt2 = (save_field[t+1,:,:] - 2.0*save_field[t,:,:] + save_field[t-1,:,:]) / (self.pmt.dt*self.pmt.dt)
                         self.migrated_partial += d2Udt2 * adj
-                        if self.pmt.multiparameter == True:  
-                            self.epsilon_partial, self.delta_partial = calculateGradientVTICuda(save_field[t,:,:], adj, self.epsilon_partial, self.delta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta)  
+                        if self.pmt.multiparameter == True:
+                            self.epsilon = cp.asarray(self.epsilon, dtype=cp.float32)
+                            self.delta = cp.asarray(self.delta, dtype=cp.float32)  
+                            calculateGradientVTICuda(save_field[t,:,:], adj, self.epsilon_partial, self.delta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta)  
                     elif self.pmt.approximation =="TTI":
                         d2Udt2 = (save_field[t+1,:,:] - 2.0*save_field[t,:,:] + save_field[t-1,:,:]) / (self.pmt.dt*self.pmt.dt)
                         self.migrated_partial += d2Udt2 * adj
-                        if self.pmt.multiparameter == True:    
-                            self.epsilon_partial, self.delta_partial, self.theta_partial = calculateGradientTTICuda(save_field[t,:,:], adj, self.epsilon_partial, self.delta_partial, self.theta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta,self.theta)  
+                        if self.pmt.multiparameter == True:
+                            self.epsilon = cp.asarray(self.epsilon, dtype=cp.float32)
+                            self.delta = cp.asarray(self.delta, dtype=cp.float32)
+                            self.theta = cp.asarray(self.theta, dtype=cp.float32)    
+                            calculateGradientTTICuda(save_field[t,:,:], adj, self.epsilon_partial, self.delta_partial, self.theta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta,self.theta)  
                 else:
                     self.migrated_partial += (save_field[t,:,:] * adj)
                 self.store_imageGPU(t)
@@ -1113,15 +1133,18 @@ class migration:
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
             if self.pmt.multiparameter == False:
-                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma)
-                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma)
+                mask_eps = np.abs(self.wf.epsilon - np.min(self.wf.epsilon)) < 1e-3 
+                self.epsilon = smooth_parameter(self.wf.epsilon,self.pmt.sigma,mask_eps)
+                mask_delta = np.abs(self.wf.delta - np.min(self.wf.delta)) < 1e-3 
+                self.delta = smooth_parameter(self.wf.delta,self.pmt.sigma,mask_delta)
             self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
             self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             self.wf.epsilon_exp  = cp.asarray(self.wf.epsilon_exp, dtype=cp.float32)
             self.wf.delta_exp  = cp.asarray(self.wf.delta_exp, dtype=cp.float32)
             if self.pmt.approximation == "TTI":
                 if self.pmt.multiparameter == False:
-                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma)
+                    mask_theta = np.abs(self.wf.theta - np.min(self.wf.theta)) < 1e-3 
+                    self.theta = smooth_parameter(self.wf.theta,self.pmt.sigma,mask_theta)
                 self.wf.theta_exp = self.wf.ExpandModel(self.theta)
                 self.wf.theta_exp  = cp.asarray(self.wf.theta_exp, dtype=cp.float32)
         
@@ -1178,7 +1201,7 @@ class migration:
                         u_prev = self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()                
                     self.backward_stepGPU(t)
                     self.store_snapshotBCKGPU(t)
-                    adj = self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
+                    adj = self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()
                     if self.pmt.fwi  == True:
                         if self.pmt.approximation == "acoustic":
                             d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
@@ -1186,13 +1209,18 @@ class migration:
                         elif self.pmt.approximation =="VTI":
                             d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
                             self.migrated_partial += d2Udt2 * adj
-                            if self.pmt.multiparameter == True:    
-                                self.epsilon_partial, self.delta_partial = calculateGradientVTICuda(u_curr, adj, self.epsilon_partial, self.delta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta)  
+                            if self.pmt.multiparameter == True:
+                                self.epsilon = cp.asarray(self.epsilon, dtype=cp.float32)
+                                self.delta = cp.asarray(self.delta, dtype=cp.float32)    
+                                calculateGradientVTICuda(u_curr, adj, self.epsilon_partial, self.delta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta)  
                         elif self.pmt.approximation =="TTI":
                             d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
                             self.migrated_partial += d2Udt2 * adj
-                            if self.pmt.multiparameter == True:    
-                                self.epsilon_partial, self.delta_partial, self.theta_partial = calculateGradientTTICuda(u_curr, adj, self.epsilon_partial, self.delta_partial, self.theta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta,self.theta)  
+                            if self.pmt.multiparameter == True:   
+                                self.epsilon = cp.asarray(self.epsilon, dtype=cp.float32)
+                                self.delta = cp.asarray(self.delta, dtype=cp.float32)
+                                self.theta = cp.asarray(self.theta, dtype=cp.float32) 
+                                calculateGradientTTICuda(u_curr, adj, self.epsilon_partial, self.delta_partial, self.theta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta,self.theta)  
                     else:
                         self.migrated_partial += (self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * adj)
                     self.store_imageGPU(t)
@@ -1257,15 +1285,18 @@ class migration:
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
             if self.pmt.multiparameter == False:
-                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma)
-                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma)
+                mask_eps = np.abs(self.wf.epsilon - np.min(self.wf.epsilon)) < 1e-3 
+                self.epsilon = smooth_parameter(self.wf.epsilon,self.pmt.sigma,mask_eps)
+                mask_delta = np.abs(self.wf.delta - np.min(self.wf.delta)) < 1e-3 
+                self.delta = smooth_parameter(self.wf.delta,self.pmt.sigma,mask_delta)
             self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
             self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             self.wf.epsilon_exp  = cp.asarray(self.wf.epsilon_exp, dtype=cp.float32)
             self.wf.delta_exp  = cp.asarray(self.wf.delta_exp, dtype=cp.float32)
             if self.pmt.approximation == "TTI":
                 if self.pmt.multiparameter == False:
-                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma)
+                    mask_theta = np.abs(self.wf.theta - np.min(self.wf.theta)) < 1e-3 
+                    self.theta = smooth_parameter(self.wf.theta,self.pmt.sigma,mask_theta)
                 self.wf.theta_exp = self.wf.ExpandModel(self.theta)
                 self.wf.theta_exp  = cp.asarray(self.wf.theta_exp, dtype=cp.float32)
 
@@ -1319,7 +1350,7 @@ class migration:
                 self.apply_boundaries(t)           
                 self.backward_stepGPU(t)
                 self.store_snapshotBCKGPU(t)
-                adj = self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc]
+                adj = self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()
                 if self.pmt.fwi  == True:
                     if self.pmt.approximation == "acoustic":
                         d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
@@ -1327,13 +1358,18 @@ class migration:
                     elif self.pmt.approximation =="VTI":
                         d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
                         self.migrated_partial += d2Udt2 * adj
-                        if self.pmt.multiparameter == True:    
-                            self.epsilon_partial, self.delta_partial = calculateGradientVTICuda(u_curr, adj, self.epsilon_partial, self.delta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta)  
+                        if self.pmt.multiparameter == True:  
+                            self.epsilon = cp.asarray(self.epsilon, dtype=cp.float32)
+                            self.delta = cp.asarray(self.delta, dtype=cp.float32)  
+                            calculateGradientVTICuda(u_curr, adj, self.epsilon_partial, self.delta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta)  
                     elif self.pmt.approximation =="TTI":
                         d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
                         self.migrated_partial += d2Udt2 * adj
-                        if self.pmt.multiparameter == True:    
-                            self.epsilon_partial, self.delta_partial, self.theta_partial = calculateGradientTTICuda(u_curr, adj, self.epsilon_partial, self.delta_partial,self.theta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta,self.theta)  
+                        if self.pmt.multiparameter == True:  
+                            self.epsilon = cp.asarray(self.epsilon, dtype=cp.float32)
+                            self.delta = cp.asarray(self.delta, dtype=cp.float32)
+                            self.theta = cp.asarray(self.theta, dtype=cp.float32)    
+                            calculateGradientTTICuda(u_curr, adj, self.epsilon_partial, self.delta_partial,self.theta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta,self.theta)  
                 else:
                     self.migrated_partial += (self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * adj)
                 self.store_imageGPU(t)
@@ -1398,15 +1434,18 @@ class migration:
             self.wf.d0, self.wf.f_pico = self.wf.dampening_const()
         if self.pmt.approximation in ["VTI", "TTI"]:
             if self.pmt.multiparameter == False:
-                self.epsilon = smooth_parameter(self.wf.epsilon, self.pmt.sigma)
-                self.delta = smooth_parameter(self.wf.delta, self.pmt.sigma)
+                mask_eps = np.abs(self.wf.epsilon - np.min(self.wf.epsilon)) < 1e-3 
+                self.epsilon = smooth_parameter(self.wf.epsilon,self.pmt.sigma,mask_eps)
+                mask_delta = np.abs(self.wf.delta - np.min(self.wf.delta)) < 1e-3 
+                self.delta = smooth_parameter(self.wf.delta,self.pmt.sigma,mask_delta)
             self.wf.epsilon_exp = self.wf.ExpandModel(self.epsilon)
             self.wf.delta_exp = self.wf.ExpandModel(self.delta)
             self.wf.epsilon_exp  = cp.asarray(self.wf.epsilon_exp, dtype=cp.float32)
             self.wf.delta_exp  = cp.asarray(self.wf.delta_exp, dtype=cp.float32)
             if self.pmt.approximation == "TTI":
                 if self.pmt.multiparameter == False:
-                    self.theta = smooth_parameter(self.wf.theta, self.pmt.sigma)
+                    mask_theta = np.abs(self.wf.theta - np.min(self.wf.theta)) < 1e-3 
+                    self.theta = smooth_parameter(self.wf.theta,self.pmt.sigma,mask_theta)
                 self.wf.theta_exp = self.wf.ExpandModel(self.theta)
                 self.wf.theta_exp  = cp.asarray(self.wf.theta_exp, dtype=cp.float32)
 
@@ -1462,7 +1501,7 @@ class migration:
                     u_prev = self.wf.future[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy()                
                 self.backward_stepGPU(t)
                 self.store_snapshotBCKGPU(t)
-                adj = self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] 
+                adj = self.currentbck[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc].copy() 
                 if self.pmt.fwi  == True:
                     if self.pmt.approximation == "acoustic":
                         d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
@@ -1470,13 +1509,18 @@ class migration:
                     elif self.pmt.approximation =="VTI":
                         d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
                         self.migrated_partial += d2Udt2 * adj
-                        if self.pmt.multiparameter == True:    
-                            self.epsilon_partial, self.delta_partial = calculateGradientVTICuda(u_curr, adj, self.epsilon_partial, self.delta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta)  
+                        if self.pmt.multiparameter == True:
+                            self.epsilon = cp.asarray(self.epsilon, dtype=cp.float32)
+                            self.delta = cp.asarray(self.delta, dtype=cp.float32)  
+                            calculateGradientVTICuda(u_curr, adj, self.epsilon_partial, self.delta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta)  
                     elif self.pmt.approximation =="TTI":
                         d2Udt2 = (u_next - 2.0*u_curr + u_prev) / (self.pmt.dt*self.pmt.dt) 
                         self.migrated_partial += d2Udt2 * adj
-                        if self.pmt.multiparameter == True:    
-                            self.epsilon_partial, self.delta_partial, self.theta_partial = calculateGradientTTICuda(u_curr, adj, self.epsilon_partial, self.delta_partial, self.theta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta,self.theta)  
+                        if self.pmt.multiparameter == True: 
+                            self.epsilon = cp.asarray(self.epsilon, dtype=cp.float32)
+                            self.delta = cp.asarray(self.delta, dtype=cp.float32)
+                            self.theta = cp.asarray(self.theta, dtype=cp.float32)    
+                            calculateGradientTTICuda(u_curr, adj, self.epsilon_partial, self.delta_partial, self.theta_partial, self.pmt.dx, self.pmt.dz, self.pmt.nx, self.pmt.nz,self.epsilon,self.delta,self.theta)  
                 else:
                     self.migrated_partial += (self.wf.current[self.pmt.N_abc:self.pmt.nz_abc - self.pmt.N_abc,self.pmt.N_abc:self.pmt.nx_abc - self.pmt.N_abc] * adj)
                 self.store_imageGPU(t)

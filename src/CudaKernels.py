@@ -1215,37 +1215,37 @@ void calculateGradientVTICuda(const float* current,const float* adj,float* epsil
 
     if (ix >= 4 && ix < nx - 4 && iz >= 4 && iz < nz - 4) 
     {
-        float pxx = (c0 * current[i]
+        double pxx = (c0 * current[i]
                     + c1 * (current[i + 1] + current[i - 1])
                     + c2 * (current[i + 2] + current[i - 2])
                     + c3 * (current[i + 3] + current[i - 3])
                     + c4 * (current[i + 4] + current[i - 4])) / (dx * dx);
 
-        float pzz = (c0 * current[i]
+        double pzz = (c0 * current[i]
                     + c1 * (current[i + nx] + current[i - nx])
                     + c2 * (current[i + 2*nx] + current[i - 2*nx])
                     + c3 * (current[i + 3*nx] + current[i - 3*nx])
                     + c4 * (current[i + 4*nx] + current[i - 4*nx])) / (dz * dz);
 
-        float px = (a1*(current[i+1] - current[i-1]) +
+        double px = (a1*(current[i+1] - current[i-1]) +
                     a2*(current[i+2] - current[i-2]) +
                     a3*(current[i+3] - current[i-3]) +
                     a4*(current[i+4] - current[i-4])) / dx;
 
-        float pz = (a1 * (current[i + nx] - current[i - nx]) +
+        double pz = (a1 * (current[i + nx] - current[i - nx]) +
                     a2 * (current[i + 2*nx] - current[i - 2*nx]) +
                     a3 * (current[i + 3*nx] - current[i - 3*nx]) +
                     a4 * (current[i + 4*nx] - current[i - 4*nx])) / dz;
         
-        float num = -2.0f*(epsilon[i]-delta[i])*(px*px)*(pz*pz);
-        float den = (1.0f + 2.0f*epsilon[i])*(px*px*px*px) + (pz*pz*pz*pz) + 2.0f*(1.0f + delta[i])*(px*px)*(pz*pz);
+        double num = -2.0f*(epsilon[i]-delta[i])*(px*px)*(pz*pz);
+        double den = (1.0f + 2.0f*epsilon[i])*(px*px*px*px) + (pz*pz*pz*pz) + 2.0f*(1.0f + delta[i])*(px*px)*(pz*pz);
 
-        float dnum_deps = -2.0f*px*px*pz*pz;
-        float dnum_ddelta = 2.0f*px*px*pz*pz;
-        float dden_deps = 2.0f*px*px*px*px;
-        float dden_ddelta = 2.0f*px*px*pz*pz;
+        double dnum_deps = -2.0f*px*px*pz*pz;
+        double dnum_ddelta = 2.0f*px*px*pz*pz;
+        double dden_deps = 2.0f*px*px*px*px;
+        double dden_ddelta = 2.0f*px*px*pz*pz;
 
-        if (fabsf(den)<1e-12f){
+        if (fabs(den)<1e-150){
             dSd_deps = 0.0f;
             dSd_ddelta = 0.0f;
         }
@@ -1290,19 +1290,19 @@ void calculateGradientTTICuda(const float* current,const float* adj,float* epsil
 
     if (ix >= 4 && ix < nx - 4 && iz >= 4 && iz < nz - 4)
     {
-        float pxx = (c0 * current[i]
+        double pxx = (c0 * current[i]
             + c1 * (current[i + 1] + current[i - 1])
             + c2 * (current[i + 2] + current[i - 2])
             + c3 * (current[i + 3] + current[i - 3])
             + c4 * (current[i + 4] + current[i - 4])) / (dx * dx);
 
-        float pzz = (c0 * current[i]
+        double pzz = (c0 * current[i]
             + c1 * (current[i + nx] + current[i - nx])
             + c2 * (current[i + 2 * nx] + current[i - 2 * nx])
             + c3 * (current[i + 3 * nx] + current[i - 3 * nx])
             + c4 * (current[i + 4 * nx] + current[i - 4 * nx])) / (dz * dz);
 
-        float pxz = (a1*a1*(current[i + nx + 1] - current[i - nx + 1] + current[i - nx - 1] - current[i + nx - 1])
+        double pxz = (a1*a1*(current[i + nx + 1] - current[i - nx + 1] + current[i - nx - 1] - current[i + nx - 1])
         + a1*a2*(current[i + 2*nx + 1] - current[i - 2*nx + 1] + current[i - 2*nx - 1] - current[i + 2*nx - 1])
         + a1*a3*(current[i + 3*nx + 1] - current[i - 3*nx + 1] + current[i - 3*nx - 1] - current[i + 3*nx - 1])
         + a1*a4*(current[i + 4*nx + 1] - current[i - 4*nx + 1] + current[i - 4*nx - 1] - current[i + 4*nx - 1])
@@ -1322,59 +1322,59 @@ void calculateGradientTTICuda(const float* current,const float* adj,float* epsil
         + a4*a3*(current[i + 3*nx + 4] - current[i - 3*nx + 4] + current[i - 3*nx - 4] - current[i + 3*nx - 4])
         + a4*a4*(current[i + 4*nx + 4] - current[i - 4*nx + 4] + current[i - 4*nx - 4] - current[i + 4*nx - 4])) / (dz * dx);
 
-        float px = (a1 * (current[i + 1] - current[i - 1])
+        double px = (a1 * (current[i + 1] - current[i - 1])
             + a2 * (current[i + 2] - current[i - 2])
             + a3 * (current[i + 3] - current[i - 3])
             + a4 * (current[i + 4] - current[i - 4])) / dx;
 
-        float pz = (a1 * (current[i + nx] - current[i - nx])
+        double pz = (a1 * (current[i + nx] - current[i - nx])
             + a2 * (current[i + 2 * nx] - current[i - 2 * nx])
             + a3 * (current[i + 3 * nx] - current[i - 3 * nx])
             + a4 * (current[i + 4 * nx] - current[i - 4 * nx])) / dz;
 
-        float norm = sqrtf(px * px + pz * pz);
+        double norm = sqrt(px * px + pz * pz);
 
-        float mx = 0.0f;
-        float mz = 0.0f;
+        double mx = 0.0f;
+        double mz = 0.0f;
 
-        if (norm > 1.0e-12f)
+        if (norm > 1.0e-150)
         {
             mx = px / norm;
             mz = pz / norm;
         }
 
-        float eps = epsilon[i];
-        float del = delta[i];
-        float th  = theta[i];
+        double eps = epsilon[i];
+        double del = delta[i];
+        double th  = theta[i];
 
-        float costh = cosf(th);
-        float sinth = sinf(th);
+        double costh = cosf(th);
+        double sinth = sinf(th);
 
-        float h = mx * costh - mz * sinth;
-        float q = mx * sinth + mz * costh;
+        double h = mx * costh - mz * sinth;
+        double q = mx * sinth + mz * costh;
 
-        float h2 = h * h;
-        float q2 = q * q;
+        double h2 = h * h;
+        double q2 = q * q;
 
-        float num = -2.0f * (eps - del) * h2 * q2;
+        double num = -2.0f * (eps - del) * h2 * q2;
 
-        float den =(1.0f + 2.0f * eps) * h2 * h2 + q2 * q2 + 2.0f * (1.0f + del) * h2 * q2;
+        double den =(1.0f + 2.0f * eps) * h2 * h2 + q2 * q2 + 2.0f * (1.0f + del) * h2 * q2;
 
-        float dSd_deps;
-        float dSd_ddelta;
-        float dSd_dtheta;
+        double dSd_deps;
+        double dSd_ddelta;
+        double dSd_dtheta;
 
-        if (fabsf(den) >= 1.0e-12f)
+        if (fabs(den) >= 1.0e-150)
         {
-            float dnum_deps = -2.0f * h2 * q2;
-            float dnum_ddelta = 2.0f * h2 * q2;
+            double dnum_deps = -2.0f * h2 * q2;
+            double dnum_ddelta = 2.0f * h2 * q2;
 
-            float dden_deps = 2.0f * h2 * h2;
-            float dden_ddelta = 2.0f * h2 * q2;
+            double dden_deps = 2.0f * h2 * h2;
+            double dden_ddelta = 2.0f * h2 * q2;
 
-            float dnum_dtheta = -2.0f * (eps - del) * (-2.0f * h * q * q * q+ 2.0f * h * h * h * q);
+            double dnum_dtheta = -2.0f * (eps - del) * (-2.0f * h * q * q * q+ 2.0f * h * h * h * q);
 
-            float dden_dtheta = -4.0f * (1.0f + 2.0f * eps) * h * h * h * q + 4.0f * h * q * q * q + 2.0f * (1.0f + del) * (-2.0f * h * q * q * q+ 2.0f * h * h * h * q);
+            double dden_dtheta = -4.0f * (1.0f + 2.0f * eps) * h * h * h * q + 4.0f * h * q * q * q + 2.0f * (1.0f + del) * (-2.0f * h * q * q * q+ 2.0f * h * h * h * q);
 
             dSd_deps = (dnum_deps * den - num * dden_deps) / (den * den);
 
@@ -1383,20 +1383,20 @@ void calculateGradientTTICuda(const float* current,const float* adj,float* epsil
             dSd_dtheta = (dnum_dtheta * den - num * dden_dtheta) / (den * den);
         }
 
-        float sin2th = sinf(2.0f * th);
-        float cos2th = cosf(2.0f * th);
+        double sin2th = sinf(2.0f * th);
+        double cos2th = cosf(2.0f * th);
 
-        float dA_dtheta = -2.0f * eps * sin2th + dSd_dtheta;
+        double dA_dtheta = -2.0f * eps * sin2th + dSd_dtheta;
 
-        float dB_dtheta = 2.0f * eps * sin2th + dSd_dtheta;
+        double dB_dtheta = 2.0f * eps * sin2th + dSd_dtheta;
 
-        float dC_dtheta = 4.0f * eps * cos2th;
+        double dC_dtheta = 4.0f * eps * cos2th;
 
-        float dP_deps = (2.0f * costh * costh + dSd_deps) * pxx + (2.0f * sinth * sinth + dSd_deps) * pzz- 2.0f * sin2th * pxz;
+        double dP_deps = (2.0f * costh * costh + dSd_deps) * pxx + (2.0f * sinth * sinth + dSd_deps) * pzz- 2.0f * sin2th * pxz;
 
-        float dP_ddelta = dSd_ddelta * (pxx + pzz);
+        double dP_ddelta = dSd_ddelta * (pxx + pzz);
 
-        float dP_dtheta = dA_dtheta * pxx + dB_dtheta * pzz - dC_dtheta * pxz;
+        double dP_dtheta = dA_dtheta * pxx + dB_dtheta * pzz - dC_dtheta * pxz;
 
         epsilon_partial[i] += adj[i] * dP_deps;
         delta_partial[i]   += adj[i] * dP_ddelta;
